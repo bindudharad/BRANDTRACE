@@ -1,0 +1,44 @@
+
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="96" fill="#0A0F1D"/>
+
+  <!-- Frog Group Scaled & Positioned -->
+  <g transform="translate(17.142857142857167, 47.00000000000003) scale(2.9857142857142853)">
+    
+    <!-- LAYER 1: Wide Deep Bloom -->
+    <g stroke="#00E5FF" stroke-width="24" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 64 34 C 70 32, 90 32, 96 34 C 100 24, 114 24, 117 35 C 119 43, 115 50, 110 54 C 120 62, 122 75, 112 85 C 96 95, 64 95, 48 85 C 38 75, 40 62, 50 54 C 45 50, 41 43, 43 35 C 46 24, 60 24, 64 34 Z" />
+      <path d="M 44 68 C 32 68, 22 74, 23 88 C 24 96, 20 102, 16 106 C 14 108, 16 110, 20 110 L 48 110 C 56 110, 52 98, 43 90 C 40 86, 38 80, 42 75" />
+      <path d="M 116 68 C 128 68, 138 74, 137 88 C 136 96, 140 102, 144 106 C 146 108, 144 110, 140 110 L 112 110 C 104 110, 108 98, 117 90 C 120 86, 122 80, 118 75" />
+    </g>
+
+    <!-- LAYER 2: Vibrant Mid Glow -->
+    <g stroke="#00F0FF" stroke-width="14" stroke-opacity="0.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 64 34 C 70 32, 90 32, 96 34 C 100 24, 114 24, 117 35 C 119 43, 115 50, 110 54 C 120 62, 122 75, 112 85 C 96 95, 64 95, 48 85 C 38 75, 40 62, 50 54 C 45 50, 41 43, 43 35 C 46 24, 60 24, 64 34 Z" />
+      <path d="M 44 68 C 32 68, 22 74, 23 88 C 24 96, 20 102, 16 106 C 14 108, 16 110, 20 110 L 48 110 C 56 110, 52 98, 43 90 C 40 86, 38 80, 42 75" />
+      <path d="M 116 68 C 128 68, 138 74, 137 88 C 136 96, 140 102, 144 106 C 146 108, 144 110, 140 110 L 112 110 C 104 110, 108 98, 117 90 C 120 86, 122 80, 118 75" />
+    </g>
+
+    <!-- LAYER 3: Solid Bright Cyan Body Line -->
+    <g stroke="#00F0FF" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 64 34 C 70 32, 90 32, 96 34 C 100 24, 114 24, 117 35 C 119 43, 115 50, 110 54 C 120 62, 122 75, 112 85 C 96 95, 64 95, 48 85 C 38 75, 40 62, 50 54 C 45 50, 41 43, 43 35 C 46 24, 60 24, 64 34 Z" />
+      <path d="M 44 68 C 32 68, 22 74, 23 88 C 24 96, 20 102, 16 106 C 14 108, 16 110, 20 110 L 48 110 C 56 110, 52 98, 43 90 C 40 86, 38 80, 42 75" />
+      <path d="M 116 68 C 128 68, 138 74, 137 88 C 136 96, 140 102, 144 106 C 146 108, 144 110, 140 110 L 112 110 C 104 110, 108 98, 117 90 C 120 86, 122 80, 118 75" />
+    </g>
+
+    <!-- LAYER 4: Bright White Core Line (Guarantees crisp visibility) -->
+    <g stroke="#E6FFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 64 34 C 70 32, 90 32, 96 34 C 100 24, 114 24, 117 35 C 119 43, 115 50, 110 54 C 120 62, 122 75, 112 85 C 96 95, 64 95, 48 85 C 38 75, 40 62, 50 54 C 45 50, 41 43, 43 35 C 46 24, 60 24, 64 34 Z" />
+      <path d="M 44 68 C 32 68, 22 74, 23 88 C 24 96, 20 102, 16 106 C 14 108, 16 110, 20 110 L 48 110 C 56 110, 52 98, 43 90 C 40 86, 38 80, 42 75" />
+      <path d="M 116 68 C 128 68, 138 74, 137 88 C 136 96, 140 102, 144 106 C 146 108, 144 110, 140 110 L 112 110 C 104 110, 108 98, 117 90 C 120 86, 122 80, 118 75" />
+    </g>
+
+    <!-- Eyes: Outer Glow, Cyan Base, White Pupil -->
+    <circle cx="53" cy="38" r="8" fill="#00F0FF" fill-opacity="0.4" />
+    <circle cx="107" cy="38" r="8" fill="#00F0FF" fill-opacity="0.4" />
+    <circle cx="53" cy="38" r="5" fill="#00F0FF" />
+    <circle cx="107" cy="38" r="5" fill="#00F0FF" />
+    <circle cx="53" cy="38" r="2.2" fill="#FFFFFF" />
+    <circle cx="107" cy="38" r="2.2" fill="#FFFFFF" />
+  </g>
+</svg>

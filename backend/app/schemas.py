@@ -1,0 +1,219 @@
+"""
+Pydantic Request & Response Schemas for BRANDTRACE API.
+"""
+from __future__ import annotations
+
+from typing import Literal, Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+
+from .config import MAX_CONTENT_CHARS
+
+class WorkspaceOut(BaseModel):
+    id: str
+    name: str
+    demo_mode: bool = True
+
+class BrandProfileIn(BaseModel):
+    brand_name: str = Field(..., min_length=2, max_length=120)
+    primary_color: str = Field(..., pattern=r"^#?[0-9a-fA-F]{6}$")
+    secondary_color: str = Field(..., pattern=r"^#?[0-9a-fA-F]{6}$")
+    accent_colors: List[str] = Field(default_factory=list)
+    min_contrast_ratio: float = Field(4.5, ge=1.0, le=21.0)
+    approved_logo_aspect: Optional[float] = Field(None, ge=0.1, le=10.0)
+
+class BrandProfileOut(BrandProfileIn):
+    id: str
+    workspace_id: str
+    updated_at: str
+
+class RuleIn(BaseModel):
+    title: str = Field(..., min_length=2, max_length=120)
+    category: str = Field("terminology", max_length=60)
+    kind: Literal["required_phrase", "prohibited_phrase", "approved_term", "forbidden_term", "tone_rule"]
+    pattern: str = Field(..., min_length=1, max_length=200)
+    requirement: str = Field(..., min_length=2, max_length=500)
+    severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = "HIGH"
+    source_title: str = Field(..., min_length=2, max_length=160)
+    source_excerpt: str = Field(..., min_length=3, max_length=600)
+    version: str = "1.0"
+    status: Literal["APPROVED", "DRAFT", "RETIRED"] = "APPROVED"
+    owner: str = Field("Brand Admin", max_length=120)
+    effective_at: Optional[str] = None
+    expires_at: Optional[str] = None
+
+class RuleUpdateIn(BaseModel):
+    title: Optional[str] = Field(None, min_length=2, max_length=120)
+    category: Optional[str] = None
+    kind: Optional[Literal["required_phrase", "prohibited_phrase", "approved_term", "forbidden_term", "tone_rule"]] = None
+    pattern: Optional[str] = None
+    requirement: Optional[str] = None
+    severity: Optional[Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]] = None
+    status: Optional[Literal["APPROVED", "DRAFT", "RETIRED"]] = None
+    version: Optional[str] = None
+    source_title: Optional[str] = None
+    source_excerpt: Optional[str] = None
+    expires_at: Optional[str] = None
+
+class RuleOut(BaseModel):
+    id: str
+    workspace_id: str = "ws_default"
+    title: str
+    category: str
+    kind: str
+    pattern: str
+    requirement: str
+    severity: str
+    version: str
+    status: str
+    owner: str
+    source_title: str
+    source_excerpt: str
+    effective_at: Optional[str] = None
+    expires_at: Optional[str] = None
+
+class FactIn(BaseModel):
+    claim: str = Field(..., min_length=2, max_length=200)
+    value: str = Field(..., min_length=1, max_length=500)
+    owner: str = Field(..., min_length=2, max_length=120)
+    source_title: str = Field(..., min_length=2, max_length=160)
+    source_excerpt: str = Field(..., min_length=3, max_length=600)
+    version: str = "1.0"
+    status: Literal["APPROVED", "DRAFT", "RETIRED"] = "APPROVED"
+    review_at: Optional[str] = None
+    effective_at: Optional[str] = None
+    expires_at: Optional[str] = None
+
+class FactUpdateIn(BaseModel):
+    claim: Optional[str] = None
+    value: Optional[str] = None
+    owner: Optional[str] = None
+    status: Optional[Literal["APPROVED", "DRAFT", "RETIRED"]] = None
+    version: Optional[str] = None
+    source_title: Optional[str] = None
+    source_excerpt: Optional[str] = None
+    expires_at: Optional[str] = None
+
+class FactOut(BaseModel):
+    id: str
+    workspace_id: str = "ws_default"
+    claim: str
+    value: str
+    owner: str
+    status: str
+    version: str
+    source_title: str
+    source_excerpt: str
+    review_at: Optional[str] = None
+    effective_at: Optional[str] = None
+    expires_at: Optional[str] = None
+
+class ReviewIn(BaseModel):
+    title: str = Field(..., min_length=2, max_length=160)
+    content: str = Field(..., min_length=1, max_length=MAX_CONTENT_CHARS)
+    content_type: Literal["marketing_copy", "email", "social", "web", "document", "image"] = "marketing_copy"
+
+class FindingAction(BaseModel):
+    action: Literal["accept", "edit", "dismiss", "escalate"]
+    reason: Optional[str] = Field(None, max_length=500)
+    replacement: Optional[str] = Field(None, max_length=MAX_CONTENT_CHARS)
+
+class ApprovalAction(BaseModel):
+    action: Literal["approve", "request_changes", "waive"]
+    reason: Optional[str] = Field(None, max_length=500)
+
+class EvidenceFinding(BaseModel):
+    id: str
+    review_id: str
+    category: str
+    type: str
+    severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    status: Literal["SUPPORTED", "CONTRADICTED", "OUTDATED", "UNSUPPORTED_BY_APPROVED_EVIDENCE", "NEEDS_REVIEW"]
+    passage: str
+    explanation: str
+    suggested_correction: Optional[str] = None
+    source_id: Optional[str] = None
+    source_title: Optional[str] = None
+    source_excerpt: Optional[str] = None
+    source_version: Optional[str] = None
+    analysis_method: str = "DETERMINISTIC"
+    uncertainty: Optional[str] = None
+    disposition: Optional[str] = None
+    disposition_reason: Optional[str] = None
+    disposition_by: Optional[str] = None
+    disposition_at: Optional[str] = None
+
+class DraftVersion(BaseModel):
+    id: str
+    review_id: str
+    content: str
+    created_at: str
+    created_by: str = "creator"
+    reason: str
+
+class ReviewOut(BaseModel):
+    id: str
+    workspace_id: str = "ws_default"
+    title: str
+    content: str
+    content_type: str
+    status: str
+    score: int
+    author: str = "creator@demo.com"
+    reviewer: Optional[str] = None
+    file_name: Optional[str] = None
+    file_mime: Optional[str] = None
+    file_size: Optional[int] = None
+    analysis_method: str = "DETERMINISTIC_FIRST"
+    rule_versions: str
+    created_at: str
+    updated_at: str
+    findings: List[EvidenceFinding] = Field(default_factory=list)
+    versions: Optional[List[DraftVersion]] = None
+
+class AuditEntry(BaseModel):
+    id: str
+    workspace_id: str = "ws_default"
+    review_id: str
+    action: str
+    actor: str
+    actor_role: str = "reviewer"
+    reason: Optional[str] = None
+    details: Optional[str] = None
+    created_at: str
+
+class OverviewMetrics(BaseModel):
+    total_reviews: int
+    open_findings: int
+    pending_approval: int
+    approved: int
+    rules_count: int = 0
+    facts_count: int = 0
+
+class OverviewOut(BaseModel):
+    workspace: WorkspaceOut
+    reviews: List[ReviewOut]
+    metrics: Dict[str, int]
+    brand_profile: Optional[BrandProfileOut] = None
+
+class InsightsOut(BaseModel):
+    recurring: List[Dict[str, Any]]
+    unresolved: int
+    dismissed: int
+    unclear_rules: List[Dict[str, Any]]
+    by_severity: Dict[str, int] = Field(default_factory=dict)
+    by_evidence_status: Dict[str, int] = Field(default_factory=dict)
+    disagreements_count: int = 0
+
+class ImpactItem(BaseModel):
+    item_type: Literal["FACT", "RULE"]
+    item_id: str
+    item_title: str
+    status: str
+    expires_at: Optional[str] = None
+    affected_review_ids: List[str]
+    affected_review_titles: List[str]
+    re_review_urgency: Literal["URGENT", "RECOMMENDED", "INFORMATIONAL"]
+
+class ImpactMapOut(BaseModel):
+    total_impacted_drafts: int
+    items: List[ImpactItem]

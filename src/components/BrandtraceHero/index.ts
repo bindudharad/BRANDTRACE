@@ -1,0 +1,1 @@
+export { BrandtraceHero } from './BrandtraceHero';

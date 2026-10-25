@@ -1,3 +1,52 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────────────────────────────────────
+build/
+dist/
+coverage/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.coverage
+*.egg-info/
+
+# ── Local databases (development data only) ───────────────────────────────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.production.example
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+output/
+
+# ── OS / IDE ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# ── Uploads / temp ────────────────────────────────────────────────────────────
+uploads/
+*.tmp
 node_modules/
 .venv/
 venv/

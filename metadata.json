@@ -1,0 +1,6 @@
+{
+  "name": "BRANDTRACE",
+  "description": "Evidence-linked brand governance platform for organisations managing content across multiple creators, agencies, and AI tools. Features a deterministic policy engine, time-aware claim ledger, human approval gate, and immutable audit trail.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

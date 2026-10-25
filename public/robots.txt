@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# BRANDTRACE — Evidence-Aware Brand Governance Platform
+# Update the Sitemap URL after deploying to your own domain.
+# Sitemap: https://YOUR_DOMAIN/sitemap.xml
