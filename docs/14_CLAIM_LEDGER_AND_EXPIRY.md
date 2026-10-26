@@ -29,6 +29,7 @@ Rather than allowing authors or generative AI to synthesize unsubstantiated clai
 * `source_id`: Reference identifier linking to an external documentation store or contract.
 * `source_title`: Title of the source document (e.g., "Q4 Commercial Launch Brief").
 * `source_excerpt`: Verifiable excerpt providing evidentiary proof.
+* `notes`: Operational guidance, validation caveats, or legal disclaimers attached by brand administrators.
 * `effective_at`: UTC ISO timestamp marking the beginning of validity.
 * `expires_at`: UTC ISO timestamp marking the hard expiration date of the evidence.
 

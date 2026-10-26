@@ -82,6 +82,7 @@ class FactIn(BaseModel):
     review_at: Optional[str] = None
     effective_at: Optional[str] = None
     expires_at: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=1000)
 
 class FactUpdateIn(BaseModel):
     claim: Optional[str] = None
@@ -92,6 +93,7 @@ class FactUpdateIn(BaseModel):
     source_title: Optional[str] = None
     source_excerpt: Optional[str] = None
     expires_at: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=1000)
 
 class FactOut(BaseModel):
     id: str
@@ -106,6 +108,7 @@ class FactOut(BaseModel):
     review_at: Optional[str] = None
     effective_at: Optional[str] = None
     expires_at: Optional[str] = None
+    notes: Optional[str] = None
 
 class ReviewIn(BaseModel):
     title: str = Field(..., min_length=2, max_length=160)
@@ -210,10 +213,72 @@ class ImpactItem(BaseModel):
     item_title: str
     status: str
     expires_at: Optional[str] = None
+    expiry_date: Optional[str] = None
     affected_review_ids: List[str]
     affected_review_titles: List[str]
+    affected_count: int = 0
     re_review_urgency: Literal["URGENT", "RECOMMENDED", "INFORMATIONAL"]
 
 class ImpactMapOut(BaseModel):
     total_impacted_drafts: int
     items: List[ImpactItem]
+
+# ---------------------------------------------------------------------------
+# Round 3 schemas
+# ---------------------------------------------------------------------------
+
+class BrandAssetIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    asset_type: str = Field("image", max_length=50)
+    content_hash: Optional[str] = Field(None, max_length=128)
+    source: Optional[str] = Field(None, max_length=300)
+    license_status: Literal["APPROVED", "RESTRICTED", "UNKNOWN", "REVIEW_REQUIRED"] = "UNKNOWN"
+    license_notes: Optional[str] = Field(None, max_length=500)
+    approval_status: Literal["APPROVED", "RESTRICTED", "UNKNOWN", "REVIEW_REQUIRED"] = "REVIEW_REQUIRED"
+
+class BrandAssetOut(BaseModel):
+    id: str
+    name: str
+    asset_type: str
+    content_hash: Optional[str] = None
+    source: Optional[str] = None
+    license_status: str
+    license_notes: Optional[str] = None
+    approval_status: str
+    workspace_id: str = "ws_default"
+    created_at: str
+    updated_at: str
+
+class GuidelineSuggestion(BaseModel):
+    observed_issue: str
+    proposed_clarification: str
+    ambiguity_addressed: str
+
+class GuidelineHealthItem(BaseModel):
+    rule_id: str
+    rule_title: str
+    rule_severity: str
+    affected_draft_count: int
+    finding_count: int
+    accepted_count: int
+    dismissed_count: int
+    escalated_count: int
+    waived_count: int
+    disagreement_detected: bool
+    data_confidence: Literal["SUFFICIENT", "INSUFFICIENT"]
+    representative_finding_ids: List[str]
+    suggestion: Optional[GuidelineSuggestion] = None
+
+class RuleSuggestionAction(BaseModel):
+    action: Literal["accept", "defer", "reject"]
+
+class RuleSuggestionOut(BaseModel):
+    id: str
+    rule_id: str
+    observed_issue: Optional[str] = None
+    proposed_clarification: Optional[str] = None
+    ambiguity_addressed: Optional[str] = None
+    status: str
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    created_at: str

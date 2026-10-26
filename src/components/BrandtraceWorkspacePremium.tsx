@@ -10,6 +10,9 @@ import {
   ImpactMap,
   UserRole,
   setSimulatedUser,
+  BrandAsset,
+  GuidelineHealthItem,
+  RuleSuggestion,
 } from '../services/api';
 import {
   LayoutDashboard,
@@ -37,6 +40,7 @@ import {
   Filter,
   Info,
   AlertTriangle,
+  Palette,
 } from 'lucide-react';
 
 export type View =
@@ -118,6 +122,18 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
   const [impactMap, setImpactMap] = useState<ImpactMap | null>(null);
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
   const [selected, setSelected] = useState<Review | null>(null);
+  const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
+  const [guidelineHealth, setGuidelineHealth] = useState<GuidelineHealthItem[]>([]);
+  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [newAsset, setNewAsset] = useState<Partial<BrandAsset>>({
+    name: '',
+    asset_type: 'image',
+    content_hash: '',
+    source: '',
+    license_status: 'APPROVED',
+    approval_status: 'APPROVED',
+    license_notes: '',
+  });
 
   // Review submission state
   const [title, setTitle] = useState('Launch announcement — Q4');
@@ -129,7 +145,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
   const [busy, setBusy] = useState(false);
 
   // Constitution tabs & modals
-  const [constTab, setConstTab] = useState<'rules' | 'facts' | 'profile'>('rules');
+  const [constTab, setConstTab] = useState<'rules' | 'facts' | 'assets' | 'profile'>('rules');
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isFactModalOpen, setIsFactModalOpen] = useState(false);
   const [newRule, setNewRule] = useState<Partial<Rule>>({
@@ -151,6 +167,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
     source_excerpt: '',
     status: 'APPROVED',
     expires_at: '',
+    notes: '',
   });
 
   // File upload state
@@ -167,7 +184,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
 
   const refresh = async () => {
     try {
-      const [, r, f, v, i, bp, im] = await Promise.all([
+      const [, r, f, v, i, bp, im, assets, gHealth] = await Promise.all([
         api.overview(),
         api.rules(),
         api.facts(),
@@ -175,6 +192,8 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         api.insights(),
         api.brandProfile().catch(() => null),
         api.impactMap().catch(() => null),
+        api.brandAssets().catch(() => []),
+        api.guidelineHealth().catch(() => []),
       ]);
       setRules(r);
       setFacts(f);
@@ -182,6 +201,8 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
       setInsights(i);
       if (bp) setBrandProfile(bp);
       if (im) setImpactMap(im);
+      if (assets) setBrandAssets(assets);
+      if (gHealth) setGuidelineHealth(gHealth);
       if (selected) {
         setSelected(v.find((x) => x.id === selected.id) || null);
       }
@@ -381,12 +402,50 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         source_excerpt: '',
         status: 'APPROVED',
         expires_at: '',
+        notes: '',
       });
       await refresh();
       setSuccess('Approved fact recorded in claim ledger.');
       setTimeout(() => setSuccess(''), 4000);
     } catch (e) {
       setError((e as Error).message);
+    }
+  };
+
+  const handleCreateAsset = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newAsset.name) return;
+    try {
+      await api.registerAsset(newAsset);
+      await refresh();
+      setIsAssetModalOpen(false);
+      setSuccess(`Asset '${newAsset.name}' registered in brand registry.`);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleDeleteAsset = async (id: string, name: string) => {
+    if (!confirm(`Remove asset '${name}' from registry?`)) return;
+    try {
+      await api.deleteAsset(id);
+      await refresh();
+      setSuccess(`Asset '${name}' removed from registry.`);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleRuleSuggestionAction = async (ruleId: string, action: 'accept' | 'defer' | 'reject') => {
+    try {
+      await api.ruleSuggestion(ruleId, action);
+      await refresh();
+      setSuccess(`Guideline suggestion for ${ruleId} marked as ${action.toUpperCase()}.`);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 
@@ -469,7 +528,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
             <p style={{ color: '#fbbf24', fontSize: 14, marginBottom: 8 }}>
               Connection to the FastAPI backend is taking longer than expected.
             </p>
-            <p style={{ color: '#8da4bc', fontSize: 13, marginBottom: 16 }}>
+            <p style={{ color: '#617168', fontSize: 13, marginBottom: 16 }}>
               Ensure <code style={{ color: '#2dd4bf' }}>uvicorn app.main:app --port 8000</code> is running in <code style={{ color: '#2dd4bf' }}>backend/</code>.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
@@ -492,7 +551,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
             </div>
           </div>
         ) : (
-          <p style={{ color: '#8da4bc', fontSize: 14 }}>
+          <p style={{ color: '#617168', fontSize: 14 }}>
             Initializing evidence-linked brand governance workspace…
           </p>
         )}
@@ -505,8 +564,8 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
       style={{
         display: 'flex',
         minHeight: '100vh',
-        background: '#04080f',
-        color: '#e8f0f8',
+        background: '#F6F8F6',
+        color: '#15251E',
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       }}
     >
@@ -514,8 +573,9 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
       <aside
         style={{
           width: 260,
-          background: '#060d16',
-          borderRight: '1px solid #1a3045',
+          background: '#123B2D',
+          borderRight: '1px solid #0A241B',
+          color: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
           height: '100vh',
@@ -529,29 +589,29 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         }}
       >
         {/* Brand Header */}
-        <div style={{ padding: '0 6px 16px', borderBottom: '1px solid #1a3045', marginBottom: 8 }}>
+        <div style={{ padding: '0 6px 16px', borderBottom: '1px solid #1A4E3D', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               style={{
                 width: 38,
                 height: 38,
-                background: 'linear-gradient(135deg, #0d9488, #2dd4bf)',
+                background: '#0E9F78',
                 borderRadius: 10,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 18,
                 color: '#fff',
-                boxShadow: '0 0 16px rgba(45, 212, 191, 0.3)',
+                boxShadow: '0 2px 8px rgba(14, 159, 120, 0.3)',
               }}
             >
-              ◈
+              <Shield size={20} className="text-white" />
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: '0.08em', color: '#e8f0f8' }}>
+              <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: '0.08em', color: '#FFFFFF' }}>
                 BRANDTRACE
               </div>
-              <div style={{ fontSize: 10, color: '#2dd4bf', letterSpacing: '0.05em', fontWeight: 700 }}>
+              <div style={{ fontSize: 10, color: '#A6CDBA', letterSpacing: '0.05em', fontWeight: 700 }}>
                 GOVERNANCE
               </div>
             </div>
@@ -561,12 +621,12 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         {/* Demo Mode Badge */}
         <div
           style={{
-            background: 'rgba(13, 148, 136, 0.15)',
-            border: '1px solid rgba(45, 212, 191, 0.3)',
+            background: 'rgba(14, 159, 120, 0.2)',
+            border: '1px solid #0E9F78',
             borderRadius: 8,
             padding: '7px 10px',
             fontSize: 11,
-            color: '#5eead4',
+            color: '#FFFFFF',
             fontWeight: 700,
             letterSpacing: '0.04em',
             display: 'flex',
@@ -574,8 +634,8 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
             gap: 6,
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2dd4bf' }} />
-          LOCAL DEMO · Judge Mode
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0E9F78' }} />
+          LOCAL DEMO &middot; Judge Mode
         </div>
 
         {/* Nav Items */}
@@ -597,25 +657,25 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
           })}
         </nav>
 
-        {/* Return to 3D Experience (Hero) */}
+        {/* Return to Platform Overview (Hero) */}
         {onBackToHero && (
           <button
             className="btn-secondary btn-sm"
             onClick={onBackToHero}
-            style={{ width: '100%', marginBottom: 12, justifyContent: 'center', fontSize: 12 }}
+            style={{ width: '100%', marginBottom: 12, justifyContent: 'center', fontSize: 12, background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)', color: '#FFFFFF' }}
           >
-            <Sparkles size={14} /> Back to 3D Experience
+            <Sparkles size={14} /> Back to Platform Overview
           </button>
         )}
 
         {/* Role Simulator */}
-        <div style={{ borderTop: '1px solid #1a3045', paddingTop: 14 }}>
-          <div className="label-sm">Simulated Role</div>
+        <div style={{ borderTop: '1px solid #1A4E3D', paddingTop: 14 }}>
+          <div className="label-sm" style={{ color: '#B3C7BD' }}>Simulated Role</div>
           <select
             className="input-premium"
             value={role}
             onChange={(e) => handleRoleChange(e.target.value as UserRole)}
-            style={{ minHeight: 38, fontSize: 13, padding: '6px 10px' }}
+            style={{ minHeight: 38, fontSize: 13, padding: '6px 10px', background: '#0A241B', borderColor: '#1A4E3D', color: '#FFFFFF' }}
           >
             <option value="reviewer">Reviewer (Actions & Approvals)</option>
             <option value="creator">Creator (Draft Submissions)</option>
@@ -625,9 +685,9 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         </div>
 
         {/* Governance Policy Notice */}
-        <div style={{ borderTop: '1px solid #1a3045', paddingTop: 12, fontSize: 11, color: '#5a7a96', lineHeight: 1.5 }}>
-          <p><b style={{ color: '#8da4bc' }}>Deterministic First:</b> Exact rules run independently of external AI.</p>
-          <p style={{ marginTop: 6 }}><b style={{ color: '#8da4bc' }}>NEEDS_REVIEW:</b> Unverified claims require human review.</p>
+        <div style={{ borderTop: '1px solid #1A4E3D', paddingTop: 12, fontSize: 11, color: '#B3C7BD', lineHeight: 1.5 }}>
+          <p><b style={{ color: '#FFFFFF' }}>Deterministic First:</b> Exact rules run independently of external AI.</p>
+          <p style={{ marginTop: 6 }}><b style={{ color: '#FFFFFF' }}>NEEDS_REVIEW:</b> Unverified claims require human review.</p>
         </div>
       </aside>
 
@@ -636,21 +696,23 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         {/* Sticky Header */}
         <header
           style={{
-            padding: '20px 36px',
-            borderBottom: '1px solid #1a3045',
+            padding: '18px 36px',
+            borderBottom: '1px solid #DCE5DF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(6, 13, 22, 0.92)',
+            background: 'rgba(255, 255, 255, 0.96)',
             position: 'sticky',
             top: 0,
             zIndex: 40,
-            backdropFilter: 'blur(16px)',
+            backdropFilter: 'blur(12px)',
           }}
         >
           <div>
-            <div className="section-eyebrow">NORTHSTAR DEMO WORKSPACE / ROUND 2</div>
-            <h1 style={{ margin: '4px 0 0', fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', color: '#f0f8ff' }}>
+            <div className="section-eyebrow" style={{ color: '#0E9F78', fontWeight: 700, fontSize: 11 }}>
+              EVIDENCE-LINKED BRAND GOVERNANCE / ROUND 3
+            </div>
+            <h1 style={{ margin: '3px 0 0', fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', color: '#123B2D' }}>
               {view}
             </h1>
           </div>
@@ -711,7 +773,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                 }}
               >
                 {[
-                  { title: 'Total Reviews', value: reviews.length, hint: 'Stored draft records', icon: FileText, color: '#67e8f9' },
+                  { title: 'Total Reviews', value: reviews.length, hint: 'Stored draft records', icon: FileText, color: '#0E9F78' },
                   { title: 'Open Findings', value: insights?.unresolved || 0, hint: 'Awaiting reviewer action', icon: AlertCircle, color: '#fbbf24' },
                   {
                     title: 'Pending Approval',
@@ -795,30 +857,30 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                   <div className="card-premium">
                     <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Active Brand Guidelines</h2>
                     <div style={{ display: 'grid', gap: 12, fontSize: 13 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #1a3045' }}>
-                        <span style={{ color: '#8da4bc' }}>Primary Brand Palette:</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #DCE5DF' }}>
+                        <span style={{ color: '#617168' }}>Primary Brand Palette:</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ width: 18, height: 18, borderRadius: 4, background: brandProfile?.primary_color || '#0f766e', border: '1px solid rgba(255,255,255,0.2)' }} />
                           <code>{brandProfile?.primary_color || '#0f766e'}</code>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #1a3045' }}>
-                        <span style={{ color: '#8da4bc' }}>Secondary Accent:</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #DCE5DF' }}>
+                        <span style={{ color: '#617168' }}>Secondary Accent:</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ width: 18, height: 18, borderRadius: 4, background: brandProfile?.secondary_color || '#2dd4bf', border: '1px solid rgba(255,255,255,0.2)' }} />
                           <code>{brandProfile?.secondary_color || '#2dd4bf'}</code>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #1a3045' }}>
-                        <span style={{ color: '#8da4bc' }}>WCAG Contrast Standard:</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #DCE5DF' }}>
+                        <span style={{ color: '#617168' }}>WCAG Contrast Standard:</span>
                         <strong style={{ color: '#2dd4bf' }}>{brandProfile?.min_contrast_ratio || 4.5}:1 (Normal text AA)</strong>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #1a3045' }}>
-                        <span style={{ color: '#8da4bc' }}>Active Constitution Rules:</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #DCE5DF' }}>
+                        <span style={{ color: '#617168' }}>Active Constitution Rules:</span>
                         <strong>{rules.length} verified rules</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#8da4bc' }}>Approved Claim Ledger:</span>
+                        <span style={{ color: '#617168' }}>Approved Claim Ledger:</span>
                         <strong>{facts.length} verified assertions</strong>
                       </div>
                     </div>
@@ -827,13 +889,13 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                   <div
                     style={{
                       background: 'rgba(13, 42, 64, 0.4)',
-                      border: '1px solid #1a3045',
+                      border: '1px solid #DCE5DF',
                       borderLeft: '4px solid #2dd4bf',
                       borderRadius: 10,
                       padding: '16px 20px',
                       fontSize: 13,
                       lineHeight: 1.6,
-                      color: '#cbd5e1',
+                      color: 'var(--bt-text-secondary)',
                     }}
                   >
                     <b style={{ color: '#2dd4bf' }}>Evidence-Linked Governance Active:</b> Every finding links to an approved rule or fact ID.
@@ -850,7 +912,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
              ========================================================================= */}
           {view === 'Brand Constitution' && (
             <div>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid #1a3045', paddingBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid #DCE5DF', paddingBottom: 12 }}>
                 <button
                   className={`btn-secondary btn-sm ${constTab === 'rules' ? 'btn-primary' : ''}`}
                   onClick={() => setConstTab('rules')}
@@ -862,6 +924,12 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                   onClick={() => setConstTab('facts')}
                 >
                   <Scale size={14} /> Claim Ledger & Verified Facts ({facts.length})
+                </button>
+                <button
+                  className={`btn-secondary btn-sm ${constTab === 'assets' ? 'btn-primary' : ''}`}
+                  onClick={() => setConstTab('assets')}
+                >
+                  <Palette size={14} /> Brand Asset Registry ({brandAssets.length})
                 </button>
                 <button
                   className={`btn-secondary btn-sm ${constTab === 'profile' ? 'btn-primary' : ''}`}
@@ -877,7 +945,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Approved Brand Rules</h2>
-                      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#8da4bc' }}>
+                      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#617168' }}>
                         Deterministic rules enforced on all content drafts before publication.
                       </p>
                     </div>
@@ -891,8 +959,8 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                       <div
                         key={r.id}
                         style={{
-                          background: '#060d16',
-                          border: '1px solid #1a3045',
+                          background: '#F8FAF8',
+                          border: '1px solid #DCE5DF',
                           borderRadius: 10,
                           padding: '16px 20px',
                           display: 'flex',
@@ -902,12 +970,12 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                       >
                         <StatusBadge value={r.status} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f8ff' }}>{r.title}</div>
-                          <p style={{ margin: '6px 0', fontSize: 13, color: '#8da4bc' }}>
-                            <code style={{ color: '#2dd4bf', background: '#0a1d2e', padding: '2px 6px', borderRadius: 4 }}>{r.kind}</code> · Pattern: “{r.pattern}” · v{r.version} · Category: <i>{r.category}</i>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--bt-forest)' }}>{r.title}</div>
+                          <p style={{ margin: '6px 0', fontSize: 13, color: '#617168' }}>
+                            <code style={{ color: '#2dd4bf', background: '#E9F6F0', padding: '2px 6px', borderRadius: 4 }}>{r.kind}</code> · Pattern: “{r.pattern}” · v{r.version} · Category: <i>{r.category}</i>
                           </p>
-                          <p style={{ margin: '4px 0', fontSize: 13, color: '#cbd5e1' }}>{r.requirement}</p>
-                          <div style={{ fontSize: 11, color: '#5a7a96', marginTop: 8 }}>
+                          <p style={{ margin: '4px 0', fontSize: 13, color: 'var(--bt-text-secondary)' }}>{r.requirement}</p>
+                          <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 8 }}>
                             Source: <b>{r.source_title}</b>: “{r.source_excerpt}” (Owner: {r.owner})
                             {r.expires_at && ` · Expires: ${new Date(r.expires_at).toLocaleDateString()}`}
                           </div>
@@ -925,7 +993,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Approved Fact & Claim Ledger</h2>
-                      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#8da4bc' }}>
+                      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#617168' }}>
                         Time-aware assertions with verified citations and provenance dates.
                       </p>
                     </div>
@@ -939,8 +1007,8 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                       <div
                         key={f.id}
                         style={{
-                          background: '#060d16',
-                          border: '1px solid #1a3045',
+                          background: '#F8FAF8',
+                          border: '1px solid #DCE5DF',
                           borderRadius: 10,
                           padding: '16px 20px',
                           display: 'flex',
@@ -950,20 +1018,98 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                         }}
                       >
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f8ff' }}>{f.claim}</div>
-                          <p style={{ margin: '6px 0', fontSize: 13, color: '#cbd5e1' }}>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--bt-forest)' }}>{f.claim}</div>
+                          <p style={{ margin: '6px 0', fontSize: 13, color: 'var(--bt-text-secondary)' }}>
                             Approved Assertion: <span style={{ color: '#2dd4bf', fontWeight: 600 }}>“{f.value}”</span>
                           </p>
-                          <div style={{ fontSize: 11, color: '#5a7a96', marginTop: 6 }}>
+                          <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 6 }}>
                             Source: <b>{f.source_title}</b>: “{f.source_excerpt}”<br />
                             Owner: {f.owner} · Version: v{f.version} · Expires:{' '}
                             {f.expires_at ? new Date(f.expires_at).toLocaleDateString() : 'Active indefinitely'}
                           </div>
+                          {f.notes && (
+                            <div style={{ fontSize: 11, color: '#0E9F78', marginTop: 4, fontStyle: 'italic' }}>
+                              Notes: {f.notes}
+                            </div>
+                          )}
                         </div>
                         <StatusBadge value={f.status} />
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Brand Asset Registry Tab (Round 3) */}
+              {constTab === 'assets' && (
+                <div className="card-premium">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Brand Asset Registry</h2>
+                      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#617168' }}>
+                        Cryptographically registered brand assets with SHA-256 hash validation and license status tracking.
+                      </p>
+                    </div>
+                    {role === 'brand_admin' && (
+                      <button className="btn-primary btn-sm" onClick={() => setIsAssetModalOpen(true)}>
+                        <Plus size={14} /> Register Brand Asset
+                      </button>
+                    )}
+                  </div>
+
+                  {brandAssets.length > 0 ? (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      {brandAssets.map((asset) => (
+                        <div
+                          key={asset.id}
+                          style={{
+                            background: '#FFFFFF',
+                            border: '1px solid var(--bt-border)',
+                            borderRadius: 10,
+                            padding: '16px 20px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'start',
+                            gap: 16,
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--bt-forest)' }}>{asset.name}</span>
+                              <StatusBadge value={asset.approval_status} />
+                              <span style={{ fontSize: 11, color: '#0E9F78', background: '#E9F6F0', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                                {asset.asset_type.toUpperCase()}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#617168', marginTop: 6 }}>
+                              {asset.content_hash ? (
+                                <span>Hash (SHA-256): <code style={{ color: '#123B2D', background: '#F0F4F1', padding: '1px 4px', borderRadius: 3 }}>{asset.content_hash.slice(0, 24)}...</code> &middot; </span>
+                              ) : null}
+                              License: <b>{asset.license_status}</b> &middot; Source: {asset.source || 'Internal'}
+                            </div>
+                            {asset.license_notes && (
+                              <div style={{ fontSize: 11, color: '#617168', marginTop: 4, fontStyle: 'italic' }}>
+                                Notes: {asset.license_notes}
+                              </div>
+                            )}
+                          </div>
+                          {role === 'brand_admin' && (
+                            <button
+                              className="btn-danger btn-sm"
+                              onClick={() => handleDeleteAsset(asset.id, asset.name)}
+                              style={{ padding: '4px 10px', fontSize: 11, minHeight: 32 }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '36px 20px', color: '#617168' }}>
+                      <p style={{ margin: 0 }}>No assets registered yet. Brand Admins can register logos, hero imagery, and design files.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -994,18 +1140,18 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                     </div>
                     <div>
                       <div className="label-sm">Approved Logo Aspect Ratio Fixture</div>
-                      <p style={{ margin: '4px 0 0', fontWeight: 700, fontSize: 15, color: '#f0f8ff' }}>
+                      <p style={{ margin: '4px 0 0', fontWeight: 700, fontSize: 15, color: 'var(--bt-forest)' }}>
                         {brandProfile?.approved_logo_aspect || 3.0}:1 standard landscape logo
                       </p>
                     </div>
                     <div
                       style={{
                         background: 'rgba(13, 42, 64, 0.4)',
-                        border: '1px solid #1a3045',
+                        border: '1px solid #DCE5DF',
                         borderRadius: 8,
                         padding: '14px 18px',
                         fontSize: 13,
-                        color: '#8da4bc',
+                        color: '#617168',
                         lineHeight: 1.5,
                       }}
                     >
@@ -1027,7 +1173,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
               <div className="bt-review-left-col">
                 <div className="card-premium bt-draft-context-sticky">
                 {reviews.length > 0 && (
-                  <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid #1a3045' }}>
+                  <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid #DCE5DF' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <span className="label-sm" style={{ margin: 0 }}>Active Draft Under Review</span>
                       {selected && (
@@ -1069,48 +1215,48 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                         <div style={{ fontSize: 10, color: '#2dd4bf', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                           Draft Context
                         </div>
-                        <h3 style={{ margin: '4px 0 0', fontSize: 16, fontWeight: 700, color: '#f0f8ff' }}>
+                        <h3 style={{ margin: '4px 0 0', fontSize: 16, fontWeight: 700, color: 'var(--bt-forest)' }}>
                           {selected.title}
                         </h3>
                       </div>
                       <StatusBadge value={selected.status} />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '10px 12px', background: '#060d16', borderRadius: 8, border: '1px solid #1a3045', marginBottom: 14, fontSize: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '10px 12px', background: '#F8FAF8', borderRadius: 8, border: '1px solid #DCE5DF', marginBottom: 14, fontSize: 12 }}>
                       <div>
-                        <span style={{ color: '#5a7a96' }}>Type: </span>
-                        <strong style={{ color: '#cbd5e1' }}>{selected.content_type}</strong>
+                        <span style={{ color: '#8A9A91' }}>Type: </span>
+                        <strong style={{ color: 'var(--bt-text-secondary)' }}>{selected.content_type}</strong>
                       </div>
                       <div>
-                        <span style={{ color: '#5a7a96' }}>Score: </span>
+                        <span style={{ color: '#8A9A91' }}>Score: </span>
                         <strong style={{ color: selected.score >= 80 ? '#2dd4bf' : selected.score >= 60 ? '#fbbf24' : '#f87171' }}>
                           {selected.score}/100
                         </strong>
                       </div>
                       <div>
-                        <span style={{ color: '#5a7a96' }}>Author: </span>
-                        <span style={{ color: '#8da4bc' }}>{selected.author}</span>
+                        <span style={{ color: '#8A9A91' }}>Author: </span>
+                        <span style={{ color: '#617168' }}>{selected.author}</span>
                       </div>
                       <div>
-                        <span style={{ color: '#5a7a96' }}>Revisions: </span>
-                        <span style={{ color: '#8da4bc' }}>{selected.versions?.length || 1}</span>
+                        <span style={{ color: '#8A9A91' }}>Revisions: </span>
+                        <span style={{ color: '#617168' }}>{selected.versions?.length || 1}</span>
                       </div>
                     </div>
 
                     <div style={{ marginBottom: 14 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                         <span className="label-sm" style={{ margin: 0 }}>Working Draft Copy</span>
-                        <span style={{ fontSize: 11, color: '#5a7a96' }}>
+                        <span style={{ fontSize: 11, color: '#8A9A91' }}>
                           {selected.content.length} characters
                         </span>
                       </div>
                       <div
                         style={{
                           background: '#040b14',
-                          border: '1px solid #1a3045',
+                          border: '1px solid #DCE5DF',
                           borderRadius: 8,
                           padding: '14px 16px',
-                          color: '#e2e8f0',
+                          color: 'var(--bt-text-primary)',
                           fontSize: 13,
                           lineHeight: 1.65,
                           whiteSpace: 'pre-wrap',
@@ -1138,7 +1284,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                 ) : (
                   /* Submission Form (Shown when no draft is actively selected) */
                   <>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #1a3045', paddingBottom: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #DCE5DF', paddingBottom: 10 }}>
                       <button
                         type="button"
                         className={`btn-secondary btn-sm ${submissionTab === 'text' ? 'btn-primary' : ''}`}
@@ -1230,11 +1376,11 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
 
                         <div
                           style={{
-                            border: '2px dashed #1a3045',
+                            border: '2px dashed #DCE5DF',
                             borderRadius: 10,
                             padding: '36px 24px',
                             textAlign: 'center',
-                            background: '#060d16',
+                            background: '#F8FAF8',
                             cursor: 'pointer',
                             transition: 'border-color 200ms ease',
                           }}
@@ -1257,15 +1403,15 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                           <FileUp size={32} style={{ color: '#2dd4bf', margin: '0 auto 12px' }} />
                           {uploadFile ? (
                             <div>
-                              <strong style={{ color: '#f0f8ff', fontSize: 14 }}>{uploadFile.name}</strong>
-                              <p style={{ margin: '6px 0 0', color: '#8da4bc', fontSize: 12 }}>
+                              <strong style={{ color: 'var(--bt-forest)', fontSize: 14 }}>{uploadFile.name}</strong>
+                              <p style={{ margin: '6px 0 0', color: '#617168', fontSize: 12 }}>
                                 {(uploadFile.size / 1024).toFixed(1)} KB · Click to change file
                               </p>
                             </div>
                           ) : (
                             <div>
-                              <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#f0f8ff' }}>Click to select a file</p>
-                              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#5a7a96' }}>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--bt-forest)' }}>Click to select a file</p>
+                              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#8A9A91' }}>
                                 Supported: PDF (with text extraction), PNG/JPEG (palette & WCAG contrast)
                               </p>
                             </div>
@@ -1309,7 +1455,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
             <div className="card-premium">
               <div style={{ marginBottom: 20 }}>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Human Governance Approval Queue</h2>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#8da4bc' }}>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#617168' }}>
                   Drafts requiring reviewer disposition or publication sign-off. High-risk findings must be resolved before
                   approval can be granted by the server.
                 </p>
@@ -1342,6 +1488,8 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
             <InsightsView
               insights={insights}
               impactMap={impactMap}
+              guidelineHealth={guidelineHealth}
+              onRuleSuggestionAction={handleRuleSuggestionAction}
               onTriggerReReview={handleTriggerImpactReReview}
               onNavigateToDraft={(reviewId: string) => {
                 const r = reviews.find((x) => x.id === reviewId);
@@ -1490,6 +1638,93 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
       {/* =========================================================================
          FACT MODAL
          ========================================================================= */}
+            {/* Brand Asset Registration Modal (Round 3) */}
+      {isAssetModalOpen && (
+        <div className="bt-modal-backdrop" onClick={() => setIsAssetModalOpen(false)}>
+          <div className="bt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bt-modal-head">
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Register Brand Asset</h2>
+              <button className="btn-secondary btn-sm" onClick={() => setIsAssetModalOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateAsset} style={{ display: 'grid', gap: 14 }}>
+              <div>
+                <label className="label-sm">Asset Name</label>
+                <input
+                  className="input-premium"
+                  value={newAsset.name}
+                  onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })}
+                  placeholder="e.g. Primary Horizontal Logo 2026"
+                  required
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="label-sm">Asset Type</label>
+                  <select
+                    className="input-premium"
+                    value={newAsset.asset_type}
+                    onChange={(e) => setNewAsset({ ...newAsset, asset_type: e.target.value })}
+                  >
+                    <option value="image">Image / Graphic</option>
+                    <option value="logo">Brand Logo</option>
+                    <option value="document">Design Asset / PDF</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label-sm">Approval Status</label>
+                  <select
+                    className="input-premium"
+                    value={newAsset.approval_status}
+                    onChange={(e) => setNewAsset({ ...newAsset, approval_status: e.target.value as any })}
+                  >
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="RESTRICTED">RESTRICTED</option>
+                    <option value="REVIEW_REQUIRED">REVIEW_REQUIRED</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label-sm">Content SHA-256 Hash (Optional for matching)</label>
+                <input
+                  className="input-premium"
+                  value={newAsset.content_hash || ''}
+                  onChange={(e) => setNewAsset({ ...newAsset, content_hash: e.target.value })}
+                  placeholder="Computed hex digest of asset bytes"
+                />
+              </div>
+              <div>
+                <label className="label-sm">License / Source Specification</label>
+                <input
+                  className="input-premium"
+                  value={newAsset.source || ''}
+                  onChange={(e) => setNewAsset({ ...newAsset, source: e.target.value })}
+                  placeholder="e.g. Corporate Brand Guidelines Figma"
+                />
+              </div>
+              <div>
+                <label className="label-sm">License Restrictions & Usage Notes</label>
+                <textarea
+                  className="input-premium"
+                  value={newAsset.license_notes || ''}
+                  onChange={(e) => setNewAsset({ ...newAsset, license_notes: e.target.value })}
+                  placeholder="Usage limits, regional rights, expiration, or editorial instructions..."
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setIsAssetModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary btn-sm">
+                  Register Asset
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {isFactModalOpen && (
         <div className="bt-modal-backdrop" onClick={() => setIsFactModalOpen(false)}>
           <div className="bt-modal" onClick={(e) => e.stopPropagation()}>
@@ -1563,6 +1798,15 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                   }
                 />
               </div>
+              <div>
+                <label className="label-sm">Provenance & Review Notes (Optional)</label>
+                <textarea
+                  className="input-premium"
+                  value={newFact.notes || ''}
+                  onChange={(e) => setNewFact({ ...newFact, notes: e.target.value })}
+                  placeholder="Auditor provenance notes, scope limitations, or third-party audit details..."
+                />
+              </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 16 }}>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setIsFactModalOpen(false)}>
                   Cancel
@@ -1585,7 +1829,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
 
 function ReviewTable({ reviews, open }: { reviews: Review[]; open: (r: Review) => void }) {
   if (!reviews.length) {
-    return <p style={{ color: '#5a7a96', fontSize: 13, margin: '14px 0' }}>No review records found.</p>;
+    return <p style={{ color: '#8A9A91', fontSize: 13, margin: '14px 0' }}>No review records found.</p>;
   }
 
   return (
@@ -1600,9 +1844,9 @@ function ReviewTable({ reviews, open }: { reviews: Review[]; open: (r: Review) =
             gap: 14,
             alignItems: 'center',
             padding: '12px 16px',
-            border: '1px solid #1a3045',
+            border: '1px solid #DCE5DF',
             borderRadius: 8,
-            background: '#060d16',
+            background: '#F8FAF8',
             color: '#e8f0f8',
             textAlign: 'left',
             cursor: 'pointer',
@@ -1613,17 +1857,17 @@ function ReviewTable({ reviews, open }: { reviews: Review[]; open: (r: Review) =
             (e.currentTarget as HTMLElement).style.background = '#0a1a28';
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.borderColor = '#1a3045';
-            (e.currentTarget as HTMLElement).style.background = '#060d16';
+            (e.currentTarget as HTMLElement).style.borderColor = '#DCE5DF';
+            (e.currentTarget as HTMLElement).style.background = '#F8FAF8';
           }}
         >
           <div>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{r.title}</div>
-            <div style={{ fontSize: 11, color: '#5a7a96', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 2 }}>
               {new Date(r.created_at).toLocaleString()} · {r.content_type}
             </div>
           </div>
-          <span style={{ fontSize: 12, color: '#8da4bc' }}>{r.findings?.length || 0} findings</span>
+          <span style={{ fontSize: 12, color: '#617168' }}>{r.findings?.length || 0} findings</span>
           <div>
             <StatusBadge value={r.status} />
           </div>
@@ -1669,7 +1913,7 @@ function ReviewPanel({
       <div className="card-premium" style={{ display: 'grid', placeContent: 'center', textAlign: 'center', minHeight: 400 }}>
         <div style={{ fontSize: 40, color: '#2dd4bf', marginBottom: 12 }}>◈</div>
         <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>Evidence Findings & Governance Panel</h2>
-        <p style={{ color: '#8da4bc', fontSize: 14, maxWidth: 360, margin: '0 auto' }}>
+        <p style={{ color: '#617168', fontSize: 14, maxWidth: 360, margin: '0 auto' }}>
           Select an existing review from the list or submit a draft to inspect evidence-linked compliance findings.
         </p>
       </div>
@@ -1699,17 +1943,17 @@ function ReviewPanel({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 20 }}>
         <div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: '#5a7a96', fontWeight: 700 }}>ID: {review.id}</span>
+            <span style={{ fontSize: 11, color: '#8A9A91', fontWeight: 700 }}>ID: {review.id}</span>
             <StatusBadge value={review.status} />
           </div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{review.title}</h2>
-          <div style={{ fontSize: 12, color: '#8da4bc', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: '#617168', marginTop: 4 }}>
             Submitted by {review.author} · Method: <span style={{ color: '#2dd4bf', fontWeight: 600 }}>{review.analysis_method}</span>
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 32, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{review.score}</div>
-          <div style={{ fontSize: 11, color: '#5a7a96', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+          <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
             Health Score
             <span
               title="Base 100 score engine. Deductions for unresolved findings: Critical (-30), High (-18), Medium (-10), Low (-4). Resolved findings restore full points."
@@ -1725,7 +1969,7 @@ function ReviewPanel({
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, borderBottom: '1px solid #1a3045', paddingBottom: 10 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, borderBottom: '1px solid #DCE5DF', paddingBottom: 10 }}>
         <button
           className={`btn-secondary btn-sm ${activeTab === 'findings' ? 'btn-primary' : ''}`}
           onClick={() => setActiveTab('findings')}
@@ -1772,21 +2016,21 @@ function ReviewPanel({
               display: 'grid',
               gridTemplateColumns: 'repeat(4, 1fr)',
               gap: 10,
-              background: '#060d16',
-              border: '1px solid #1a3045',
+              background: '#F8FAF8',
+              border: '1px solid #DCE5DF',
               borderRadius: 8,
               padding: '10px 14px',
               marginBottom: 16,
             }}
           >
             <div>
-              <div style={{ fontSize: 10, color: '#5a7a96', textTransform: 'uppercase', fontWeight: 600 }}>Total Findings</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#f0f8ff' }}>{totalFindings}</div>
+              <div style={{ fontSize: 10, color: '#8A9A91', textTransform: 'uppercase', fontWeight: 600 }}>Total Findings</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--bt-forest)' }}>{totalFindings}</div>
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#f87171', textTransform: 'uppercase', fontWeight: 600 }}>High / Critical</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: unresolvedHigh.length > 0 ? '#f87171' : '#86efac' }}>
-                {unresolvedHigh.length} <span style={{ fontSize: 11, fontWeight: 500, color: '#5a7a96' }}>open ({highCriticalFindings.length})</span>
+                {unresolvedHigh.length} <span style={{ fontSize: 11, fontWeight: 500, color: '#8A9A91' }}>open ({highCriticalFindings.length})</span>
               </div>
             </div>
             <div>
@@ -1801,7 +2045,7 @@ function ReviewPanel({
 
           {/* Filter Bar */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-            <span style={{ fontSize: 11, color: '#5a7a96', fontWeight: 700, textTransform: 'uppercase', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 11, color: '#8A9A91', fontWeight: 700, textTransform: 'uppercase', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Filter size={12} /> Filter:
             </span>
             <button
@@ -1839,9 +2083,9 @@ function ReviewPanel({
           </div>
 
           {/* Draft text excerpt */}
-          <div style={{ background: '#060d16', borderRadius: 8, padding: '14px 18px', border: '1px solid #1a3045', marginBottom: 18 }}>
+          <div style={{ background: '#F8FAF8', borderRadius: 8, padding: '14px 18px', border: '1px solid #DCE5DF', marginBottom: 18 }}>
             <div className="label-sm">Current Working Draft Content</div>
-            <p style={{ margin: '6px 0 0', fontSize: 14, color: '#cbd5e1', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+            <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--bt-text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {review.content}
             </p>
           </div>
@@ -1870,14 +2114,14 @@ function ReviewPanel({
               style={{
                 textAlign: 'center',
                 padding: '36px 16px',
-                background: '#060d16',
+                background: '#F8FAF8',
                 borderRadius: 8,
-                border: '1px dashed #1a3045',
-                color: '#8da4bc',
+                border: '1px dashed #DCE5DF',
+                color: '#617168',
                 marginBottom: 16,
               }}
             >
-              <Filter size={24} style={{ color: '#5a7a96', margin: '0 auto 8px' }} />
+              <Filter size={24} style={{ color: '#8A9A91', margin: '0 auto 8px' }} />
               <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>No findings match the selected filter.</p>
               <button
                 type="button"
@@ -1917,22 +2161,37 @@ function ReviewPanel({
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
                             <StatusBadge value={f.severity} />
                             <StatusBadge value={f.status} />
+                            {f.category === 'visual_palette' && (
+                              <span style={{ background: '#E9F6F0', color: '#0E9F78', border: '1px solid #A6CDBA', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                                🎨 PALETTE
+                              </span>
+                            )}
+                            {f.category === 'visual_accessibility' && (
+                              <span style={{ background: '#FFFBEB', color: '#92400E', border: '1px solid #FCD34D', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                                ♿ CONTRAST
+                              </span>
+                            )}
+                            {f.category === 'visual_asset' && (
+                              <span style={{ background: '#F0F9FF', color: '#075985', border: '1px solid #BAE6FD', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                                🖼️ ASSET REGISTRY
+                              </span>
+                            )}
                             {isMissingTerm && (
-                              <span style={{ background: '#0e3a5f', color: '#7dd3fc', border: '1px solid #0284c7', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                              <span style={{ background: '#E0F2FE', color: '#0369A1', border: '1px solid #7DD3FC', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
                                 MISSING MANDATORY TERM
                               </span>
                             )}
                             {f.disposition && <StatusBadge value={f.disposition} />}
-                            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#2dd4bf', background: '#0a1d2e', padding: '2px 8px', borderRadius: 4, fontFamily: 'monospace' }}>
+                            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#2dd4bf', background: '#E9F6F0', padding: '2px 8px', borderRadius: 4, fontFamily: 'monospace' }}>
                               {f.analysis_method}
                             </span>
                           </div>
 
                           {isMissingTerm ? (
-                            <div style={{ background: '#071626', border: '1px dashed #38bdf8', borderRadius: 8, padding: '10px 14px', margin: '8px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ background: '#F0F9FF', border: '1px dashed #38bdf8', borderRadius: 8, padding: '10px 14px', margin: '8px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
                               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38bdf8', flexShrink: 0, boxShadow: '0 0 6px #38bdf8' }} />
-                              <div style={{ fontSize: 13, color: '#e0f2fe' }}>
-                                Required brand language absent from copy: <strong style={{ color: '#7dd3fc' }}>“{f.passage}”</strong>
+                              <div style={{ fontSize: 13, color: '#0369a1' }}>
+                                Required brand language absent from copy: <strong style={{ color: '#075985' }}>“{f.passage}”</strong>
                               </div>
                             </div>
                           ) : (
@@ -1941,7 +2200,7 @@ function ReviewPanel({
                             </div>
                           )}
 
-                          <p style={{ color: '#8da4bc', fontSize: 14, lineHeight: 1.6, margin: '8px 0' }}>
+                          <p style={{ color: '#617168', fontSize: 14, lineHeight: 1.6, margin: '8px 0' }}>
                             {f.explanation}
                           </p>
 
@@ -1969,19 +2228,19 @@ function ReviewPanel({
                             <div
                               style={{
                                 marginTop: 12,
-                                background: '#04121a',
-                                border: '1px solid rgba(56, 189, 248, 0.3)',
+                                background: '#F0F9FF',
+                                border: '1px solid #BAE6FD',
                                 borderRadius: 8,
                                 padding: '12px 14px',
                               }}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
                                 <div>
-                                  <div style={{ fontSize: 11, color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                  <div style={{ fontSize: 11, color: '#0369A1', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     Required Brand Term Placement
                                   </div>
-                                  <div style={{ fontSize: 13, marginTop: 4, color: '#cbd5e1' }}>
-                                    Mandatory term <strong style={{ color: '#7dd3fc' }}>“{f.passage}”</strong> must appear in published copy.
+                                  <div style={{ fontSize: 13, marginTop: 4, color: 'var(--bt-text-secondary)' }}>
+                                    Mandatory term <strong style={{ color: '#075985' }}>“{f.passage}”</strong> must appear in published copy.
                                   </div>
                                 </div>
                               </div>
@@ -2088,8 +2347,8 @@ function ReviewPanel({
                             <div
                               style={{
                                 marginTop: 12,
-                                background: '#04121a',
-                                border: '1px solid rgba(45, 212, 191, 0.3)',
+                                background: '#E9F6F0',
+                                border: '1px solid #A6CDBA',
                                 borderRadius: 8,
                                 padding: '10px 14px',
                                 display: 'flex',
@@ -2100,13 +2359,13 @@ function ReviewPanel({
                               }}
                             >
                               <div>
-                                <div style={{ fontSize: 11, color: '#5eead4', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                <div style={{ fontSize: 11, color: '#0E9F78', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                   Intent-Preserving Correction
                                 </div>
                                 <div style={{ fontSize: 13, marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                   <span style={{ textDecoration: 'line-through', color: '#f87171' }}>“{f.passage}”</span>
-                                  <span style={{ color: '#5a7a96' }}>→</span>
-                                  <span style={{ color: '#86efac', fontWeight: 600 }}>“{f.suggested_correction}”</span>
+                                  <span style={{ color: '#8A9A91' }}>→</span>
+                                  <span style={{ color: '#0B8262', fontWeight: 700 }}>“{f.suggested_correction}”</span>
                                 </div>
                               </div>
                               {!f.disposition && editingFindingId !== f.id && (
@@ -2124,8 +2383,8 @@ function ReviewPanel({
 
                           {/* Inline Dismiss Prompt when reason is missing */}
                           {dismissPromptId === f.id && (
-                            <div style={{ marginTop: 12, background: '#1c1010', padding: 14, borderRadius: 8, border: '1px solid #7f1d1d' }}>
-                              <div className="label-sm" style={{ color: '#fca5a5' }}>
+                            <div style={{ marginTop: 12, background: '#FEF2F2', padding: 14, borderRadius: 8, border: '1px solid #FCA5A5' }}>
+                              <div className="label-sm" style={{ color: '#991B1B' }}>
                                 Document Justification to Dismiss Finding
                               </div>
                               <input
@@ -2168,7 +2427,7 @@ function ReviewPanel({
 
                           {/* Manual Edit Input Box */}
                           {editingFindingId === f.id && (
-                            <div style={{ marginTop: 12, background: '#060d16', padding: 16, borderRadius: 8, border: '1px solid #1a3045' }}>
+                            <div style={{ marginTop: 12, background: '#F8FAF8', padding: 16, borderRadius: 8, border: '1px solid #DCE5DF' }}>
                               <div className="label-sm">
                                 {isMissingTerm ? `Update Draft to Include Required Term “${f.passage}”` : `Replacement Text for “${f.passage}”`}
                               </div>
@@ -2202,7 +2461,7 @@ function ReviewPanel({
 
                           {/* Finding Action Buttons */}
                           {!f.disposition && editingFindingId !== f.id && dismissPromptId !== f.id && (
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTop: '1px solid #1a3045' }}>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTop: '1px solid #DCE5DF' }}>
                               {isMissingTerm ? (
                                 <>
                                   <button className="btn-primary btn-sm" onClick={() => onFindingAction(f, 'insert')}>
@@ -2269,7 +2528,7 @@ function ReviewPanel({
               display: 'flex',
               gap: 12,
               flexWrap: 'wrap',
-              borderTop: '1px solid #1a3045',
+              borderTop: '1px solid #DCE5DF',
               paddingTop: 20,
               marginTop: 24,
             }}
@@ -2300,14 +2559,14 @@ function ReviewPanel({
             <div
               key={v.id}
               style={{
-                border: '1px solid #1a3045',
+                border: '1px solid #DCE5DF',
                 padding: '16px 20px',
                 borderRadius: 10,
-                background: '#060d16',
+                background: '#F8FAF8',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: '#f0f8ff' }}>Revision: {v.reason}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--bt-forest)' }}>Revision: {v.reason}</div>
                 <button
                   className="btn-secondary btn-sm"
                   onClick={() => onRestoreVersion(v.id)}
@@ -2315,10 +2574,10 @@ function ReviewPanel({
                   <RotateCcw size={14} /> Restore This Revision
                 </button>
               </div>
-              <div style={{ fontSize: 11, color: '#5a7a96', marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 4 }}>
                 Created by {v.created_by} at {new Date(v.created_at).toLocaleString()}
               </div>
-              <p style={{ marginTop: 10, whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 13, lineHeight: 1.6 }}>
+              <p style={{ marginTop: 10, whiteSpace: 'pre-wrap', color: 'var(--bt-text-secondary)', fontSize: 13, lineHeight: 1.6 }}>
                 {v.content}
               </p>
             </div>
@@ -2374,7 +2633,7 @@ function AuditView({
       <div className="card-premium">
         <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Stored Review Records</h2>
         {reviews.length === 0 ? (
-          <p style={{ color: '#5a7a96', fontSize: 13 }}>No review records found. Submit a draft first.</p>
+          <p style={{ color: '#8A9A91', fontSize: 13 }}>No review records found. Submit a draft first.</p>
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>
             {reviews.map((r) => (
@@ -2387,9 +2646,9 @@ function AuditView({
                   gap: 14,
                   alignItems: 'center',
                   padding: '12px 16px',
-                  border: `1px solid ${selected?.id === r.id ? 'rgba(45,212,191,0.5)' : '#1a3045'}`,
+                  border: `1px solid ${selected?.id === r.id ? 'rgba(14,159,120,0.5)' : '#DCE5DF'}`,
                   borderRadius: 8,
-                  background: selected?.id === r.id ? '#0a2233' : '#060d16',
+                  background: selected?.id === r.id ? '#E9F6F0' : '#F8FAF8',
                   color: '#e8f0f8',
                   textAlign: 'left',
                   cursor: 'pointer',
@@ -2398,11 +2657,11 @@ function AuditView({
               >
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: selected?.id === r.id ? '#2dd4bf' : '#e8f0f8' }}>{r.title}</div>
-                  <div style={{ fontSize: 11, color: '#5a7a96', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 2 }}>
                     {new Date(r.created_at).toLocaleString()} &middot; {r.content_type}
                   </div>
                 </div>
-                <span style={{ fontSize: 12, color: '#8da4bc' }}>{r.findings?.length || 0} findings</span>
+                <span style={{ fontSize: 12, color: '#617168' }}>{r.findings?.length || 0} findings</span>
                 <div>
                   <StatusBadge value={r.status} />
                 </div>
@@ -2416,11 +2675,11 @@ function AuditView({
       <div className="card-premium">
         <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Reconstructable Decision History</h2>
         {!selected ? (
-          <p style={{ color: '#5a7a96', fontSize: 13 }}>
+          <p style={{ color: '#8A9A91', fontSize: 13 }}>
             Select a review record from the left to inspect its immutable audit timeline.
           </p>
         ) : loading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#8da4bc' }}>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#617168' }}>
             <RefreshCw size={28} style={{ color: '#2dd4bf', marginBottom: 12 }} />
             <p style={{ fontSize: 13 }}>Loading audit trail&hellip;</p>
           </div>
@@ -2429,7 +2688,7 @@ function AuditView({
             <AlertCircle size={16} /> Failed to load audit trail: {auditError}
           </div>
         ) : events.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#5a7a96' }}>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#8A9A91' }}>
             <Clock size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
             <p style={{ fontSize: 13, margin: 0 }}>No audit events recorded for this review yet.</p>
           </div>
@@ -2451,7 +2710,7 @@ function AuditView({
                         style={{
                           background: '#0d2238',
                           border: '1px solid #1a3a5c',
-                          color: '#67e8f9',
+                          color: '#0E9F78',
                           padding: '1px 6px',
                           borderRadius: 4,
                           fontSize: 10,
@@ -2463,12 +2722,12 @@ function AuditView({
                       <span>&middot; {new Date(e.created_at).toLocaleString()}</span>
                     </div>
                     {e.reason && (
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#cbd5e1' }}>
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--bt-text-secondary)' }}>
                         Documented Reason: &ldquo;{e.reason}&rdquo;
                       </p>
                     )}
                     {e.details && (
-                      <div style={{ fontSize: 11, color: '#5a7a96', marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 2 }}>
                         Details: {e.details}
                       </div>
                     )}
@@ -2486,11 +2745,15 @@ function AuditView({
 function InsightsView({
   insights,
   impactMap,
+  guidelineHealth = [],
+  onRuleSuggestionAction,
   onTriggerReReview,
   onNavigateToDraft,
 }: {
   insights: Insights | null;
   impactMap: ImpactMap | null;
+  guidelineHealth?: GuidelineHealthItem[];
+  onRuleSuggestionAction?: (ruleId: string, action: 'accept' | 'defer' | 'reject') => void;
   onTriggerReReview: (id: string) => void;
   onNavigateToDraft?: (reviewId: string) => void;
 }) {
@@ -2500,7 +2763,7 @@ function InsightsView({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
         {[
           { title: 'Open Findings', value: insights?.unresolved || 0, hint: 'Need reviewer action', color: '#fbbf24' },
-          { title: 'Dismissals', value: insights?.dismissed || 0, hint: 'Documented exceptions', color: '#67e8f9' },
+          { title: 'Dismissals', value: insights?.dismissed || 0, hint: 'Documented exceptions', color: '#0E9F78' },
           { title: 'Disagreements', value: insights?.disagreements_count || 0, hint: 'Reviewer overrides', color: '#f87171' },
           { title: 'Impacted Drafts', value: impactMap?.total_impacted_drafts || 0, hint: 'Rule/fact changes', color: '#2dd4bf' },
         ].map(({ title, value, hint, color }) => (
@@ -2515,7 +2778,7 @@ function InsightsView({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
         <div className="card-premium">
           <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>Recurring Policy Findings</h2>
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#8da4bc' }}>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#617168' }}>
             Most frequently violated rule categories across historical drafts.
           </p>
           <Bars values={insights?.recurring || []} />
@@ -2523,11 +2786,123 @@ function InsightsView({
 
         <div className="card-premium">
           <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>Candidate Rules for Clarification</h2>
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#8da4bc' }}>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#617168' }}>
             Rules with high triage or dismissal rates suggesting ambiguous guidelines.
           </p>
           <Bars values={insights?.unclear_rules || []} />
         </div>
+      </div>
+
+      {/* Guideline Health Intelligence (Round 3 Commitment 3) */}
+      <div className="card-premium">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+            Guideline Health Intelligence
+          </h2>
+          <span className="badge-status badge-supported">Round 3 Live</span>
+        </div>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--bt-text-secondary)' }}>
+          Autonomous governance telemetry: aggregates reviewer actions, detects human disagreement, and proposes source-linked clarifications for ambiguous guidelines without modifying live rules.
+        </p>
+
+        {guidelineHealth && guidelineHealth.length > 0 ? (
+          <div style={{ display: 'grid', gap: 14 }}>
+            {guidelineHealth.map((gh) => (
+              <div
+                key={gh.rule_id}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid var(--bt-border)',
+                  borderRadius: 10,
+                  padding: '16px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--bt-forest)' }}>
+                        {gh.rule_title}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--bt-text-secondary)', fontFamily: 'monospace' }}>
+                        ID: {gh.rule_id}
+                      </span>
+                      <StatusBadge value={gh.rule_severity} />
+                      <span
+                        className={`badge-status ${
+                          gh.data_confidence === 'SUFFICIENT' ? 'badge-supported' : 'badge-needs-review'
+                        }`}
+                      >
+                        {gh.data_confidence === 'SUFFICIENT' ? 'Sufficient Data' : 'Needs More Data'}
+                      </span>
+                      {gh.disagreement_detected && (
+                        <span className="badge-status badge-high">
+                          Reviewer Disagreement
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--bt-text-secondary)', marginTop: 6 }}>
+                      Triggered in <b>{gh.affected_draft_count}</b> draft(s) &middot; Total Findings: {gh.finding_count} &middot; Accepted: {gh.accepted_count} &middot; Dismissed: {gh.dismissed_count} &middot; Escalated: {gh.escalated_count}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Suggestion Box */}
+                {gh.suggestion && (
+                  <div
+                    style={{
+                      background: 'var(--bt-bg-surface-subtle)',
+                      border: '1px solid var(--bt-border)',
+                      borderRadius: 8,
+                      padding: '12px 16px',
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: 'var(--bt-forest)', marginBottom: 4 }}>
+                      Clarification Recommendation:
+                    </div>
+                    <div style={{ color: 'var(--bt-text-primary)', marginBottom: 6 }}>
+                      {gh.suggestion.proposed_clarification}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--bt-text-secondary)', fontStyle: 'italic', marginBottom: 10 }}>
+                      Observed Pattern: {gh.suggestion.observed_issue}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="btn-primary btn-sm"
+                        onClick={() => onRuleSuggestionAction?.(gh.rule_id, 'accept')}
+                        style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
+                      >
+                        Accept Suggestion
+                      </button>
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => onRuleSuggestionAction?.(gh.rule_id, 'defer')}
+                        style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
+                      >
+                        Defer
+                      </button>
+                      <button
+                        className="btn-danger btn-sm"
+                        onClick={() => onRuleSuggestionAction?.(gh.rule_id, 'reject')}
+                        style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: 'var(--bt-text-secondary)', fontSize: 13 }}>
+            Telemetry running. No rule friction or ambiguities detected across active drafts.
+          </p>
+        )}
       </div>
 
       {/* Time-Aware Claim Ledger & Impact Map */}
@@ -2535,7 +2910,7 @@ function InsightsView({
         <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>
           Time-Aware Claim Ledger &amp; Rule-Change Impact Map
         </h2>
-        <p style={{ margin: '0 0 16px', fontSize: 13, color: '#8da4bc' }}>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: '#617168' }}>
           Targeted re-review engine: when an approved fact or rule expires or changes, BRANDTRACE pinpoints exactly
           which drafts depend on it.
         </p>
@@ -2551,19 +2926,34 @@ function InsightsView({
                   alignItems: 'start',
                   gap: 16,
                   padding: '16px 20px',
-                  border: '1px solid #1a3045',
+                  border: '1px solid #DCE5DF',
                   borderRadius: 10,
-                  background: '#060d16',
+                  background: '#F8FAF8',
                 }}
               >
                 <div style={{ flex: 1 }}>
-                  <span className={item.re_review_urgency === 'URGENT' ? 'badge-high' : 'badge-medium'}>
-                    {item.re_review_urgency} &middot; {item.item_type} {item.status}
-                  </span>
-                  <p style={{ margin: '6px 0 2px', fontWeight: 700, color: '#f0f8ff' }}>
-                    {item.item_title} <span style={{ fontSize: 11, color: '#5a7a96', fontWeight: 400 }}>(ID: {item.item_id})</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span className={item.status === 'EXPIRED' ? 'badge-high' : item.status === 'EXPIRING_SOON' ? 'badge-expiring-soon' : 'badge-medium'}>
+                      {item.status} &middot; {item.item_type}
+                    </span>
+                    <span className={item.re_review_urgency === 'URGENT' ? 'badge-high' : 'badge-medium'}>
+                      Urgency: {item.re_review_urgency}
+                    </span>
+                    {item.expiry_date && (
+                      <span style={{ fontSize: 11, color: 'var(--bt-text-secondary)' }}>
+                        Expires: {new Date(item.expiry_date).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: '6px 0 2px', fontWeight: 700, color: 'var(--bt-forest)', fontSize: 15 }}>
+                    {item.item_title} <span style={{ fontSize: 11, color: 'var(--bt-text-secondary)', fontWeight: 400 }}>(ID: {item.item_id})</span>
                   </p>
-                  <div style={{ fontSize: 12, color: '#8da4bc', marginTop: 4 }}>
+                  {item.reason && (
+                    <div style={{ fontSize: 12, color: 'var(--bt-forest)', marginTop: 4, fontWeight: 500 }}>
+                      Reason: {item.reason}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 12, color: '#617168', marginTop: 4 }}>
                     Affects {item.affected_review_ids.length} draft(s):
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
@@ -2577,9 +2967,9 @@ function InsightsView({
                           gap: 4,
                           padding: '4px 10px',
                           borderRadius: 6,
-                          border: '1px solid #1a3045',
-                          background: '#0a1828',
-                          color: '#67e8f9',
+                          border: '1px solid #DCE5DF',
+                          background: '#F0F4F1',
+                          color: '#0E9F78',
                           fontSize: 12,
                           fontWeight: 600,
                           cursor: onNavigateToDraft ? 'pointer' : 'default',
@@ -2605,7 +2995,7 @@ function InsightsView({
             ))}
           </div>
         ) : (
-          <p style={{ color: '#5a7a96', fontSize: 13 }}>No expired sources currently impacting active drafts.</p>
+          <p style={{ color: '#8A9A91', fontSize: 13 }}>No expired sources currently impacting active drafts.</p>
         )}
       </div>
     </div>
@@ -2621,7 +3011,7 @@ function HelpWalkthroughView({ onLoadDemo, onResetDemo }: { onLoadDemo: () => vo
         <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800 }}>
           Judge Evaluation Walkthrough &mdash; Local Verification Guide
         </h2>
-        <p style={{ color: '#8da4bc', fontSize: 14, margin: '0 0 24px' }}>
+        <p style={{ color: '#617168', fontSize: 14, margin: '0 0 24px' }}>
           Welcome to the BRANDTRACE governance workspace. Follow this concise step-by-step evaluation script to test
           all core capabilities without requiring an external AI API key:
         </p>
@@ -2643,7 +3033,7 @@ function HelpWalkthroughView({ onLoadDemo, onResetDemo }: { onLoadDemo: () => vo
             <div style={{ fontSize: 12, fontWeight: 700, color: '#5eead4', letterSpacing: '0.04em', marginBottom: 4 }}>
               FICTIONAL DEMO ENVIRONMENT
             </div>
-            <p style={{ margin: 0, fontSize: 13, color: '#8da4bc' }}>
+            <p style={{ margin: 0, fontSize: 13, color: '#617168' }}>
               All workspace data, brand rules, facts, and reviews are fictional demonstration records.
               No real organisation data is used. Role simulation is client-side only.
             </p>
@@ -2724,8 +3114,8 @@ function HelpWalkthroughView({ onLoadDemo, onResetDemo }: { onLoadDemo: () => vo
             <div key={step} className="bt-walkthrough-step">
               <div className="bt-step-num">{step}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: '#f0f8ff' }}>{title}</div>
-                <p style={{ margin: '4px 0 0', color: '#8da4bc', fontSize: 13 }}>{desc}</p>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--bt-forest)' }}>{title}</div>
+                <p style={{ margin: '4px 0 0', color: '#617168', fontSize: 13 }}>{desc}</p>
                 {action}
               </div>
             </div>
@@ -2735,11 +3125,11 @@ function HelpWalkthroughView({ onLoadDemo, onResetDemo }: { onLoadDemo: () => vo
         {/* Technical Disclosures */}
         <div style={{
           marginTop: 32,
-          borderTop: '1px solid #1a3045',
+          borderTop: '1px solid #DCE5DF',
           paddingTop: 20,
         }}>
           <div className="section-eyebrow" style={{ marginBottom: 12 }}>Technical Disclosures</div>
-          <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#8da4bc' }}>
+          <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#617168' }}>
             <div>&bull; Automated tests: 21 passed, 1 skipped (requires live AI API key)</div>
             <div>&bull; Smoke assertions: 27/27 passed</div>
             <div>&bull; Deterministic policy checks run first; AI triage is additive and optional</div>
@@ -2758,14 +3148,14 @@ function Bars({ values }: { values: { label: string; count: number }[] }) {
   const max = Math.max(...values.map((x) => x.count), 1);
 
   if (!values.length) {
-    return <p style={{ color: '#5a7a96', fontSize: 13, margin: '12px 0' }}>No trend data recorded yet.</p>;
+    return <p style={{ color: '#8A9A91', fontSize: 13, margin: '12px 0' }}>No trend data recorded yet.</p>;
   }
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {values.map((x) => (
         <div key={x.label} style={{ display: 'grid', gridTemplateColumns: '130px 1fr 30px', gap: 12, alignItems: 'center' }}>
-          <span style={{ fontSize: 13, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 13, color: 'var(--bt-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {x.label}
           </span>
           <div style={{ height: 8, background: '#102030', borderRadius: 4, overflow: 'hidden' }}>

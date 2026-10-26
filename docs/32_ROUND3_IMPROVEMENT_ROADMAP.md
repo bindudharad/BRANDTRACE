@@ -86,3 +86,33 @@ Over time, certain brand rules generate high friction. When a rule is repeatedly
 
 ### Measurable Acceptance Criteria
 > *"System identifies rules dismissed or waived ≥ 3 times in 30 days and proposes a human-reviewable clarification; multi-stakeholder approval required before rule takes effect."*
+
+---
+
+## Round 3 Implementation & Delivery Status (Completed)
+
+All three Round 3 commitments have been implemented in the active codebase and verified with automated test suites:
+
+### 1. Time-Aware Claim Ledger & Impact Map (DELIVERED)
+- **Fact Notes**: Added `notes TEXT` field to the `facts` table with idempotent migration and API support (`GET /api/facts`, `POST /api/facts`, `PUT /api/facts/{id}`).
+- **Timezone-Safe Comparisons**: Normalized timestamps using `datetime.fromisoformat()` with UTC fallback.
+- **EXPIRING_SOON Status**: Added 30-day lookahead window for claims expiring soon, marked as `EXPIRING_SOON` with `RECOMMENDED` re-review urgency.
+- **Targeted Re-Review Execution**: Targeted re-review endpoint `POST /api/governance/re-review-impact` flags historical approved drafts to `CHANGES_REQUESTED` and records an immutable audit log.
+- **Verification**: `backend/tests/test_round3_claim_ledger.py` (4 tests passing).
+
+### 2. Multimodal Visual Compliance with Asset Registry (DELIVERED)
+- **Asset Registry**: Added `brand_assets` table supporting `APPROVED`, `RESTRICTED`, `UNKNOWN`, and `REVIEW_REQUIRED` approval and license statuses.
+- **Asset Registry API**: `GET /api/brand-assets`, `POST /api/brand-assets`, `DELETE /api/brand-assets/{id}` (protected by `brand_admin` authorization).
+- **Deterministic SHA-256 Hash Matching**: Uploaded image bytes are hashed and looked up in the registry:
+  - Registered APPROVED -> `SUPPORTED` finding
+  - Registered RESTRICTED -> `CONTRADICTED` HIGH finding
+  - Unregistered -> `NEEDS_REVIEW` MEDIUM finding
+- **Measured Source Excerpts**: Exact measured hex codes, nearest brand color hex, and Delta-E values are now recorded in `source_excerpt`.
+- **Verification**: `backend/tests/test_round3_visual.py` (4 tests passing).
+
+### 3. Guideline-Health Intelligence with Suggestions API (DELIVERED)
+- **Guideline Health Engine**: `backend/app/guideline_health.py` aggregates finding metrics per rule across all historical reviews.
+- **Reviewer Disagreement Detection**: Detects conflicting human actions (when one reviewer accepts and another dismisses the same rule).
+- **Data Confidence Scoring**: Explicitly rates findings confidence as `SUFFICIENT` (>= 3 independent drafts) or `INSUFFICIENT` (< 3 drafts).
+- **Rule Clarification Suggestions**: `POST /api/governance/rule-suggestions/{rule_id}` allows accepting, deferring, or rejecting deterministic clarifications into the `rule_suggestions` ledger without directly altering live rules.
+- **Verification**: `backend/tests/test_round3_guideline_health.py` (3 tests passing).

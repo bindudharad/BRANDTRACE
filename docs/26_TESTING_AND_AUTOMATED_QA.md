@@ -13,8 +13,8 @@ BRANDTRACE enforces a comprehensive, multi-layered automated testing regime span
        |                           |                         |
        v                           v                         v
  [ Pytest Backend Suite ]   [ Smoke Test Script ]     [ TypeScript & Build ]
- - 76 collected tests       - 27 assertions           - npx tsc --noEmit (0 err)
- - 75 passed, 1 skipped     - scripts/smoke_test.py   - Vite production bundle
+ - 92 collected tests       - 27 assertions           - npx tsc --noEmit (0 err)
+ - 91 passed, 1 skipped     - scripts/smoke_test.py   - Vite production bundle
  - Isolated tempfile DB     - End-to-end API flows    - Static prerender HTML
 ```
 
@@ -109,3 +109,21 @@ The frontend enforces strict TypeScript 5.8 static analysis and production bundl
 * **End-to-End Browser Automation**: Automated Selenium/Cypress headless browser automation is not bundled; UI flows are validated via manual QA checklists.
 * **Third-Party Identity Provider Handshakes**: Enterprise SAML/OAuth2 token exchanges are mocked via header simulation.
 * **Physical Printer Output**: PDF rendering fidelity on physical paper printers is outside test boundaries.
+
+### Round 3 Test Suites (Added October 2026)
+
+Three dedicated test suites verify the Round 3 commitments:
+
+| Test File | Commitments Covered | Key Assertions | Status |
+| :--- | :--- | :--- | :--- |
+| `backend/tests/test_round3_claim_ledger.py` | Time-Aware Claim Ledger & Impact Map | Notes field persistence, 3-draft isolation in impact map, deduplication, timezone-safe transition to `OUTDATED`, `EXPIRING_SOON` status, and re-review trigger audit | ✅ 4 passed |
+| `backend/tests/test_round3_visual.py` | Multimodal Visual Compliance & Asset Registry | Brand asset registry CRUD, SHA-256 matching for `APPROVED` and `RESTRICTED` assets, unregistered asset handling, palette Delta-E and WCAG contrast ratio compliance | ✅ 4 passed |
+| `backend/tests/test_postgresql_compatibility.py` | PostgreSQL & Neon Compatibility | Neon/Postgres URL normalization, positional-to-named parameter conversion (:p0), schema DDL dialect compilation under postgresql.dialect(), and init_db idempotency | ✅ 4 passed |
+| `backend/tests/test_round3_guideline_health.py` | Guideline-Health Intelligence & Suggestions | 5-draft aggregation without draft count inflation, `INSUFFICIENT` data confidence label, human disagreement detection, and rule suggestion decision logging without altering live rules | ✅ 3 passed |
+
+**Total Test Suite Status:**
+- **91 passed, 1 skipped** (Gemini live key test) in ~10.4s
+- **27/27 smoke test assertions passed**
+- **0 TypeScript compile errors**
+- **0 ESLint errors**
+- **Vite production build + static prerender successful**

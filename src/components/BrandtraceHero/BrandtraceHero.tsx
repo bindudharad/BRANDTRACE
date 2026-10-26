@@ -1,897 +1,1155 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState } from 'react';
 import {
-  ArrowRight,
   Shield,
   FileText,
   Search,
   CheckCircle,
-  ChevronDown,
   Zap,
-  Eye,
-  BarChart2,
-  Sparkles,
+  ArrowRight,
   Layers,
-  ArrowUpRight,
+  Sparkles,
+  ExternalLink,
+  ChevronRight,
+  Menu,
+  X,
+  Database,
+  Cpu,
+  Eye,
+  AlertTriangle,
+  History,
+  Lock,
+  Compass,
+  Palette,
   Check,
-  Scale,
+  Activity,
+  GitBranch,
 } from 'lucide-react';
-import { EvidencePrism } from '../EvidencePrism';
 
 interface BrandtraceHeroProps {
   onEnterWorkspace: () => void;
 }
 
-interface StoryStep {
-  step: string;
-  label: string;
-  icon: React.FC<{ size?: number; color?: string; className?: string }>;
-  color: string;
-  title: string;
-  desc: string;
-  pill: string;
-  previewCode: {
-    stage: string;
-    target: string;
-    evidence: string;
-    verdict: string;
-    audit: string;
-  };
-}
-
-const STORY_STEPS: StoryStep[] = [
-  {
-    step: '01',
-    label: 'THE DRAFT',
-    icon: FileText,
-    color: '#67e8f9',
-    title: 'Content arrives for governance review',
-    desc: 'Marketing copy, announcements, or documentation are submitted across distributed teams and AI tools before publication.',
-    pill: 'IN_REVIEW',
-    previewCode: {
-      stage: 'INGESTION',
-      target: '"Brandtrace is the best cheap platform on the market today."',
-      evidence: 'Awaiting deterministic rule-matching & claim-ledger traversal...',
-      verdict: 'STATUS: PENDING_ANALYSIS',
-      audit: 'EVENT: DRAFT_VERSION_01_RECORDED',
-    },
-  },
-  {
-    step: '02',
-    label: 'THE RULE',
-    icon: Shield,
-    color: '#2dd4bf',
-    title: 'Brand constitution evaluates deterministically',
-    desc: 'Active policies match exact prohibited phrases, required disclaimers, and forbidden terms without reliance on external AI.',
-    pill: 'RULE_EVALUATION',
-    previewCode: {
-      stage: 'DETERMINISTIC_RULES',
-      target: 'MATCH: prohibited_phrase -> "cheap" & superlative -> "best"',
-      evidence: 'Rule R-VOICE-02 ("Value Framing") & R-VOICE-01 ("Superlatives")',
-      verdict: 'SEVERITY: HIGH (Blocking Approval Gate)',
-      audit: 'RULE_VERSION: v1.0 [APPROVED]',
-    },
-  },
-  {
-    step: '03',
-    label: 'THE EVIDENCE',
-    icon: Search,
-    color: '#a7f3d0',
-    title: 'Claims resolve against approved ledger',
-    desc: 'Factual assertions are mapped to verified sources. Expired or unverified citations are explicitly tagged OUTDATED or UNSUPPORTED.',
-    pill: 'EVIDENCE_RESOLUTION',
-    previewCode: {
-      stage: 'CLAIM_LEDGER',
-      target: 'CLAIM: "Always available with zero risk"',
-      evidence: 'No verified source found in approved claim ledger',
-      verdict: 'STATUS: UNSUPPORTED_BY_APPROVED_EVIDENCE',
-      audit: 'SOURCE_VALIDATION: UNVERIFIED_PROMOTIONAL_ASSERTION',
-    },
-  },
-  {
-    step: '04',
-    label: 'THE FINDING',
-    icon: Eye,
-    color: '#fbbf24',
-    title: 'Explorable findings with full provenance',
-    desc: 'Each finding anchors to the exact affected passage, citation ID, rule version, and explanation — with no hallucinated references.',
-    pill: 'FINDINGS_WORKSPACE',
-    previewCode: {
-      stage: 'STRUCTURED_FINDING',
-      target: 'PASSAGE: "the best cheap platform"',
-      evidence: 'Source: Brand Voice Standards 2026 (ID: rule_voice_02, v1.0)',
-      verdict: 'EXPLANATION: "Cheap undermines quality positioning; use cost-effective."',
-      audit: 'CONFIDENCE: 1.0 (DETERMINISTIC)',
-    },
-  },
-  {
-    step: '05',
-    label: 'THE CORRECTION',
-    icon: Zap,
-    color: '#34d399',
-    title: 'Minimal edits preserve creator intent',
-    desc: 'Compare original versus proposed wording side by side. Reviewers accept, customize, or dismiss with a required reason.',
-    pill: 'INTENT_CORRECTION',
-    previewCode: {
-      stage: 'DIFF_RESOLVER',
-      target: 'PROPOSED: "a premier, cost-effective governance platform"',
-      evidence: 'Replacement maintains original marketing intent with approved vocabulary',
-      verdict: 'ACTION: ACCEPT_EDIT (Draft revision 2 created)',
-      audit: 'EVENT: VERSION_INCREMENTED (v1 -> v2)',
-    },
-  },
-  {
-    step: '06',
-    label: 'THE DECISION',
-    icon: CheckCircle,
-    color: '#4ade80',
-    title: 'Human governance approval gate',
-    desc: 'Brand managers sign off with immutable audit trails. The server rejects approval attempts (HTTP 409) if high-risk issues remain open.',
-    pill: 'HUMAN_APPROVAL',
-    previewCode: {
-      stage: 'APPROVAL_GATE',
-      target: 'SIGN-OFF: Brand Manager (role: brand_admin)',
-      evidence: 'All HIGH & CRITICAL findings resolved or waived with recorded reason',
-      verdict: 'STATE: APPROVED (Publication Ready)',
-      audit: 'AUDIT_LEDGER: PERMANENT_DECISION_HASH_RECORDED',
-    },
-  },
-  {
-    step: '07',
-    label: 'THE INSIGHT',
-    icon: BarChart2,
-    color: '#818cf8',
-    title: 'Governance intelligence improves guidelines',
-    desc: 'Track recurring violations, frequently dismissed rules, and expired-source impact maps to systematically evolve brand standards.',
-    pill: 'GOVERNANCE_INTELLIGENCE',
-    previewCode: {
-      stage: 'IMPACT_MAP & INSIGHTS',
-      target: 'RECURRING: "Superlative claims" flagged in 38% of campaigns',
-      evidence: 'Impact Map tracks 3 drafts affected by retired Q3 benchmark',
-      verdict: 'RECOMMENDATION: Clarify Rule R-VOICE-01 with marketing team',
-      audit: 'HEALTH_SCORE_AGGREGATE: 94.2/100',
-    },
-  },
-];
-
-const LEGEND = [
-  { color: '#2dd4bf', label: 'Verified Source (Teal)' },
-  { color: '#fbbf24', label: 'Needs Review (Amber)' },
-  { color: '#f87171', label: 'Contradicted Rule (Red)' },
-  { color: '#4ade80', label: 'Approved Decision (Green)' },
-  { color: '#67e8f9', label: 'Evidence Link (Cyan)' },
-];
-
 export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace }) => {
-  const [activeStep, setActiveStep] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<number | null>(0);
 
-  // Auto-advance workflow demonstration
-  useEffect(() => {
-    if (!isAutoPlaying) return;
-    const interval = setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % STORY_STEPS.length);
-    }, 4500);
-    return () => clearInterval(interval);
-  }, [isAutoPlaying]);
-
-  const currentStep = STORY_STEPS[activeStep];
+  // Connected System Nodes (SVG Diagram)
+  const systemNodes = [
+    {
+      id: 0,
+      title: 'BRANDTRACE Core',
+      badge: 'GOVERNANCE ENGINE',
+      desc: 'Central orchestration engine coordinating deterministic rule matching, fact validation, approval gates, and immutable audit persistence.',
+      status: 'Active',
+      x: 320,
+      y: 200,
+      isCore: true,
+    },
+    {
+      id: 1,
+      title: 'Brand Constitution',
+      badge: 'RULES & GUIDELINES',
+      desc: 'Structured repository of active brand terminology, prohibited phrases, required disclaimers, and voice rules with exact source citations.',
+      status: 'Available',
+      x: 120,
+      y: 80,
+    },
+    {
+      id: 2,
+      title: 'Claim Ledger & Facts',
+      badge: 'TIME-AWARE EVIDENCE',
+      desc: 'Verified factual claims ledger with validity timestamps, expiry tracking, source excerpts, and notes field support.',
+      status: 'Available',
+      x: 520,
+      y: 80,
+    },
+    {
+      id: 3,
+      title: 'Content Analysis',
+      badge: 'MULTI-FORMAT INGEST',
+      desc: 'Deterministic pattern matching across plain copy, Markdown, PDF text layers, and structured review drafts.',
+      status: 'Available',
+      x: 80,
+      y: 260,
+    },
+    {
+      id: 4,
+      title: 'Visual Compliance',
+      badge: 'PALETTE & ASSET REGISTRY',
+      desc: 'Pillow CIELAB Delta-E color distance, WCAG 2.1 contrast ratios, and SHA-256 asset registry verification (brand_assets).',
+      status: 'Available (R3)',
+      x: 540,
+      y: 260,
+    },
+    {
+      id: 5,
+      title: 'Human Review & Approval',
+      badge: 'APPROVAL GATE',
+      desc: 'Strict server-enforced approval gate (HTTP 409) blocking sign-off until all high-risk findings are accepted, edited, or reasoned.',
+      status: 'Available',
+      x: 180,
+      y: 350,
+    },
+    {
+      id: 6,
+      title: 'Audit & Impact Tracking',
+      badge: 'DEPENDENCY MAPPING',
+      desc: 'Append-only audit ledger and dynamic impact map that identifies historical drafts affected by changed or expired facts.',
+      status: 'Available (R3)',
+      x: 460,
+      y: 350,
+    },
+  ];
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        background: '#04080f',
-        minHeight: '100vh',
-        color: '#e8f0f8',
-        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-        overflowX: 'hidden',
-      }}
-    >
-      {/* 1. Global Notice Strip (Demo Mode) */}
-      <header
-        style={{
-          background: 'rgba(6, 24, 38, 0.85)',
-          borderBottom: '1px solid #1a3045',
-          padding: '10px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: 12,
-          color: '#8da4bc',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          backdropFilter: 'blur(16px)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span
-            style={{
-              background: '#0d9488',
-              color: '#ccfbf1',
-              padding: '3px 10px',
-              borderRadius: 5,
-              fontSize: 10,
-              fontWeight: 800,
-              letterSpacing: '0.08em',
-            }}
-          >
-            DEMO MODE
-          </span>
-          <span style={{ color: '#8da4bc' }}>
-            Local execution with zero cloud lock-in. Sample data is fictional.
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <span
-            style={{
-              color: '#2dd4bf',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 12,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: '#2dd4bf',
-                boxShadow: '0 0 10px #2dd4bf',
-              }}
-            />
-            FastAPI 0.115 Connected
-          </span>
-          <button
-            onClick={onEnterWorkspace}
-            className="btn-secondary btn-sm"
-            style={{
-              fontSize: 12,
-              padding: '6px 14px',
-              minHeight: 32,
-              borderColor: '#1a3045',
-            }}
-          >
-            Skip to Workspace →
-          </button>
-        </div>
-      </header>
-
-      {/* 2. Hero Section: Cinematic 3D Presentation */}
-      <section
-        style={{
-          maxWidth: 1440,
-          margin: '0 auto',
-          padding: '60px 40px 40px',
-          display: 'grid',
-          gridTemplateColumns: '1.1fr 0.9fr',
-          gap: 48,
-          alignItems: 'center',
-          minHeight: 'calc(100vh - 52px)',
-        }}
-        className="hero-grid"
-      >
-        {/* Left Column: Brand, Value Proposition & Actions */}
-        <motion.div
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        >
-          {/* Brand Identity Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                background: 'linear-gradient(135deg, #0d9488, #2dd4bf)',
-                borderRadius: 12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 22,
-                color: '#ffffff',
-                boxShadow: '0 0 24px rgba(45, 212, 191, 0.35)',
-              }}
-            >
-              ◈
-            </div>
-            <div>
-              <div
-                style={{
-                  fontWeight: 900,
-                  fontSize: 20,
-                  letterSpacing: '0.12em',
-                  color: '#e8f0f8',
-                  lineHeight: 1.1,
-                }}
-              >
-                BRANDTRACE
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: '#2dd4bf',
-                  letterSpacing: '0.08em',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                }}
-              >
-                EVIDENCE-LINKED BRAND GOVERNANCE
-              </div>
-            </div>
-          </div>
-
-          {/* Main Headline */}
-          <h1
-            style={{
-              fontSize: 'clamp(38px, 4.6vw, 62px)',
-              fontWeight: 800,
-              lineHeight: 1.08,
-              letterSpacing: '-0.035em',
-              margin: '0 0 24px',
-              color: '#f0f8ff',
-            }}
-          >
-            Every finding <br />
-            <span style={{ color: '#2dd4bf' }}>has a source.</span> <br />
-            Every decision <br />
-            <span
-              style={{
-                background: 'linear-gradient(90deg, #67e8f9 0%, #a7f3d0 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              has an owner.
+    <div className="min-h-screen bg-[#F6F8F6] text-[#15251E] font-sans selection:bg-[#E9F6F0] selection:text-[#123B2D]">
+      {/* 1. TOP ANNOUNCEMENT & SYSTEM STATUS STRIP */}
+      <div className="bg-[#123B2D] text-white text-xs py-2 px-4 border-b border-[#0A241B]">
+        <div className="max-w-[1280px] mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="bg-[#0E9F78] text-white font-bold px-2 py-0.5 rounded text-[10px] tracking-wide uppercase">
+              Demo Mode
             </span>
-          </h1>
-
-          <p
-            style={{
-              fontSize: 18,
-              color: '#8da4bc',
-              lineHeight: 1.65,
-              margin: '0 0 36px',
-              maxWidth: 540,
-            }}
-          >
-            Review content before publication against approved guidelines, verified facts, and brand assets.
-            Eliminate hallucinated citations, enforce deterministic rules, and manage human approval with immutable audit history.
-          </p>
-
-          {/* Primary Action Hierarchy (Buttons >= 48px) */}
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 44 }}>
-            <button
-              className="btn-primary"
-              onClick={onEnterWorkspace}
-              style={{
-                fontSize: 15,
-                padding: '14px 32px',
-                minHeight: 52,
-                borderRadius: 12,
-              }}
-            >
-              Enter the Workspace <ArrowRight size={18} />
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                const el = document.getElementById('story-section');
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              style={{
-                fontSize: 15,
-                padding: '14px 28px',
-                minHeight: 52,
-                borderRadius: 12,
-              }}
-            >
-              <Sparkles size={16} /> Explore the Experience
-            </button>
+            <span className="text-[#B3C7BD]">
+              Evidence-linked brand governance platform. Local execution with zero cloud lock-in.
+            </span>
           </div>
-
-          {/* Operational Metrics Bar */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 20,
-              paddingTop: 28,
-              borderTop: '1px solid #1a3045',
-              maxWidth: 520,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#2dd4bf', letterSpacing: '-0.03em' }}>
-                65
-              </div>
-              <div style={{ fontSize: 12, color: '#5a7a96', marginTop: 2, fontWeight: 500 }}>
-                Tests Passing (1 Skipped)
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#67e8f9', letterSpacing: '-0.03em' }}>
-                27/27
-              </div>
-              <div style={{ fontSize: 12, color: '#5a7a96', marginTop: 2, fontWeight: 500 }}>
-                Smoke Assertions
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#a7f3d0', letterSpacing: '-0.03em' }}>
-                0
-              </div>
-              <div style={{ fontSize: 12, color: '#5a7a96', marginTop: 2, fontWeight: 500 }}>
-                API Keys for Local Demo
-              </div>
-            </div>
+          <div className="flex items-center gap-4 text-[#B3C7BD] text-[11px]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#0E9F78] animate-pulse"></span>
+              FastAPI 0.115 Connected
+            </span>
+            <span className="hidden sm:inline text-[#275242]">|</span>
+            <span className="hidden sm:inline">87 Passed &middot; 27/27 Smoke Tests</span>
           </div>
-        </motion.div>
-
-        {/* Right Column: Original 3D Evidence Prism */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          style={{ position: 'relative', width: '100%' }}
-        >
-          {/* Glow backdrop */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'radial-gradient(circle at center, rgba(45, 212, 191, 0.12) 0%, transparent 70%)',
-              filter: 'blur(40px)',
-              pointerEvents: 'none',
-            }}
-          />
-
-          <EvidencePrism height={520} />
-
-          {/* Spatial Legend Overlay */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 16,
-              left: 16,
-              background: 'rgba(6, 13, 22, 0.88)',
-              backdropFilter: 'blur(16px)',
-              border: '1px solid #1a3045',
-              borderRadius: 12,
-              padding: '12px 16px',
-              boxShadow: '0 12px 30px rgba(0, 0, 0, 0.5)',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 10,
-                color: '#5a7a96',
-                fontWeight: 800,
-                letterSpacing: '0.08em',
-                marginBottom: 8,
-                textTransform: 'uppercase',
-              }}
-            >
-              Evidence Prism Visual Legend
-            </div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              {LEGEND.map(({ color, label }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: color,
-                      boxShadow: `0 0 8px ${color}`,
-                      display: 'inline-block',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: '#cbd5e1' }}>{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Active Orbit Stage Indicator */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 16,
-              right: 16,
-              background: 'rgba(6, 13, 22, 0.88)',
-              backdropFilter: 'blur(16px)',
-              border: '1px solid rgba(45, 212, 191, 0.3)',
-              borderRadius: 8,
-              padding: '8px 14px',
-              fontSize: 12,
-              color: '#2dd4bf',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#2dd4bf',
-                display: 'inline-block',
-                boxShadow: '0 0 8px #2dd4bf',
-              }}
-            />
-            {currentStep.label} ACTIVE
-          </div>
-        </motion.div>
-      </section>
-
-      {/* Scroll Down Prompt */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 8,
-          padding: '20px 0 40px',
-          color: '#5a7a96',
-          fontSize: 13,
-          cursor: 'pointer',
-        }}
-        onClick={() => document.getElementById('story-section')?.scrollIntoView({ behavior: 'smooth' })}
-      >
-        <ChevronDown size={18} />
-        <span>Scroll to inspect the 7-stage governance narrative</span>
+        </div>
       </div>
 
-      {/* 3. Interactive Scroll Storytelling Section */}
-      <section
-        id="story-section"
-        style={{
-          maxWidth: 1280,
-          margin: '0 auto',
-          padding: '80px 40px 100px',
-        }}
-      >
-        {/* Section Header */}
-        <div style={{ textAlign: 'center', marginBottom: 56 }}>
-          <div className="section-eyebrow">Interactive Governance Architecture</div>
-          <h2
-            style={{
-              fontSize: 'clamp(30px, 3.8vw, 48px)',
-              fontWeight: 800,
-              letterSpacing: '-0.03em',
-              color: '#e8f0f8',
-              margin: '8px 0 16px',
-            }}
-          >
-            From Draft to Decision — Traceable at Every Step
-          </h2>
-          <p style={{ fontSize: 17, color: '#8da4bc', maxWidth: 640, margin: '0 auto', lineHeight: 1.6 }}>
-            Step through how submitted content connects to constitution rules, verifies against approved facts,
-            and secures human approval with immutable audit history.
-          </p>
-        </div>
-
-        {/* Step Navigation Tabs */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            marginBottom: 44,
-          }}
-        >
-          {STORY_STEPS.map((s, i) => {
-            const isActive = activeStep === i;
-            return (
-              <button
-                key={s.step}
-                onClick={() => {
-                  setActiveStep(i);
-                  setIsAutoPlaying(false);
-                }}
-                style={{
-                  background: isActive ? '#0a2233' : 'rgba(13, 26, 42, 0.6)',
-                  border: `1px solid ${isActive ? s.color : '#1a3045'}`,
-                  color: isActive ? s.color : '#8da4bc',
-                  padding: '10px 18px',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  transition: 'all 200ms ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: isActive ? s.color : 'transparent',
-                    border: `1px solid ${s.color}`,
-                  }}
-                />
-                {s.step}. {s.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Story Step Card with Animated Transitions */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeStep}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="card-premium"
-            style={{
-              padding: '40px',
-              display: 'grid',
-              gridTemplateColumns: '1.1fr 0.9fr',
-              gap: 48,
-              alignItems: 'center',
-              borderColor: `${currentStep.color}35`,
-              boxShadow: `0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px ${currentStep.color}15`,
-            }}
-          >
-            {/* Step Content */}
+      {/* 2. ENTERPRISE NAVIGATION BAR */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#DCE5DF] shadow-[0_1px_3px_rgba(18,59,45,0.03)]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
+          {/* Logo & Identity */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#123B2D] flex items-center justify-center text-white font-black text-lg shadow-sm">
+              <Shield size={20} className="text-[#0E9F78]" />
+            </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-                <div
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 14,
-                    background: `${currentStep.color}18`,
-                    border: `1px solid ${currentStep.color}50`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <currentStep.icon size={24} color={currentStep.color} />
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: '0.12em',
-                      color: currentStep.color,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    STAGE {currentStep.step} OF 07
-                  </div>
-                  <div style={{ fontSize: 14, color: '#8da4bc', fontWeight: 600 }}>
-                    {currentStep.label}
-                  </div>
-                </div>
+              <span className="text-lg font-bold tracking-tight text-[#123B2D] block leading-none">
+                BRANDTRACE
+              </span>
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-[#617168] block mt-0.5">
+                Brand Governance Platform
+              </span>
+            </div>
+          </div>
+
+          {/* Desktop Nav Links */}
+          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-[#617168]">
+            <a href="#how-it-works" className="hover:text-[#123B2D] transition-colors">
+              How It Works
+            </a>
+            <a href="#platform-modules" className="hover:text-[#123B2D] transition-colors">
+              Platform Modules
+            </a>
+            <a href="#system-architecture" className="hover:text-[#123B2D] transition-colors">
+              Architecture
+            </a>
+            <a href="#evidence-trace" className="hover:text-[#123B2D] transition-colors">
+              Evidence Model
+            </a>
+            <a href="#round3-roadmap" className="hover:text-[#123B2D] transition-colors">
+              Round 3 Roadmap
+            </a>
+          </nav>
+
+          {/* Header Action */}
+          <div className="hidden sm:flex items-center gap-3">
+            <button
+              onClick={onEnterWorkspace}
+              className="btn-primary text-sm shadow-sm"
+              aria-label="Open Governance Workspace"
+            >
+              Open Workspace
+              <ArrowRight size={16} />
+            </button>
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg text-[#15251E] hover:bg-[#F0F4F1] transition-colors"
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-[#DCE5DF] bg-white px-4 py-4 space-y-3">
+            <a
+              href="#how-it-works"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-medium text-[#617168] hover:text-[#123B2D]"
+            >
+              How It Works
+            </a>
+            <a
+              href="#platform-modules"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-medium text-[#617168] hover:text-[#123B2D]"
+            >
+              Platform Modules
+            </a>
+            <a
+              href="#system-architecture"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-medium text-[#617168] hover:text-[#123B2D]"
+            >
+              Architecture
+            </a>
+            <a
+              href="#evidence-trace"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-medium text-[#617168] hover:text-[#123B2D]"
+            >
+              Evidence Model
+            </a>
+            <a
+              href="#round3-roadmap"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-medium text-[#617168] hover:text-[#123B2D]"
+            >
+              Round 3 Roadmap
+            </a>
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onEnterWorkspace();
+                }}
+                className="btn-primary w-full justify-center"
+              >
+                Open Workspace <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* 3. HERO SECTION (TWO-COLUMN WITH CONNECTED SYSTEM MAP) */}
+      <section className="relative pt-12 pb-20 md:pt-16 md:pb-28 overflow-hidden">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+            {/* Left Column: Brand Governance Messaging */}
+            <div className="lg:col-span-6 space-y-6">
+              {/* Category Pill */}
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#E9F6F0] border border-[#A6CDBA] text-[#123B2D] text-xs font-bold tracking-wide uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0E9F78]"></span>
+                EVIDENCE-LINKED BRAND GOVERNANCE
               </div>
 
-              <h3
-                style={{
-                  fontSize: 28,
-                  fontWeight: 800,
-                  color: '#f0f8ff',
-                  letterSpacing: '-0.02em',
-                  margin: '0 0 16px',
-                }}
-              >
-                {currentStep.title}
-              </h3>
+              {/* Headline */}
+              <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-bold text-[#123B2D] leading-[1.08] tracking-tight">
+                Every finding has a source.{' '}
+                <span className="text-[#0E9F78]">Every decision has an owner.</span>
+              </h1>
 
-              <p
-                style={{
-                  color: '#8da4bc',
-                  fontSize: 16,
-                  lineHeight: 1.7,
-                  margin: '0 0 28px',
-                }}
-              >
-                {currentStep.desc}
+              {/* Subtitle */}
+              <p className="text-lg text-[#617168] leading-relaxed max-w-xl">
+                Review brand content before publication against approved guidelines, verified facts and visual rules. Resolve issues with source-linked evidence, preserve reviewer intent and keep an auditable record of every decision.
               </p>
 
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <span
-                  style={{
-                    background: `${currentStep.color}18`,
-                    color: currentStep.color,
-                    border: `1px solid ${currentStep.color}40`,
-                    padding: '4px 12px',
-                    borderRadius: 6,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    letterSpacing: '0.04em',
-                  }}
+              {/* CTAs */}
+              <div className="flex flex-wrap items-center gap-4 pt-2">
+                <button
+                  onClick={onEnterWorkspace}
+                  className="btn-primary text-base px-6 py-3 min-h-[50px] shadow-md"
                 >
-                  {currentStep.pill}
-                </span>
-                <span style={{ fontSize: 13, color: '#5a7a96' }}>
-                  Auto-validated on the server
-                </span>
+                  Enter the Workspace
+                  <ArrowRight size={18} />
+                </button>
+                <a
+                  href="#how-it-works"
+                  className="btn-secondary text-base px-6 py-3 min-h-[50px]"
+                >
+                  Explore How It Works
+                </a>
+              </div>
+
+              {/* Trust & Rigor Badges */}
+              <div className="pt-6 border-t border-[#DCE5DF] grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-xl font-bold text-[#123B2D]">87 Passed</div>
+                  <div className="text-xs text-[#617168] font-medium">Automated Tests</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-[#0E9F78]">Deterministic</div>
+                  <div className="text-xs text-[#617168] font-medium">Rule Engine</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-[#123B2D]">HTTP 409</div>
+                  <div className="text-xs text-[#617168] font-medium">Server Approval Gate</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-[#0E9F78]">100% Local</div>
+                  <div className="text-xs text-[#617168] font-medium">Zero Cloud Lock-in</div>
+                </div>
               </div>
             </div>
 
-            {/* Evidence & Provenance Inspector Box */}
-            <div
-              style={{
-                background: '#060d16',
-                border: '1px solid #1a3045',
-                borderRadius: 12,
-                padding: '24px',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                fontSize: 13,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  borderBottom: '1px solid #1a3045',
-                  paddingBottom: 12,
-                  marginBottom: 16,
-                }}
-              >
-                <span style={{ color: '#5a7a96', fontSize: 11, fontWeight: 700 }}>
-                  EVIDENCE TELEMETRY
-                </span>
-                <span style={{ color: currentStep.color, fontSize: 11, fontWeight: 700 }}>
-                  STAGE::{currentStep.previewCode.stage}
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div>
-                  <div style={{ color: '#5a7a96', fontSize: 11, marginBottom: 4 }}>TARGET EXCERPT:</div>
-                  <div style={{ color: '#cbd5e1', background: '#0a1726', padding: '8px 12px', borderRadius: 6 }}>
-                    {currentStep.previewCode.target}
+            {/* Right Column: Connected System Diagram */}
+            <div className="lg:col-span-6">
+              <div className="bg-white border border-[#DCE5DF] rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#EBF0EC]">
+                  <div className="flex items-center gap-2">
+                    <Layers size={16} className="text-[#0E9F78]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#123B2D]">
+                      Interactive System Architecture Map
+                    </span>
                   </div>
+                  <span className="text-[11px] text-[#617168] bg-[#F0F4F1] px-2 py-0.5 rounded font-medium">
+                    Click node to inspect
+                  </span>
                 </div>
 
-                <div>
-                  <div style={{ color: '#5a7a96', fontSize: 11, marginBottom: 4 }}>EVIDENCE RESOLUTION:</div>
-                  <div style={{ color: currentStep.color, background: '#0a1726', padding: '8px 12px', borderRadius: 6 }}>
-                    {currentStep.previewCode.evidence}
-                  </div>
+                {/* SVG Visual Map */}
+                <div className="relative w-full aspect-[640/420] bg-[#F6F8F6] rounded-xl border border-[#EBF0EC] p-2 flex items-center justify-center">
+                  <svg
+                    viewBox="0 0 640 420"
+                    className="w-full h-full"
+                    style={{ overflow: 'visible' }}
+                    aria-label="BRANDTRACE Architecture Diagram"
+                  >
+                    {/* Background Connection Grid Lines */}
+                    <defs>
+                      <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#A6CDBA" stopOpacity="0.8" />
+                        <stop offset="100%" stopColor="#0E9F78" stopOpacity="0.4" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Connecting Paths to Center (320, 200) */}
+                    <line x1="120" y1="80" x2="320" y2="200" stroke="#A6CDBA" strokeWidth="2" strokeDasharray="4 4" />
+                    <line x1="520" y1="80" x2="320" y2="200" stroke="#A6CDBA" strokeWidth="2" strokeDasharray="4 4" />
+                    <line x1="80" y1="260" x2="320" y2="200" stroke="#A6CDBA" strokeWidth="2" strokeDasharray="4 4" />
+                    <line x1="540" y1="260" x2="320" y2="200" stroke="#A6CDBA" strokeWidth="2" strokeDasharray="4 4" />
+                    <line x1="180" y1="350" x2="320" y2="200" stroke="#A6CDBA" strokeWidth="2" strokeDasharray="4 4" />
+                    <line x1="460" y1="350" x2="320" y2="200" stroke="#A6CDBA" strokeWidth="2" strokeDasharray="4 4" />
+
+                    {/* Nodes Render */}
+                    {systemNodes.map((node) => {
+                      const isSelected = selectedNode === node.id;
+                      const isCore = node.isCore;
+
+                      return (
+                        <g
+                          key={node.id}
+                          onClick={() => setSelectedNode(node.id)}
+                          className="cursor-pointer transition-transform hover:scale-105"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`Inspect ${node.title}`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') setSelectedNode(node.id);
+                          }}
+                        >
+                          {/* Glow pulse on selected or core */}
+                          {(isSelected || isCore) && (
+                            <circle
+                              cx={node.x}
+                              cy={node.y}
+                              r={isCore ? 54 : 34}
+                              fill={isCore ? 'rgba(14, 159, 120, 0.12)' : 'rgba(18, 59, 45, 0.08)'}
+                              className="animate-pulse"
+                            />
+                          )}
+
+                          {/* Outer Circle */}
+                          <circle
+                            cx={node.x}
+                            cy={node.y}
+                            r={isCore ? 46 : 28}
+                            fill={isCore ? '#123B2D' : '#FFFFFF'}
+                            stroke={isSelected ? '#0E9F78' : isCore ? '#0A241B' : '#DCE5DF'}
+                            strokeWidth={isSelected ? 3 : 2}
+                            filter="drop-shadow(0 2px 4px rgba(18,59,45,0.06))"
+                          />
+
+                          {/* Inner Icon or Dot */}
+                          {isCore ? (
+                            <text
+                              x={node.x}
+                              y={node.y + 4}
+                              textAnchor="middle"
+                              fill="#FFFFFF"
+                              fontSize="12"
+                              fontWeight="bold"
+                              fontFamily="sans-serif"
+                            >
+                              CORE
+                            </text>
+                          ) : (
+                            <circle cx={node.x} cy={node.y} r={8} fill={isSelected ? '#0E9F78' : '#A6CDBA'} />
+                          )}
+
+                          {/* Text Label Below Node */}
+                          <text
+                            x={node.x}
+                            y={node.y + (isCore ? 64 : 42)}
+                            textAnchor="middle"
+                            fill="#15251E"
+                            fontSize="11"
+                            fontWeight="600"
+                            fontFamily="sans-serif"
+                          >
+                            {node.title}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
                 </div>
 
-                <div>
-                  <div style={{ color: '#5a7a96', fontSize: 11, marginBottom: 4 }}>VERDICT / GATE:</div>
-                  <div style={{ color: '#f8fafc', background: '#0a1726', padding: '8px 12px', borderRadius: 6, fontWeight: 600 }}>
-                    {currentStep.previewCode.verdict}
+                {/* Node Detail Box */}
+                {selectedNode !== null && (
+                  <div className="mt-4 p-4 rounded-xl bg-[#E9F6F0] border border-[#A6CDBA] transition-all">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-[#123B2D] uppercase tracking-wider">
+                        {systemNodes[selectedNode].badge}
+                      </span>
+                      <span className="text-[11px] font-semibold text-[#0E9F78] bg-white px-2 py-0.5 rounded border border-[#A6CDBA]">
+                        {systemNodes[selectedNode].status}
+                      </span>
+                    </div>
+                    <div className="font-bold text-sm text-[#123B2D] mt-1">
+                      {systemNodes[selectedNode].title}
+                    </div>
+                    <p className="text-xs text-[#617168] mt-1 leading-relaxed">
+                      {systemNodes[selectedNode].desc}
+                    </p>
                   </div>
-                </div>
-
-                <div style={{ borderTop: '1px solid #1a3045', paddingTop: 10, marginTop: 4 }}>
-                  <div style={{ color: '#34d399', fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Check size={14} /> {currentStep.previewCode.audit}
-                  </div>
-                </div>
+                )}
               </div>
             </div>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Step Navigation Controls */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 32 }}>
-          <button
-            className="btn-secondary btn-sm"
-            onClick={() => {
-              setActiveStep((prev) => (prev - 1 + STORY_STEPS.length) % STORY_STEPS.length);
-              setIsAutoPlaying(false);
-            }}
-          >
-            ← Previous Stage
-          </button>
-          <button
-            className="btn-secondary btn-sm"
-            onClick={() => {
-              setActiveStep((prev) => (prev + 1) % STORY_STEPS.length);
-              setIsAutoPlaying(false);
-            }}
-          >
-            Next Stage →
-          </button>
-          <button
-            className="btn-secondary btn-sm"
-            onClick={() => setIsAutoPlaying((p) => !p)}
-            style={{ color: isAutoPlaying ? '#2dd4bf' : '#8da4bc' }}
-          >
-            {isAutoPlaying ? 'Pause Auto-Play' : 'Resume Auto-Play'}
-          </button>
-        </div>
-      </section>
-
-      {/* 4. Pre-Launch Workspace Call To Action */}
-      <section
-        style={{
-          background: 'linear-gradient(180deg, #04080f 0%, #081a2e 50%, #04080f 100%)',
-          borderTop: '1px solid #1a3045',
-          padding: '90px 40px',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              margin: '0 auto 20px',
-              borderRadius: 14,
-              background: 'linear-gradient(135deg, #0f766e, #2dd4bf)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 24,
-              boxShadow: '0 0 30px rgba(45, 212, 191, 0.4)',
-            }}
-          >
-            ◈
           </div>
-          <h2
-            style={{
-              fontSize: 'clamp(28px, 3.6vw, 42px)',
-              fontWeight: 800,
-              letterSpacing: '-0.03em',
-              color: '#f0f8ff',
-              margin: '0 0 16px',
-            }}
-          >
-            Experience Local Brand Governance
-          </h2>
-          <p
-            style={{
-              color: '#8da4bc',
-              fontSize: 17,
-              lineHeight: 1.65,
-              margin: '0 0 36px',
-            }}
-          >
-            The workspace is seeded with active rules, approved claims, and an intentional test draft.
-            Resolve violations, inspect the immutable audit history, and approve as Brand Manager.
-          </p>
-          <button
-            className="btn-primary"
-            onClick={onEnterWorkspace}
-            style={{
-              fontSize: 16,
-              padding: '16px 44px',
-              minHeight: 56,
-              borderRadius: 12,
-            }}
-          >
-            Launch the Governance Workspace <ArrowRight size={18} />
-          </button>
         </div>
       </section>
 
-      {/* Responsive adjustments */}
-      <style>{`
-        @media (max-width: 960px) {
-          .hero-grid {
-            grid-template-columns: 1fr !important;
-            padding-top: 40px !important;
-          }
-        }
-      `}</style>
+      {/* 4. PRODUCT PRINCIPLES STRIP */}
+      <section className="py-12 bg-white border-y border-[#DCE5DF]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="p-5 rounded-xl bg-[#F6F8F6] border border-[#EBF0EC]">
+              <div className="w-10 h-10 rounded-lg bg-[#E9F6F0] flex items-center justify-center text-[#123B2D] mb-3">
+                <Search size={20} className="text-[#0E9F78]" />
+              </div>
+              <h3 className="font-bold text-sm text-[#123B2D]">Source-Linked Findings</h3>
+              <p className="text-xs text-[#617168] mt-1.5 leading-relaxed">
+                Every violation anchors to an exact rule ID, verified fact excerpt, or measured visual property. No phantom claims.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-xl bg-[#F6F8F6] border border-[#EBF0EC]">
+              <div className="w-10 h-10 rounded-lg bg-[#E9F6F0] flex items-center justify-center text-[#123B2D] mb-3">
+                <Cpu size={20} className="text-[#0E9F78]" />
+              </div>
+              <h3 className="font-bold text-sm text-[#123B2D]">Deterministic-First</h3>
+              <p className="text-xs text-[#617168] mt-1.5 leading-relaxed">
+                Core governance runs with deterministic accuracy. No black-box model drift, hallucinations, or mandatory cloud keys.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-xl bg-[#F6F8F6] border border-[#EBF0EC]">
+              <div className="w-10 h-10 rounded-lg bg-[#E9F6F0] flex items-center justify-center text-[#123B2D] mb-3">
+                <CheckCircle size={20} className="text-[#0E9F78]" />
+              </div>
+              <h3 className="font-bold text-sm text-[#123B2D]">Human-Gated Approvals</h3>
+              <p className="text-xs text-[#617168] mt-1.5 leading-relaxed">
+                High-risk violations physically block approval on the server (HTTP 409). Waivers and dismissals require documented reasons.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-xl bg-[#F6F8F6] border border-[#EBF0EC]">
+              <div className="w-10 h-10 rounded-lg bg-[#E9F6F0] flex items-center justify-center text-[#123B2D] mb-3">
+                <History size={20} className="text-[#0E9F78]" />
+              </div>
+              <h3 className="font-bold text-sm text-[#123B2D]">Immutable Version History</h3>
+              <p className="text-xs text-[#617168] mt-1.5 leading-relaxed">
+                Every text edit, restored draft, and governance action is permanently captured in point-in-time review versions.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. "HOW BRANDTRACE WORKS" — 6-STEP CONNECTED WORKFLOW */}
+      <section id="how-it-works" className="py-20 md:py-28 bg-[#F6F8F6]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="text-xs font-bold text-[#0E9F78] uppercase tracking-wider mb-2">
+              End-to-End Governance Lifecycle
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#123B2D]">
+              How BRANDTRACE Works
+            </h2>
+            <p className="text-sm sm:text-base text-[#617168] mt-3">
+              A transparent, six-step journey from raw creative draft to auditable, published brand communication.
+            </p>
+          </div>
+
+          {/* 6 Connected Steps Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative">
+            {[
+              {
+                num: '01',
+                title: 'Define Brand Constitution',
+                icon: Shield,
+                category: 'INPUT',
+                desc: 'Configure approved terminology, prohibited superlatives, required disclaimers, and time-aware factual claims.',
+                io: 'Rules & Facts DB',
+              },
+              {
+                num: '02',
+                title: 'Submit Content Draft',
+                icon: FileText,
+                category: 'INGEST',
+                desc: 'Authors submit marketing copy, announcements, document drafts (PDF/TXT), or visual graphics via workspace.',
+                io: 'Draft Content & Files',
+              },
+              {
+                num: '03',
+                title: 'Run Deterministic Analysis',
+                icon: Search,
+                category: 'ENGINE',
+                desc: 'Pattern matcher scans exact passages; claim ledger verifies citations; color science evaluates WCAG and palettes.',
+                io: 'Deterministic Evaluation',
+              },
+              {
+                num: '04',
+                title: 'Inspect Source Findings',
+                icon: Eye,
+                category: 'AUDIT',
+                desc: 'Review cards display severity (CRITICAL/HIGH/MEDIUM/LOW), cited rule ID, exact matched quote, and source excerpt.',
+                io: 'Structured Findings',
+              },
+              {
+                num: '05',
+                title: 'Resolve with Precision',
+                icon: Zap,
+                category: 'DECISION',
+                desc: 'Accept neutral suggested corrections, perform manual edits, dismiss with a documented reason, or escalate to brand admin.',
+                io: 'Versioned Revisions',
+              },
+              {
+                num: '06',
+                title: 'Approval Gate & Impact Map',
+                icon: Lock,
+                category: 'GOVERNANCE',
+                desc: 'Server verifies all high-risk items are resolved before granting approval. Audit history and rule-change impact tracking preserved.',
+                io: 'Audit Log & Sign-Off',
+              },
+            ].map((step, idx) => {
+              const Icon = step.icon;
+              return (
+                <div
+                  key={step.num}
+                  className="bg-white border border-[#DCE5DF] rounded-xl p-6 shadow-sm hover:border-[#0E9F78] transition-all relative flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs font-black text-[#0E9F78] bg-[#E9F6F0] px-2.5 py-1 rounded">
+                        STEP {step.num}
+                      </span>
+                      <span className="text-[11px] font-semibold text-[#617168] uppercase tracking-wider">
+                        {step.category}
+                      </span>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-[#F0F4F1] flex items-center justify-center text-[#123B2D] mb-4">
+                      <Icon size={20} className="text-[#123B2D]" />
+                    </div>
+                    <h3 className="text-base font-bold text-[#123B2D] mb-2">
+                      {step.title}
+                    </h3>
+                    <p className="text-xs text-[#617168] leading-relaxed">
+                      {step.desc}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 pt-4 border-t border-[#EBF0EC] flex items-center justify-between text-[11px] text-[#617168]">
+                    <span className="font-medium">Data Artifact:</span>
+                    <span className="font-semibold text-[#123B2D]">{step.io}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. CONNECTED PLATFORM MODULES SECTION */}
+      <section id="platform-modules" className="py-20 bg-white border-y border-[#DCE5DF]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="text-xs font-bold text-[#0E9F78] uppercase tracking-wider mb-2">
+              Modular Governance Architecture
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#123B2D]">
+              Platform Modules
+            </h2>
+            <p className="text-sm sm:text-base text-[#617168] mt-3">
+              Explore the four core operational groups powering evidence-aware brand compliance.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* GROUP 1: DEFINE */}
+            <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0E9F78] block mb-2">
+                  GROUP 1 &middot; DEFINE
+                </span>
+                <h3 className="text-lg font-bold text-[#123B2D] mb-3">Brand Standards</h3>
+                <ul className="space-y-3 text-xs text-[#617168]">
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Brand Constitution:</strong> Central repository of prohibited & required rules.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Claim Ledger:</strong> Timestamped claims with sources & expiration dates.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Asset Registry:</strong> Registered brand assets with SHA-256 hash validation.</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="mt-6 pt-3 border-t border-[#DCE5DF]">
+                <span className="inline-block text-[11px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded">
+                  Available (Round 3 Complete)
+                </span>
+              </div>
+            </div>
+
+            {/* GROUP 2: ANALYSE */}
+            <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0E9F78] block mb-2">
+                  GROUP 2 &middot; ANALYSE
+                </span>
+                <h3 className="text-lg font-bold text-[#123B2D] mb-3">Analysis Engines</h3>
+                <ul className="space-y-3 text-xs text-[#617168]">
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Deterministic Engine:</strong> Exact regex & term match without AI drift.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Fact Audit Engine:</strong> Evaluates claim validity & flags expired citations.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Color & Contrast:</strong> CIELAB Delta-E distance & WCAG 2.1 ratio calculation.</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="mt-6 pt-3 border-t border-[#DCE5DF]">
+                <span className="inline-block text-[11px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded">
+                  Available (Deterministic)
+                </span>
+              </div>
+            </div>
+
+            {/* GROUP 3: REVIEW */}
+            <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0E9F78] block mb-2">
+                  GROUP 3 &middot; REVIEW
+                </span>
+                <h3 className="text-lg font-bold text-[#123B2D] mb-3">Review & Remediation</h3>
+                <ul className="space-y-3 text-xs text-[#617168]">
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Exact-Span Replacement:</strong> One-click accept with intent preservation.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Reasoned Dismissal:</strong> Mandatory justification for dismissed items.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Review Versioning:</strong> Complete revision snapshot on each edit.</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="mt-6 pt-3 border-t border-[#DCE5DF]">
+                <span className="inline-block text-[11px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded">
+                  Available
+                </span>
+              </div>
+            </div>
+
+            {/* GROUP 4: CONTROL */}
+            <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0E9F78] block mb-2">
+                  GROUP 4 &middot; CONTROL
+                </span>
+                <h3 className="text-lg font-bold text-[#123B2D] mb-3">Governance & Insights</h3>
+                <ul className="space-y-3 text-xs text-[#617168]">
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Server Approval Gate:</strong> HTTP 409 enforcement for high-risk findings.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Rule-Change Impact Map:</strong> Flags historical drafts on claim expiry.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check size={14} className="text-[#0E9F78] mt-0.5 flex-shrink-0" />
+                    <span><strong>Guideline Health Intelligence:</strong> Clarification proposals for ambiguous rules.</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="mt-6 pt-3 border-t border-[#DCE5DF]">
+                <span className="inline-block text-[11px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded">
+                  Available (Round 3 Complete)
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. PRODUCT PREVIEW SECTION (AUTHENTIC FICTIONAL REVIEW EXPERIENCE) */}
+      <section className="py-20 md:py-28 bg-[#F6F8F6]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <div className="text-xs font-bold text-[#0E9F78] uppercase tracking-wider mb-2">
+              Live Product Experience
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#123B2D]">
+              Evidence Review in Action
+            </h2>
+            <p className="text-sm sm:text-base text-[#617168] mt-3">
+              Explore how brand managers and reviewers inspect source-linked findings, accept replacements, and verify approval gates.
+            </p>
+          </div>
+
+          {/* Interactive Mock Review Canvas */}
+          <div className="bg-white border border-[#DCE5DF] rounded-2xl shadow-md overflow-hidden max-w-4xl mx-auto">
+            {/* Review Canvas Header */}
+            <div className="p-5 border-b border-[#DCE5DF] bg-[#F0F4F1] flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#0E9F78] bg-[#E9F6F0] px-2 py-0.5 rounded border border-[#A6CDBA]">
+                  Fictional Sample Review
+                </span>
+                <h3 className="text-base font-bold text-[#123B2D] mt-1">
+                  Q4 Enterprise Launch Announcement
+                </h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded bg-[#FFFBEB] text-[#92400E] border border-[#FCD34D]">
+                  IN REVIEW
+                </span>
+                <div className="text-right">
+                  <div className="text-xs font-medium text-[#617168]">Clearance Score</div>
+                  <div className="text-sm font-black text-[#123B2D]">72 / 100</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Review Content & Findings Grid */}
+            <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+              {/* Left Column: Draft Content */}
+              <div className="md:col-span-6 space-y-4">
+                <label className="text-xs font-bold text-[#123B2D] uppercase tracking-wider block">
+                  Submitted Draft Copy
+                </label>
+                <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#DCE5DF] text-xs text-[#2D4238] leading-relaxed">
+                  <p>
+                    Brandtrace provides the <span className="bg-[#FEF2F2] text-[#991B1B] font-bold px-1 border-b-2 border-[#DC2626]">best cheap platform</span> for enterprise teams looking to audit copy. We guarantee zero compliance errors across every channel.
+                  </p>
+                </div>
+                <div className="p-3 bg-[#FEF2F2] border border-[#FCA5A5] rounded-lg text-xs text-[#991B1B] flex items-start gap-2.5">
+                  <AlertTriangle size={16} className="text-[#DC2626] mt-0.5 flex-shrink-0" />
+                  <div>
+                    <strong>Approval Gate Enforcement:</strong> Approval is blocked because 1 HIGH severity finding is unresolved.
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Source-Linked Finding Card */}
+              <div className="md:col-span-6 space-y-3">
+                <label className="text-xs font-bold text-[#123B2D] uppercase tracking-wider block">
+                  Active Source Finding
+                </label>
+                <div className="p-4 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2]/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#991B1B] bg-[#FEF2F2] border border-[#FCA5A5] px-2 py-0.5 rounded uppercase">
+                      HIGH SEVERITY &middot; CONTRADICTED
+                    </span>
+                    <span className="text-[11px] font-mono text-[#617168]">Rule R-VOICE-01</span>
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-bold text-[#123B2D]">
+                      Prohibited Superlative & Price Framing
+                    </div>
+                    <div className="text-xs text-[#617168] mt-1">
+                      Matched: <code className="text-[#991B1B] bg-white px-1 py-0.5 rounded border border-[#FCA5A5]">&quot;best cheap platform&quot;</code>
+                    </div>
+                  </div>
+
+                  {/* Evidence Citation */}
+                  <div className="p-2.5 rounded bg-white border border-[#DCE5DF] text-[11px] space-y-1">
+                    <div className="font-semibold text-[#123B2D]">
+                      Citation: Brand Tone & Voice Standards 2026
+                    </div>
+                    <div className="text-[#617168] italic">
+                      &quot;Avoid unverified superlatives such as &apos;best&apos;. Position accessibility over discount framing (&apos;cheap&apos;).&quot;
+                    </div>
+                  </div>
+
+                  {/* Proposed Correction */}
+                  <div className="p-2.5 rounded bg-[#F0FDF4] border border-[#86EFAC] text-[11px]">
+                    <div className="font-bold text-[#166534]">Proposed Neutral Correction:</div>
+                    <div className="text-[#15251E] mt-0.5 font-medium">
+                      &quot;an effective, accessible governance platform&quot;
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={onEnterWorkspace}
+                      className="btn-primary text-xs py-2 px-3 min-h-[36px]"
+                    >
+                      Accept Edit
+                    </button>
+                    <button
+                      onClick={onEnterWorkspace}
+                      className="btn-secondary text-xs py-2 px-3 min-h-[36px]"
+                    >
+                      Dismiss with Reason
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 8. SYSTEM ARCHITECTURE BLOCK DIAGRAM */}
+      <section id="system-architecture" className="py-20 bg-white border-y border-[#DCE5DF]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="text-xs font-bold text-[#0E9F78] uppercase tracking-wider mb-2">
+              Technical Architecture
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#123B2D]">
+              System Architecture & Data Flow
+            </h2>
+            <p className="text-sm sm:text-base text-[#617168] mt-3">
+              Verified data pipeline connecting the React 19 client, FastAPI 0.115 backend, and persistent SQLAlchemy database.
+            </p>
+          </div>
+
+          {/* Block Diagram Cards */}
+          <div className="p-8 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] shadow-sm max-w-4xl mx-auto space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Layer 1: Client */}
+              <div className="p-5 rounded-xl bg-white border border-[#DCE5DF] shadow-sm space-y-2">
+                <span className="text-[10px] font-bold text-[#0E9F78] uppercase tracking-wider block">
+                  LAYER 1 &middot; FRONTEND
+                </span>
+                <h4 className="font-bold text-sm text-[#123B2D]">React 19 + Vite</h4>
+                <p className="text-xs text-[#617168] leading-relaxed">
+                  TypeScript 5.8 client with Tailwind CSS v4, Lucide icons, Three.js Evidence Prism, and normalized API client (api.ts).
+                </p>
+              </div>
+
+              {/* Layer 2: API Gateway */}
+              <div className="p-5 rounded-xl bg-white border border-[#DCE5DF] shadow-sm space-y-2">
+                <span className="text-[10px] font-bold text-[#0E9F78] uppercase tracking-wider block">
+                  LAYER 2 &middot; BACKEND API
+                </span>
+                <h4 className="font-bold text-sm text-[#123B2D]">FastAPI 0.115</h4>
+                <p className="text-xs text-[#617168] leading-relaxed">
+                  Uvicorn ASGI runner, Pydantic v2 schemas, CORS middleware, simulated role header authentication (X-Demo-Role).
+                </p>
+              </div>
+
+              {/* Layer 3: Services */}
+              <div className="p-5 rounded-xl bg-white border border-[#DCE5DF] shadow-sm space-y-2">
+                <span className="text-[10px] font-bold text-[#0E9F78] uppercase tracking-wider block">
+                  LAYER 3 &middot; SERVICES
+                </span>
+                <h4 className="font-bold text-sm text-[#123B2D]">Governance Pipeline</h4>
+                <p className="text-xs text-[#617168] leading-relaxed">
+                  Deterministic engine (governance.py), Image & WCAG analyzer (image_analyzer.py), PDF parser, and Impact Map.
+                </p>
+              </div>
+            </div>
+
+            {/* Connecting Arrow Bar */}
+            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[#123B2D] py-1 bg-[#E9F6F0] rounded-lg border border-[#A6CDBA]">
+              <span>REST JSON Requests</span> &rarr;
+              <span>Pydantic Input Validation</span> &rarr;
+              <span>Deterministic Rule & Claim Check</span> &rarr;
+              <span>SQLAlchemy 2.0 Persistence</span>
+            </div>
+
+            {/* Layer 4: Storage */}
+            <div className="p-5 rounded-xl bg-white border border-[#DCE5DF] shadow-sm">
+              <span className="text-[10px] font-bold text-[#0E9F78] uppercase tracking-wider block mb-2">
+                LAYER 4 &middot; DATA PERSISTENCE
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                <div>
+                  <span className="font-bold text-[#123B2D] block">reviews</span>
+                  <span className="text-[#617168]">Content drafts & score</span>
+                </div>
+                <div>
+                  <span className="font-bold text-[#123B2D] block">findings</span>
+                  <span className="text-[#617168]">Source-linked findings</span>
+                </div>
+                <div>
+                  <span className="font-bold text-[#123B2D] block">rules & facts</span>
+                  <span className="text-[#617168]">Policies with expiry</span>
+                </div>
+                <div>
+                  <span className="font-bold text-[#123B2D] block">audit & versions</span>
+                  <span className="text-[#617168]">Append-only history</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 9. EVIDENCE GRAPH / DECISION TRACEABILITY */}
+      <section id="evidence-trace" className="py-20 md:py-28 bg-[#F6F8F6]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="text-xs font-bold text-[#0E9F78] uppercase tracking-wider mb-2">
+              Decision Integrity Chain
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#123B2D]">
+              Evidence Graph & Traceability
+            </h2>
+            <p className="text-sm sm:text-base text-[#617168] mt-3">
+              Every brand decision follows an unbroken chain from raw draft words to permanent audit logs.
+            </p>
+          </div>
+
+          {/* Traceability Flow Nodes */}
+          <div className="max-w-4xl mx-auto space-y-4">
+            {[
+              {
+                step: 'A',
+                title: 'Draft Passage',
+                highlight: '"Get guaranteed results with zero risk."',
+                desc: 'Author submits an absolute performance claim in email copy.',
+                badge: 'UNVERIFIED PHRASE',
+              },
+              {
+                step: 'B',
+                title: 'Rule Violation Flagged',
+                highlight: 'Rule R-CLAIM-04 &middot; Absolute Guarantees Policy',
+                desc: 'Deterministic matcher detects prohibited guarantee without supporting legal clearance.',
+                badge: 'HIGH SEVERITY',
+              },
+              {
+                step: 'C',
+                title: 'Approved Fact Ledger Check',
+                highlight: 'Fact Ledger: No active indemnification proof exists for zero risk.',
+                desc: 'Claim status marked as UNSUPPORTED_BY_APPROVED_EVIDENCE with audit citation.',
+                badge: 'TIME-AWARE AUDIT',
+              },
+              {
+                step: 'D',
+                title: 'Neutral Suggested Correction',
+                highlight: '"Achieve measurable results with proven governance practices."',
+                desc: 'Context-sensitive neutral correction preserves marketing intent without violating policy.',
+                badge: 'INTENT PRESERVATION',
+              },
+              {
+                step: 'E',
+                title: 'Reviewer Decision Recorded',
+                highlight: 'Action: ACCEPT_EDIT by reviewer.alice',
+                desc: 'Review version incremented to v2; reason recorded; clearance score recalculated.',
+                badge: 'IMMUTABLE AUDIT',
+              },
+            ].map((node) => (
+              <div
+                key={node.step}
+                className="bg-white border border-[#DCE5DF] rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-[#123B2D] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5">
+                    {node.step}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-[#123B2D]">{node.title}</h4>
+                      <span className="text-[10px] font-bold text-[#0E9F78] bg-[#E9F6F0] px-2 py-0.5 rounded">
+                        {node.badge}
+                      </span>
+                    </div>
+                    <div className="text-xs font-semibold text-[#123B2D] mt-1 font-mono bg-[#F8FAF9] px-2 py-1 rounded border border-[#EBF0EC]">
+                      {node.highlight}
+                    </div>
+                    <p className="text-xs text-[#617168] mt-1">{node.desc}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 10. ROUND 3 ROADMAP (VERIFIED COMMITMENTS) */}
+      <section id="round3-roadmap" className="py-20 bg-white border-y border-[#DCE5DF]">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="text-xs font-bold text-[#0E9F78] uppercase tracking-wider mb-2">
+              CodeAxis Round 3: The Final Build
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#123B2D]">
+              Delivered Round 3 Commitments
+            </h2>
+            <p className="text-sm sm:text-base text-[#617168] mt-3">
+              All three hackathon commitments have been implemented, tested, and verified with automated test suites.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {/* Commitment 1 */}
+            <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded uppercase">
+                  DELIVERED &middot; 4 TESTS PASSING
+                </span>
+                <h3 className="text-base font-bold text-[#123B2D] mt-3">
+                  Time-Aware Claim Ledger & Impact Map
+                </h3>
+                <p className="text-xs text-[#617168] mt-2 leading-relaxed">
+                  Fact notes field support, timezone-safe ISO comparisons, EXPIRING_SOON status (30-day window), and targeted re-review trigger moving affected approved drafts to CHANGES_REQUESTED.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168] font-mono">
+                test_round3_claim_ledger.py
+              </div>
+            </div>
+
+            {/* Commitment 2 */}
+            <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded uppercase">
+                  DELIVERED &middot; 4 TESTS PASSING
+                </span>
+                <h3 className="text-base font-bold text-[#123B2D] mt-3">
+                  Multimodal Visual Compliance & Registry
+                </h3>
+                <p className="text-xs text-[#617168] mt-2 leading-relaxed">
+                  Brand asset registry (brand_assets) with SHA-256 hash matching. Supported finding for approved assets, high-severity finding for restricted assets, and measured Delta-E hex reporting.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168] font-mono">
+                test_round3_visual.py
+              </div>
+            </div>
+
+            {/* Commitment 3 */}
+            <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded uppercase">
+                  DELIVERED &middot; 3 TESTS PASSING
+                </span>
+                <h3 className="text-base font-bold text-[#123B2D] mt-3">
+                  Guideline-Health Intelligence & Suggestions
+                </h3>
+                <p className="text-xs text-[#617168] mt-2 leading-relaxed">
+                  Aggregates findings per rule across reviews, detects reviewer disagreement, labels data confidence (SUFFICIENT vs INSUFFICIENT), and logs human suggestion decisions without altering live rules.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168] font-mono">
+                test_round3_guideline_health.py
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 11. CLOSING CALL TO ACTION */}
+      <section className="py-20 bg-[#123B2D] text-white">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            Ready to review content with complete evidence traceability?
+          </h2>
+          <p className="text-[#B3C7BD] text-base mt-4 max-w-xl mx-auto">
+            Experience deterministic brand governance, exact-span corrections, and server-gated approval workflows in the live workspace.
+          </p>
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={onEnterWorkspace}
+              className="btn-primary text-base px-8 py-3.5 min-h-[52px] shadow-lg"
+            >
+              Enter the BRANDTRACE Workspace
+              <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 12. FOOTER */}
+      <footer className="bg-[#0A241B] text-[#B3C7BD] py-12 border-t border-[#123B2D] text-xs">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded bg-[#123B2D] flex items-center justify-center text-[#0E9F78]">
+              <Shield size={16} />
+            </div>
+            <div>
+              <span className="font-bold text-white tracking-tight">BRANDTRACE</span>
+              <span className="block text-[11px] text-[#8A9A91]">
+                Evidence-Aware Brand Governance Platform
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <a
+              href="https://github.com/bindudharad/BRANDTRACE"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white transition-colors flex items-center gap-1"
+            >
+              GitHub Repository <ExternalLink size={12} />
+            </a>
+            <a
+              href="http://127.0.0.1:8000/api/health"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              API Health
+            </a>
+            <button
+              onClick={onEnterWorkspace}
+              className="hover:text-white transition-colors"
+            >
+              Launch Workspace
+            </button>
+          </div>
+
+          <div className="text-[11px] text-[#8A9A91]">
+            &copy; {new Date().getFullYear()} BRANDTRACE. Demonstration Environment.
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
-
-export default BrandtraceHero;

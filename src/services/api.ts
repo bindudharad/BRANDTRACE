@@ -77,6 +77,7 @@ export interface Rule {
   effective_at?: string;
   expires_at?: string;
   created_at?: string;
+  notes?: string;
 }
 
 export interface Fact {
@@ -143,10 +144,59 @@ export interface ImpactItem {
   item_title: string;
   status: string;
   expires_at?: string;
+  expiry_date?: string;
   affected_review_ids: string[];
   affected_review_titles: string[];
   affected_drafts?: Array<{ id: string; title: string; status: string }>;
+  affected_count?: number;
   re_review_urgency: 'URGENT' | 'RECOMMENDED' | 'INFORMATIONAL';
+  reason?: string;
+}
+
+export interface BrandAsset {
+  id: string;
+  name: string;
+  asset_type: string;
+  content_hash?: string;
+  source?: string;
+  license_status: string;
+  license_notes?: string;
+  approval_status: string;
+  workspace_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuidelineHealthItem {
+  rule_id: string;
+  rule_title: string;
+  rule_severity: string;
+  affected_draft_count: number;
+  finding_count: number;
+  accepted_count: number;
+  dismissed_count: number;
+  escalated_count: number;
+  waived_count: number;
+  disagreement_detected: boolean;
+  data_confidence: 'SUFFICIENT' | 'INSUFFICIENT';
+  representative_finding_ids: string[];
+  suggestion?: {
+    observed_issue: string;
+    proposed_clarification: string;
+    ambiguity_addressed: string;
+  };
+}
+
+export interface RuleSuggestion {
+  id: string;
+  rule_id: string;
+  status: string;
+  observed_issue?: string;
+  proposed_clarification?: string;
+  ambiguity_addressed?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
 }
 
 export interface ImpactMap {
@@ -249,4 +299,15 @@ export const api = {
       body: fd,
     });
   },
+  guidelineHealth: () => call<GuidelineHealthItem[]>('/api/governance/guideline-health'),
+  ruleSuggestion: (ruleId: string, action: 'accept' | 'defer' | 'reject') =>
+    call<RuleSuggestion>(`/api/governance/rule-suggestions/${ruleId}`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
+  brandAssets: () => call<BrandAsset[]>('/api/brand-assets'),
+  registerAsset: (body: Partial<BrandAsset>) =>
+    call<BrandAsset>('/api/brand-assets', { method: 'POST', body: JSON.stringify(body) }),
+  deleteAsset: (id: string) =>
+    call<void>(`/api/brand-assets/${id}`, { method: 'DELETE' }),
 };

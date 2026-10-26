@@ -40,9 +40,9 @@ This document provides a comprehensive inventory of all system capabilities with
 | **Optical Character Recognition** | Ingestion | ⚠️ Partial | Basic architecture supports OCR, but requires external system-level Tesseract installation on PATH. |
 | **Simulated Role Header Auth** | Security & Auth| ⚠️ Partial | Suitable for evaluation and testing; enterprise JWT/OIDC authentication required for production deployment. |
 | **Database Persistence Dialects** | Persistence | ⚠️ Partial | Zero-config SQLite default for demo and isolated test runs; PostgreSQL adapter supported via SQLAlchemy. |
-| **Automated Re-Review Webhooks** | Workflow | 🔜 Planned (R3)| Background task runner to dispatch webhooks when approved facts expire. |
-| **Multimodal Visual Compliance** | Visual / Color | 🔜 Planned (R3)| Automated logo clearspace bounding-box verification and typography/font hierarchy detection. |
-| **AI-Assisted Rule Refinement** | Governance | 🔜 Planned (R3)| Automated detection of rules frequently dismissed/waived (≥3 times in 30 days) to recommend wording updates. |
+| **Automated Re-Review & Impact Map** | Workflow | ✅ Implemented | Impact map detects expired & expiring-soon facts/rules and triggers targeted re-review (POST /api/governance/re-review-impact). |
+| **Multimodal Visual Compliance** | Visual / Color | ✅ Implemented | Asset registry with SHA-256 binary hash matching (APPROVED, RESTRICTED, NEEDS_REVIEW), Pillow palette extraction, and WCAG 2.1 contrast evaluation. |
+| **Guideline-Health Intelligence** | Governance | ✅ Implemented | Telemetry tracking rule recurrence, reviewer disagreements, data confidence, and human-in-the-loop clarification workflows (POST /api/governance/rule-suggestions/{id}). |
 | **Enterprise Identity Management**| Security & Auth| ❌ Not Implemented| Enterprise SAML 2.0 / SCIM user provisioning. |
 | **Unsupervised Auto-Publishing** | Workflow | ❌ Not Implemented| Direct publishing to external social media or production CMS targets without human sign-off. |
 | **Generative Copy Hallucination** | Generative AI | ❌ Not Implemented| Automated long-form creative rewriting without author oversight. |

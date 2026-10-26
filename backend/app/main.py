@@ -49,6 +49,11 @@ from .schemas import (
     OverviewOut,
     InsightsOut,
     ImpactMapOut,
+    BrandAssetIn,
+    BrandAssetOut,
+    GuidelineHealthItem,
+    RuleSuggestionAction,
+    RuleSuggestionOut,
 )
 from .governance import run_governance_analysis, is_expired, calculate_health_score
 from .pdf_parser import extract_pdf_pages, format_pdf_text_for_review, PDFExtractionError
@@ -521,11 +526,11 @@ def create_fact(
             INSERT INTO facts (
                 id, workspace_id, claim, value, owner, status, version,
                 source_id, source_title, source_excerpt, review_at,
-                effective_at, expires_at, created_at
+                effective_at, expires_at, notes, created_at
             ) VALUES (
                 :id, :workspace_id, :claim, :value, :owner, :status, :version,
                 :id, :source_title, :source_excerpt, :review_at,
-                :effective_at, :expires_at, :created_at
+                :effective_at, :expires_at, :notes, :created_at
             )
             """,
             data,
@@ -1060,6 +1065,153 @@ def re_review_impact(
     count = trigger_targeted_rereview(item_id, actor=actor)
     return {"message": f"Targeted re-review triggered for {count} affected draft(s).", "affected_count": count}
 
+
+
+# =============================================================================
+# Round 3 — Commitment 2: Brand Asset Registry
+# =============================================================================
+
+@app.get("/api/brand-assets")
+def list_brand_assets(
+    workspace_id: str = "ws_default",
+):
+    """List all registered brand assets for the workspace."""
+    return rows("SELECT * FROM brand_assets WHERE workspace_id=? ORDER BY name", (workspace_id,))
+
+
+@app.post("/api/brand-assets", status_code=201)
+def register_brand_asset(
+    payload: BrandAssetIn,
+    role: str = Depends(get_demo_role),
+):
+    """Register a new brand asset. Requires brand_admin role."""
+    if role not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to register brand assets.")
+
+    data = payload.model_dump()
+    data["id"] = ident("asset")
+    data["workspace_id"] = "ws_default"
+    data["created_at"] = now()
+    data["updated_at"] = now()
+
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO brand_assets (
+                id, name, asset_type, content_hash, source,
+                license_status, license_notes, approval_status,
+                workspace_id, created_at, updated_at
+            ) VALUES (
+                :id, :name, :asset_type, :content_hash, :source,
+                :license_status, :license_notes, :approval_status,
+                :workspace_id, :created_at, :updated_at
+            )
+            """,
+            data,
+        )
+    return data
+
+
+@app.delete("/api/brand-assets/{asset_id}", status_code=204)
+def delete_brand_asset(
+    asset_id: str,
+    role: str = Depends(get_demo_role),
+):
+    """Remove a brand asset from the registry. Requires brand_admin role."""
+    if role not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to remove brand assets.")
+
+    existing = row("SELECT id FROM brand_assets WHERE id=?", (asset_id,))
+    if not existing:
+        raise HTTPException(404, "Brand asset not found.")
+
+    with db() as conn:
+        conn.execute("DELETE FROM brand_assets WHERE id=?", (asset_id,))
+
+    return None
+
+
+# =============================================================================
+# Round 3 — Commitment 3: Guideline Health Intelligence
+# =============================================================================
+
+@app.get("/api/governance/guideline-health")
+def get_guideline_health():
+    """
+    Return per-rule guideline health statistics including disagreement detection,
+    data confidence, and deterministic improvement suggestions.
+    """
+    from .guideline_health import compute_guideline_health
+    return compute_guideline_health()
+
+
+@app.post("/api/governance/rule-suggestions/{rule_id}")
+def submit_rule_suggestion_action(
+    rule_id: str,
+    payload: RuleSuggestionAction,
+    role: str = Depends(get_demo_role),
+    actor: str = Depends(get_demo_actor),
+):
+    """
+    Accept, defer, or reject a guideline clarification suggestion.
+    Stores the decision in rule_suggestions table. Does NOT modify the live rule.
+    Requires reviewer or brand_admin role.
+    """
+    if role not in ("reviewer", "brand_admin"):
+        raise HTTPException(403, "Reviewer or Brand Admin role required.")
+
+    rule_rec = row("SELECT * FROM rules WHERE id=?", (rule_id,))
+    if not rule_rec:
+        raise HTTPException(404, "Rule not found.")
+
+    from .guideline_health import compute_guideline_health
+    health_items = compute_guideline_health()
+    health_item = next((h for h in health_items if h["rule_id"] == rule_id), None)
+
+    suggestion = None
+    if health_item:
+        suggestion = health_item.get("suggestion")
+
+    suggestion_id = ident("rsugg")
+    ts = now()
+    status_map = {"accept": "ACCEPTED", "defer": "DEFERRED", "reject": "REJECTED"}
+    new_status = status_map.get(payload.action, "PENDING")
+
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO rule_suggestions (
+                id, rule_id, observed_issue, proposed_clarification,
+                ambiguity_addressed, status, reviewed_by, reviewed_at, created_at
+            ) VALUES (
+                :id, :rule_id, :observed_issue, :proposed_clarification,
+                :ambiguity_addressed, :status, :reviewed_by, :reviewed_at, :created_at
+            )
+            """,
+            {
+                "id": suggestion_id,
+                "rule_id": rule_id,
+                "observed_issue": suggestion["observed_issue"] if suggestion else None,
+                "proposed_clarification": suggestion["proposed_clarification"] if suggestion else None,
+                "ambiguity_addressed": suggestion["ambiguity_addressed"] if suggestion else None,
+                "status": new_status,
+                "reviewed_by": actor,
+                "reviewed_at": ts,
+                "created_at": ts,
+            },
+        )
+
+    return {
+        "id": suggestion_id,
+        "rule_id": rule_id,
+        "observed_issue": suggestion["observed_issue"] if suggestion else None,
+        "proposed_clarification": suggestion["proposed_clarification"] if suggestion else None,
+        "ambiguity_addressed": suggestion["ambiguity_addressed"] if suggestion else None,
+        "status": new_status,
+        "reviewed_by": actor,
+        "reviewed_at": ts,
+        "created_at": ts,
+    }
 
 if __name__ == "__main__":
     import uvicorn

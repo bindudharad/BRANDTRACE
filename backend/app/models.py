@@ -304,3 +304,43 @@ def init_db():
 
         _safe_add_column(conn, "audit", "workspace_id", "TEXT NOT NULL DEFAULT 'ws_default'")
         _safe_add_column(conn, "audit", "actor_role", "TEXT NOT NULL DEFAULT 'reviewer'")
+
+
+        # Round 3 migrations
+        _safe_add_column(conn, "facts", "notes", "TEXT")
+
+        # Brand Asset Registry table (Commitment 2)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS brand_assets (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                asset_type TEXT NOT NULL DEFAULT 'image',
+                content_hash TEXT,
+                source TEXT,
+                license_status TEXT NOT NULL DEFAULT 'UNKNOWN',
+                license_notes TEXT,
+                approval_status TEXT NOT NULL DEFAULT 'REVIEW_REQUIRED',
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+        # Rule Suggestions table (Commitment 3)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rule_suggestions (
+                id TEXT PRIMARY KEY,
+                rule_id TEXT NOT NULL,
+                observed_issue TEXT,
+                proposed_clarification TEXT,
+                ambiguity_addressed TEXT,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                reviewed_by TEXT,
+                reviewed_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )

@@ -6,9 +6,10 @@
 
 Evidence-Aware Brand Governance and Content Review Platform
 
-[![Backend Tests](https://img.shields.io/badge/backend%20tests-75%20passed-brightgreen?style=flat-square)](#testing)
+[![Backend Tests](https://img.shields.io/badge/backend%20tests-91%20passed-brightgreen?style=flat-square)](#testing)
+[![Smoke Test](https://img.shields.io/badge/smoke%20test-27%2F27%20passed-brightgreen?style=flat-square)](#testing)
 [![Build](https://img.shields.io/badge/frontend%20build-passing-brightgreen?style=flat-square)](#11-windows-local-setup)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
+[![Design](https://img.shields.io/badge/design-enterprise%20light%20system-forestgreen?style=flat-square)](#enterprise-design-redesign)
 [![Demo Mode](https://img.shields.io/badge/demo-no%20API%20key%20needed-teal?style=flat-square)](#6-product-walkthrough)
 
 </div>
@@ -65,6 +66,30 @@ BRANDTRACE reviews marketing and brand content **before publication** — flaggi
 It is designed for organisations where multiple contributors (employees, agencies, AI tools) create content against shared brand guidelines. Without a governance layer, prohibited phrases slip through, unsupported factual claims reach audiences, and approval decisions exist only in email chains or memories.
 
 BRANDTRACE closes that gap: every finding explains *why* something was flagged, every correction is human-reviewed, and every approval is blocked by the server if unresolved high-risk issues remain.
+
+---
+
+### Enterprise Redesign & Round 3 Deliverables
+
+In **Round 3: The Final Build**, BRANDTRACE has been redesigned from the ground up into a premium enterprise cybersecurity-grade brand governance platform (inspired by the information architecture, whitespace, and presentation of Mitigata and Gordon):
+
+1. **Light Enterprise Design System**:
+   - Palette: Warm light canvas (`#F6F8F6`), crisp white cards (`#FFFFFF`), brand forest green accents (`#123B2D`), accessible emerald actions (`#0E9F78`), and structured borders (`#DCE5DF`).
+   - Accessible WCAG contrast ratings for severity badges (`HIGH`/`CRITICAL`, `MEDIUM`, `LOW`, `SUPPORTED`, `OUTDATED`, `EXPIRING_SOON`).
+   - Unified design language connecting the public marketing platform directly to the operational workspace.
+
+2. **Redesigned Public Landing Page (`BrandtraceHero.tsx`)**:
+   - **Interactive System Architecture Map**: Responsive SVG diagram with central BRANDTRACE Governance Core connected to 6 operational functional nodes.
+   - **6-Step Governance Lifecycle**: Clear horizontal desktop / vertical mobile connected workflow (Define &rarr; Ingest &rarr; Analyse &rarr; Inspect &rarr; Resolve &rarr; Approve).
+   - **Modular Grid**: 4 structured groups (Define, Analyse, Review, Control) with clear live status markers.
+   - **Live Review Preview**: Realistic fictional review simulation highlighting exact passages, source citations, suggested corrections, and approval gate status.
+   - **System Architecture Block Diagram**: Clean technical diagram illustrating data flow from React client through FastAPI to SQLAlchemy persistence.
+   - **Evidence Traceability Chain**: Step-by-step passage-to-decision graph.
+
+3. **All Three Round 3 Commitments Fully Implemented & Tested**:
+   - **Commitment 1 — Time-Aware Claim Ledger & Rule-Change Impact Map**: Fact `notes` field support, timezone-safe ISO comparisons, `EXPIRING_SOON` 30-day window, and targeted re-review execution transitioning affected historical drafts to `CHANGES_REQUESTED`.
+   - **Commitment 2 — Multimodal Visual Compliance & Asset Registry**: `brand_assets` registry with deterministic SHA-256 hash matching (`SUPPORTED` for approved, `CONTRADICTED` for restricted, `NEEDS_REVIEW` for unknown), CIELAB Delta-E color distance, and WCAG 2.1 contrast calculations.
+   - **Commitment 3 — Guideline-Health Intelligence & Suggestions API**: Autonomous telemetry aggregating rule friction across reviews, reviewer disagreement detection, data confidence labeling (`SUFFICIENT` vs `INSUFFICIENT`), and a human suggestion decision ledger (`rule_suggestions`).
 
 > Built for the **Inkloom AI CodeAxis Round 2** hackathon on top of the MIT-licensed [LoomFrog](https://github.com/kaimir-auth/LoomFrog) frontend foundation.
 
