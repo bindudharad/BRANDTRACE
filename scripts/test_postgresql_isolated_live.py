@@ -199,6 +199,45 @@ def main():
         log("init_db() repeated successfully without errors or schema conflicts.")
         results["idempotency"] = "PASSED"
 
+        # 7.5 Test Bootstrap Production System on PostgreSQL
+        log("\n[Step 6.5] Testing bootstrap_production_system on PostgreSQL...")
+        from app.main import bootstrap_production_system
+        from fastapi import HTTPException
+
+        # 1. Non-admin / reviewer is rejected with 403
+        try:
+            bootstrap_production_system(ctx={"role": "reviewer", "actor": "system.user", "auth_type": "api_key", "workspace_id": "ws_default"})
+            raise AssertionError("Reviewer bootstrap was not rejected!")
+        except HTTPException as exc:
+            assert exc.status_code == 403, f"Expected 403, got {exc.status_code}"
+            log("Reviewer bootstrap correctly rejected with 403 Forbidden.")
+
+        # 2. Administrator executes successful bootstrap
+        admin_ctx = {"role": "brand_admin", "actor": "system.admin", "auth_type": "api_key", "workspace_id": "ws_default"}
+        boot_res = bootstrap_production_system(ctx=admin_ctx)
+        assert boot_res["status"] == "BOOTSTRAPPED"
+        assert boot_res["workspace_id"] == "ws_default"
+        assert boot_res["admin"] == "system.admin"
+        log("Admin bootstrap executed successfully with 201 semantics.")
+
+        # 3. Repeated bootstrap returns 409 Conflict
+        try:
+            bootstrap_production_system(ctx=admin_ctx)
+            raise AssertionError("Repeat bootstrap was not rejected with 409!")
+        except HTTPException as exc:
+            assert exc.status_code == 409, f"Expected 409, got {exc.status_code}"
+            assert "already been bootstrapped" in exc.detail
+            log("Repeat bootstrap correctly rejected with 409 Conflict.")
+
+        # 4. Verify durable records in PostgreSQL
+        assert row("SELECT * FROM system_state WHERE key='bootstrap_completed'") is not None
+        assert row("SELECT * FROM workspaces WHERE id='ws_default'") is not None
+        assert row("SELECT * FROM workspace_members WHERE workspace_id='ws_default' AND actor='system.admin'") is not None
+        assert row("SELECT * FROM brand_profiles WHERE workspace_id='ws_default'") is not None
+        assert row("SELECT * FROM audit WHERE action='SYSTEM_BOOTSTRAPPED'") is not None
+        log("PostgreSQL durable bootstrap records verified across all 5 tables.")
+        results["bootstrap_lifecycle"] = "PASSED"
+
         # 8. Test Core CRUD, Date/Time, and JSON Fields
         log("\n[Step 7] Testing Core CRUD, date/time timestamps, and JSON fields...")
         ts_now = now()

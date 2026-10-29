@@ -5,6 +5,7 @@ import io
 import json
 from pathlib import Path
 import asyncio
+from contextlib import contextmanager
 import httpx
 import pytest
 from PIL import Image
@@ -15,6 +16,7 @@ os.close(fd)
 os.environ['DATABASE_URL'] = f'sqlite:///{path}'
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import app.main as main_module
 from app.main import app, normalize_database_url
 from app.models import db, rows, row, init_db
 
@@ -334,3 +336,38 @@ def test_production_deployment_readiness():
             assert data["status"] == "ready"
             assert "database" in data
     asyncio.run(check_ready())
+
+
+def test_readiness_returns_503_when_database_probe_fails(monkeypatch):
+    """Readiness must not report success merely because an engine exists."""
+    @contextmanager
+    def unavailable_database():
+        raise RuntimeError("simulated database connection failure")
+        yield  # pragma: no cover - satisfies contextmanager's generator shape
+
+    monkeypatch.setattr(main_module, "db", unavailable_database)
+
+    async def check_unavailable():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/ready")
+            assert response.status_code == 503
+            assert response.json() == {"detail": "Database not ready."}
+
+    asyncio.run(check_unavailable())
+
+
+def test_staging_lifespan_verifies_schema_without_repeating_initialization(monkeypatch):
+    """A runbook-verified staging child must not run the DDL migration twice."""
+    monkeypatch.setenv("BRANDTRACE_STARTUP_SCHEMA_MODE", "verify")
+
+    def unexpected_initialization():
+        raise AssertionError("staging lifespan should use read-only schema verification")
+
+    monkeypatch.setattr(main_module, "init_db", unexpected_initialization)
+
+    async def check_lifespan():
+        async with main_module.lifespan(app):
+            pass
+
+    asyncio.run(check_lifespan())

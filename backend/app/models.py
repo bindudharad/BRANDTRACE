@@ -19,6 +19,16 @@ from . import config
 _CURRENT_ENGINE = None
 _CURRENT_URL = None
 
+# The staging runbook and the application startup verification use the same
+# complete table set.  Keep it here so a verified schema cannot drift from the
+# application's actual persistence contract.
+REQUIRED_SCHEMA_TABLES = frozenset({
+    "workspaces", "brand_profiles", "rules", "facts", "reviews",
+    "review_versions", "findings", "audit", "fact_versions",
+    "evidence_dependencies", "brand_assets", "rule_suggestions",
+    "workspace_members", "rule_versions", "system_state",
+})
+
 def get_engine():
     """Retrieve or dynamically re-bind the SQLAlchemy Engine when DATABASE_URL changes."""
     global _CURRENT_ENGINE, _CURRENT_URL
@@ -38,10 +48,15 @@ def get_engine():
             engine_kwargs["pool_recycle"] = int(os.getenv("DB_POOL_RECYCLE", "300"))
             engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "5"))
             engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+            # A readiness probe must fail within a bounded interval if a hosted
+            # database is unavailable.  These defaults cover both waiting for a
+            # pooled connection and establishing a new psycopg connection.
+            engine_kwargs["pool_timeout"] = int(os.getenv("DB_POOL_TIMEOUT_SECONDS", "10"))
+            engine_kwargs["connect_args"] = {
+                "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "10")),
+            }
         _CURRENT_ENGINE = create_engine(url, **engine_kwargs)
     return _CURRENT_ENGINE
-
-ENGINE = get_engine()
 
 def now() -> str:
     """Current UTC timestamp in ISO 8601 format."""
@@ -150,6 +165,15 @@ def _safe_add_column(conn: Connection, table: str, column: str, col_type: str):
         if "duplicate column" in msg or "already exists" in msg:
             return
         raise RuntimeError(f"Migration failed adding column '{column}' to table '{table}': {exc}") from exc
+
+
+def verify_schema():
+    """Read-only verification that every required persistence table exists."""
+    engine = get_engine()
+    missing_tables = sorted(REQUIRED_SCHEMA_TABLES - set(inspect(engine).get_table_names()))
+    if missing_tables:
+        raise RuntimeError("Missing required tables: " + ", ".join(missing_tables))
+    return engine
 
 def init_db():
     """

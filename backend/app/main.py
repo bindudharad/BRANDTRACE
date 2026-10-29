@@ -7,14 +7,19 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 import re
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 from .config import (
     CORS_ORIGINS,
@@ -28,7 +33,6 @@ from .config import (
 )
 from . import config
 from .models import (
-    ENGINE,
     get_engine,
     db,
     rows,
@@ -36,6 +40,7 @@ from .models import (
     ident,
     now,
     init_db,
+    verify_schema,
     audit,
     save_version,
 )
@@ -199,10 +204,77 @@ def get_demo_actor(ctx: Dict[str, str] = Depends(get_auth_context)) -> str:
 def get_workspace_id(ctx: Dict[str, str] = Depends(get_auth_context)) -> str:
     return ctx.get("workspace_id", "ws_default")
 
+def _startup_log(message: str, *args: object) -> None:
+    """Emit a timestamped startup record; logging handlers flush each record."""
+    logger.info("[startup %s] " + message, datetime.now(timezone.utc).isoformat(), *args)
+
+
+def _safe_database_error(exc: Exception) -> str:
+    """Provide useful server diagnostics without ever logging connection secrets."""
+    message = str(exc)
+    message = re.sub(r"(?i)(postgres(?:ql)?(?:\+psycopg)?://)[^\s'\"]+", r"\1***", message)
+    message = re.sub(r"(?i)password=[^\s;]+", "password=***", message)
+    return message
+
+
+def _verify_staging_runtime(engine) -> None:
+    """Validate the runbook child inherited its already-validated target."""
+    expected_host = os.getenv("STAGING_EXPECTED_HOST")
+    expected_db = os.getenv("STAGING_EXPECTED_DB")
+    if not expected_host and not expected_db:
+        return
+
+    url = engine.url
+    sslmode = str(url.query.get("sslmode", "")).lower()
+    _startup_log(
+        "runtime target dialect=%s host=%s database=%s sslmode=%s environment=%s demo_auth=%s api_key_present=%s admin_key_present=%s",
+        engine.dialect.name,
+        url.host or "(none)",
+        url.database or "(none)",
+        sslmode or "(none)",
+        config.ENVIRONMENT,
+        config.ALLOW_DEMO_AUTH,
+        bool(config.API_KEY),
+        bool(config.ADMIN_API_KEY),
+    )
+    if url.host != expected_host or url.database != expected_db:
+        raise RuntimeError("Staging child database target does not match the runbook-validated target.")
+    if sslmode != "require":
+        raise RuntimeError("Staging child database target must require TLS.")
+    if config.ENVIRONMENT != "staging" or config.ALLOW_DEMO_AUTH:
+        raise RuntimeError("Staging child authentication environment is not configured safely.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    """Initialize normally, or read-only verify after the staging schema phase."""
+    started = time.perf_counter()
+    startup_schema_mode = os.getenv("BRANDTRACE_STARTUP_SCHEMA_MODE", "initialize").lower().strip()
+    _startup_log("lifespan entered; schema_mode=%s", startup_schema_mode)
+    try:
+        engine_started = time.perf_counter()
+        engine = get_engine()
+        _startup_log("database engine acquired in %.1f ms", (time.perf_counter() - engine_started) * 1000)
+        _verify_staging_runtime(engine)
+
+        schema_started = time.perf_counter()
+        if startup_schema_mode == "initialize":
+            _startup_log("schema initialization starting")
+            init_db()
+            _startup_log("schema initialization completed in %.1f ms", (time.perf_counter() - schema_started) * 1000)
+        elif startup_schema_mode == "verify":
+            _startup_log("read-only schema verification starting")
+            verify_schema()
+            _startup_log("read-only schema verification completed in %.1f ms", (time.perf_counter() - schema_started) * 1000)
+        else:
+            raise RuntimeError("BRANDTRACE_STARTUP_SCHEMA_MODE must be 'initialize' or 'verify'.")
+    except Exception as exc:
+        _startup_log("lifespan failed after %.1f ms (%s)", (time.perf_counter() - started) * 1000, type(exc).__name__)
+        raise
+
+    _startup_log("lifespan startup complete in %.1f ms", (time.perf_counter() - started) * 1000)
     yield
+    _startup_log("lifespan shutdown complete")
 
 app = FastAPI(
     title="BRANDTRACE API",
@@ -229,10 +301,32 @@ def health():
 
 @app.get("/api/ready")
 def ready():
-    init_db()
-    with db() as conn:
-        conn.execute("SELECT 1")
-    return {"status": "ready", "database": get_engine().dialect.name}
+    """Report readiness only after a bounded, real database round trip.
+
+    Schema synchronization belongs to startup (and the staging runbook's
+    explicit schema phase).  Re-running every DDL/migration operation here can
+    block a simple readiness request on hosted PostgreSQL after startup has
+    already completed.
+    """
+    started = time.perf_counter()
+    try:
+        engine = get_engine()
+        with db() as conn:
+            # The transaction-local server timeout bounds a stalled PostgreSQL
+            # query without changing global server settings. SQLite does not
+            # support this PostgreSQL command.
+            if engine.dialect.name == "postgresql":
+                statement_timeout_ms = int(os.getenv("DB_READINESS_STATEMENT_TIMEOUT_MS", "8000"))
+                conn.execute(f"SET LOCAL statement_timeout = {statement_timeout_ms}")
+            conn.execute("SELECT 1")
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        logger.warning("Readiness database probe failed after %.1f ms (%s)", elapsed_ms, type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Database not ready.") from exc
+
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    logger.info("Readiness database probe completed in %.1f ms", elapsed_ms)
+    return {"status": "ready", "database": engine.dialect.name}
 
 @app.post("/api/demo/setup")
 async def demo_setup(
@@ -1787,16 +1881,23 @@ def bootstrap_production_system(
 
             # 3. Provision root default workspace and initial administrator membership
             conn.execute(
-                "INSERT OR IGNORE INTO workspaces (id, name, created_at) VALUES ('ws_default', 'Default Production Workspace', ?)",
+                """INSERT INTO workspaces (id, name, created_at)
+                   VALUES ('ws_default', 'Default Production Workspace', ?)
+                   ON CONFLICT (id) DO NOTHING""",
                 (now_ts,)
             )
             conn.execute(
-                "INSERT OR IGNORE INTO workspace_members (workspace_id, actor, role, created_at) VALUES ('ws_default', ?, 'brand_admin', ?)",
+                """INSERT INTO workspace_members (workspace_id, actor, role, created_at)
+                   VALUES ('ws_default', ?, 'brand_admin', ?)
+                   ON CONFLICT (workspace_id, actor) DO NOTHING""",
                 (ctx["actor"], now_ts)
             )
             if not conn.execute("SELECT 1 FROM brand_profiles WHERE workspace_id='ws_default'").fetchone():
                 conn.execute(
-                    "INSERT INTO brand_profiles VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    """INSERT INTO brand_profiles (
+                        id, workspace_id, brand_name, primary_color, secondary_color,
+                        accent_colors, min_contrast_ratio, approved_logo_aspect, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (ident("profile"), "ws_default", "Brandtrace", "#0f766e", "#040b14", json.dumps(["#2dd4bf"]), 4.5, None, now_ts)
                 )
 
@@ -1812,9 +1913,17 @@ def bootstrap_production_system(
         raise
     except Exception as exc:
         err_msg = str(exc).upper()
-        if "UNIQUE" in err_msg or "PRIMARY KEY" in err_msg or "DUPLICATE" in err_msg:
+        orig = getattr(exc, "orig", None)
+        sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+        if (
+            "UNIQUE" in err_msg
+            or "PRIMARY KEY" in err_msg
+            or "DUPLICATE" in err_msg
+            or sqlstate == "23505"
+        ):
             raise HTTPException(409, "System has already been bootstrapped. Bootstrap cannot be re-executed.")
-        raise HTTPException(500, f"Bootstrap transaction failed: {str(exc)}")
+        logger.error("Bootstrap transaction failed (%s): %s", type(exc).__name__, _safe_database_error(exc))
+        raise HTTPException(500, "Bootstrap transaction failed.") from exc
 
     return {"status": "BOOTSTRAPPED", "workspace_id": "ws_default", "admin": ctx["actor"], "created_at": now_ts}
 
@@ -1846,7 +1955,9 @@ def create_workspace(
         )
         # Automatically register creating admin as brand_admin of the new workspace
         conn.execute(
-            "INSERT OR IGNORE INTO workspace_members (workspace_id, actor, role, created_at) VALUES (?, ?, 'brand_admin', ?)",
+            """INSERT INTO workspace_members (workspace_id, actor, role, created_at)
+               VALUES (?, ?, 'brand_admin', ?)
+               ON CONFLICT (workspace_id, actor) DO NOTHING""",
             (ws_id, ctx["actor"], now_ts)
         )
 

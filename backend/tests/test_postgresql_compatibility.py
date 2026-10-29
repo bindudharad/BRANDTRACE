@@ -44,6 +44,23 @@ def test_sqlalchemy_statement_conversion():
     assert str(d_stmt) == dict_query
     assert d_params == {"id": "R-VOICE-01"}
 
+
+def test_bootstrap_upserts_use_postgresql_compatible_conflict_syntax():
+    """Bootstrap must not use SQLite-only INSERT OR IGNORE on Neon."""
+    bootstrap_upserts = [
+        ("""INSERT INTO workspaces (id, name, created_at)
+            VALUES ('ws_default', 'Default Production Workspace', ?)
+            ON CONFLICT (id) DO NOTHING""", ("timestamp",)),
+        ("""INSERT INTO workspace_members (workspace_id, actor, role, created_at)
+            VALUES ('ws_default', ?, 'brand_admin', ?)
+            ON CONFLICT (workspace_id, actor) DO NOTHING""", ("actor", "timestamp")),
+    ]
+    for query, params in bootstrap_upserts:
+        statement, _ = _statement(query, params)
+        compiled = str(statement.compile(dialect=postgresql.dialect()))
+        assert "ON CONFLICT" in compiled
+        assert "INSERT OR IGNORE" not in compiled
+
 def test_schema_ddl_postgresql_dialect_compilation():
     """Verify that all DDL statements used in init_db compile against the PostgreSQL dialect."""
     pg_dialect = postgresql.dialect()
