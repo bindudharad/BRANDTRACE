@@ -508,20 +508,19 @@ async def demo_reset(
 
     init_db()
     with db() as conn:
-        conn.execute("DELETE FROM findings")
-        conn.execute("DELETE FROM review_versions")
-        conn.execute("DELETE FROM evidence_dependencies")
-        conn.execute("DELETE FROM reviews")
-        conn.execute("DELETE FROM audit")
-        conn.execute("DELETE FROM rule_suggestions")
-        conn.execute("DELETE FROM brand_assets")
-        conn.execute("DELETE FROM rule_versions")
-        conn.execute("DELETE FROM rules")
-        conn.execute("DELETE FROM fact_versions")
-        conn.execute("DELETE FROM facts")
-        conn.execute("DELETE FROM brand_profiles")
-        conn.execute("DELETE FROM workspaces")
-        conn.execute("DELETE FROM system_state")
+        conn.execute("DELETE FROM findings WHERE review_id IN (SELECT id FROM reviews WHERE workspace_id='ws_default' OR workspace_id IS NULL) OR review_id IS NULL")
+        conn.execute("DELETE FROM review_versions WHERE review_id IN (SELECT id FROM reviews WHERE workspace_id='ws_default' OR workspace_id IS NULL) OR review_id IS NULL")
+        conn.execute("DELETE FROM evidence_dependencies WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM reviews WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM audit WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM rule_suggestions WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM brand_assets WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM rule_versions WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM rules WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM fact_versions WHERE fact_id IN (SELECT id FROM facts WHERE workspace_id='ws_default' OR workspace_id IS NULL) OR fact_id IS NULL")
+        conn.execute("DELETE FROM facts WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM brand_profiles WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM workspaces WHERE id='ws_default'")
 
         # Workspace
         conn.execute("INSERT INTO workspaces VALUES (?, ?, ?)", ("ws_default", "Northstar demo workspace", now()))
@@ -1635,13 +1634,15 @@ def delete_brand_asset(
 # =============================================================================
 
 @app.get("/api/governance/guideline-health")
-def get_guideline_health():
+def get_guideline_health(
+    workspace_id: str = Depends(get_workspace_id),
+):
     """
     Return per-rule guideline health statistics including disagreement detection,
-    data confidence, and deterministic improvement suggestions.
+    data confidence, and deterministic improvement suggestions scoped by workspace.
     """
     from .guideline_health import compute_guideline_health
-    return compute_guideline_health()
+    return compute_guideline_health(workspace_id=workspace_id)
 
 
 @app.post("/api/governance/rule-suggestions/{rule_id}")
@@ -1650,6 +1651,7 @@ def submit_rule_suggestion_action(
     payload: RuleSuggestionAction,
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     """
     Accept, defer, or reject a guideline clarification suggestion.
@@ -1664,9 +1666,11 @@ def submit_rule_suggestion_action(
     rule_rec = row("SELECT * FROM rules WHERE id=?", (rule_id,))
     if not rule_rec:
         raise HTTPException(404, "Rule not found.")
+    if rule_rec.get("workspace_id") and rule_rec["workspace_id"] != workspace_id:
+        raise HTTPException(403, "Access to rules outside caller workspace is forbidden.")
 
     from .guideline_health import compute_guideline_health
-    health_items = compute_guideline_health()
+    health_items = compute_guideline_health(workspace_id=workspace_id)
     health_item = next((h for h in health_items if h["rule_id"] == rule_id), None)
 
     suggestion = None
@@ -1679,8 +1683,11 @@ def submit_rule_suggestion_action(
     new_status = status_map.get(payload.action, "PENDING")
 
     supporting = rows(
-        """SELECT id, review_id, disposition, disposition_by FROM findings
-        WHERE source_id=?""", (rule_id,)
+        """SELECT f.id, f.review_id, f.disposition, f.disposition_by
+        FROM findings f
+        JOIN reviews r ON f.review_id = r.id
+        WHERE f.source_id = ? AND r.workspace_id = ?""",
+        (rule_id, workspace_id),
     )
     finding_ids = sorted({item["id"] for item in supporting})
     review_ids = sorted({item["review_id"] for item in supporting})
@@ -1714,7 +1721,7 @@ def submit_rule_suggestion_action(
                 "reviewed_by": actor,
                 "reviewed_at": ts,
                 "created_at": ts,
-                "workspace_id": rule_rec.get("workspace_id", "ws_default"),
+                "workspace_id": workspace_id,
                 "rule_version": rule_rec["version"],
                 "finding_ids": json.dumps(finding_ids),
                 "review_ids": json.dumps(review_ids),
@@ -1725,7 +1732,7 @@ def submit_rule_suggestion_action(
         )
     audit("system", "RULE_SUGGESTION_DECIDED", actor=actor, actor_role=role,
           reason=f"Suggestion {suggestion_id} {new_status.lower()} for rule {rule_id}",
-          workspace_id=rule_rec.get("workspace_id", "ws_default"))
+          workspace_id=workspace_id)
 
     return {
         "id": suggestion_id,
@@ -1773,6 +1780,10 @@ def activate_rule_suggestion(
         if not rule_result:
             raise HTTPException(404, "Source rule not found.")
         rule_rec = dict(rule_result._mapping)
+        if rule_rec.get("workspace_id") and rule_rec["workspace_id"] != workspace_id:
+            raise HTTPException(403, "Access to rules outside caller workspace is forbidden.")
+        if suggestion.get("workspace_id") != rule_rec.get("workspace_id"):
+            raise HTTPException(403, "Suggestion and source rule must belong to the authorized caller workspace.")
         if rule_rec["version"] != payload.expected_rule_version or suggestion.get("rule_version") != payload.expected_rule_version:
             raise HTTPException(409, "Proposal is stale: the active rule version has changed.")
         try:
@@ -1819,6 +1830,38 @@ def activate_rule_suggestion(
                       role, payload.reason, f"Rule {rule_rec['id']} {rule_rec['version']} -> {new_version}; suggestion {suggestion_id}", ts))
     return {"suggestion_id": suggestion_id, "status": "ACTIVATED", "old_version": payload.expected_rule_version,
             "new_version": new_version, "rule_id": suggestion["rule_id"]}
+
+
+@app.get("/api/facts/{fact_id}/versions")
+def list_fact_versions(fact_id: str, workspace_id: str = Depends(get_workspace_id)):
+    """Return immutable fact history only for a fact in the caller's workspace."""
+    fact_rec = row("SELECT * FROM facts WHERE id=?", (fact_id,))
+    if not fact_rec:
+        raise HTTPException(404, "Fact not found.")
+    if fact_rec.get("workspace_id") and fact_rec["workspace_id"] != workspace_id:
+        raise HTTPException(403, "Access to facts outside caller workspace is forbidden.")
+    versions = rows(
+        "SELECT * FROM fact_versions WHERE fact_id=? ORDER BY created_at DESC, version DESC",
+        (fact_id,),
+    )
+    if not versions:
+        return [{
+            "id": f"factver_init_{fact_id}",
+            "fact_id": fact_id,
+            "version": fact_rec["version"],
+            "claim": fact_rec["claim"],
+            "value": fact_rec["value"],
+            "source_id": fact_rec.get("source_id") or fact_id,
+            "source_title": fact_rec["source_title"],
+            "source_excerpt": fact_rec["source_excerpt"],
+            "effective_at": fact_rec.get("effective_at"),
+            "expires_at": fact_rec.get("expires_at"),
+            "status": fact_rec["status"],
+            "change_reason": "INITIAL_VERSION",
+            "changed_by": fact_rec.get("owner", "system"),
+            "created_at": fact_rec.get("created_at") or now(),
+        }]
+    return versions
 
 
 @app.get("/api/rules/{rule_id}/versions")

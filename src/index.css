@@ -675,3 +675,118 @@ textarea.input-premium {
   text-transform: uppercase !important;
   margin: 0 0 4px !important;
 }
+
+
+/* =========================================================================
+   APPLE-INSPIRED PREMIUM DESIGN SYSTEM ADDITIONS
+   Craftsmanship, Translucent Glassmorphism, Responsive Elevation, Motion
+   ========================================================================= */
+
+.apple-glass {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(220, 229, 223, 0.8) !important;
+}
+
+.apple-glass-dark {
+  background: rgba(18, 59, 45, 0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.apple-card {
+  background: #FFFFFF !important;
+  border: 1px solid #DCE5DF !important;
+  border-radius: 16px !important;
+  box-shadow: 0 1px 3px rgba(18, 59, 45, 0.04), 0 6px 16px -2px rgba(18, 59, 45, 0.03) !important;
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.apple-card:hover {
+  border-color: #A6CDBA !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 24px -4px rgba(18, 59, 45, 0.08) !important;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideDown {
+  animation: slideDown 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 36, 27, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 90;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer-panel {
+  width: 100%;
+  max-width: 540px;
+  height: 100%;
+  background: #FFFFFF;
+  box-shadow: -8px 0 32px rgba(18, 59, 45, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideInRight 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -396,3 +396,56 @@ async def test_claim_ledger_five_drafts_exact_isolation_and_workflow():
             assert u_data['status'] == 'APPROVED'
             u_audit = (await client.get(f'/api/reviews/{uid}/audit')).json()
             assert not any(a['action'] == 'IMPACT_REREVIEW_FLAGGED' for a in u_audit)
+
+
+@pytest.mark.asyncio
+async def test_fact_versions_endpoint_and_workspace_isolation():
+    """Verify GET /api/facts/{fact_id}/versions retrieves immutable version snapshots and enforces workspace isolation."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+        # 1. Create a fact in default workspace
+        created = await client.post('/api/facts', json={
+            'claim': 'SLA Guarantee',
+            'value': '99.9% uptime',
+            'owner': 'Legal & Infrastructure',
+            'source_title': 'Enterprise Agreement 2026',
+            'source_excerpt': 'We commit to 99.9% availability.',
+            'version': '1.0',
+            'status': 'APPROVED'
+        }, headers={'X-Demo-Role': 'brand_admin'})
+        assert created.status_code == 201
+        fact_id = created.json()['id']
+
+        # 2. Update the fact to create version 2
+        updated = await client.put(f'/api/facts/{fact_id}', json={
+            'expected_version': '1.0',
+            'value': '99.99% uptime',
+            'source_excerpt': 'Upgraded commit to 99.99% availability.',
+            'reason': 'Infrastructure upgrade 2026-Q4'
+        }, headers={'X-Demo-Role': 'brand_admin'})
+        assert updated.status_code == 200
+
+        # 3. Retrieve versions
+        versions_res = await client.get(f'/api/facts/{fact_id}/versions')
+        assert versions_res.status_code == 200
+        versions = versions_res.json()
+        assert len(versions) >= 2
+        assert versions[0]['version'] == '2'
+        assert versions[0]['value'] == '99.99% uptime'
+        assert versions[1]['version'] == '1.0'
+        assert versions[1]['value'] == '99.9% uptime'
+
+        # 4. Cross-workspace isolation: caller in foreign workspace cannot view versions
+        foreign_res = await client.get(
+            f'/api/facts/{fact_id}/versions',
+            headers={
+                'X-Demo-Role': 'brand_admin',
+                'X-Demo-Actor': 'admin@foreign-corp.com',
+                'X-Workspace-Id': 'ws_unrelated',
+            }
+        )
+        assert foreign_res.status_code == 403
+
+        # 5. Non-existent fact returns 404
+        not_found_res = await client.get('/api/facts/fact_nonexistent/versions')
+        assert not_found_res.status_code == 404

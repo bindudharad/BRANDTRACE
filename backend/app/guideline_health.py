@@ -107,9 +107,13 @@ def compute_guideline_health(workspace_id: str = "ws_default") -> List[Dict[str,
     """
     all_rules = rows("SELECT * FROM rules WHERE workspace_id=?", (workspace_id,))
 
-    # Fetch all findings with their review_id and source_id (rule linkage)
+    # Fetch all findings scoped through parent reviews to caller workspace
     all_findings = rows(
-        "SELECT id, review_id, source_id, disposition, disposition_by FROM findings"
+        """SELECT f.id, f.review_id, f.source_id, f.disposition, f.disposition_by
+        FROM findings f
+        LEFT JOIN reviews r ON f.review_id = r.id
+        WHERE (r.workspace_id = ? OR (r.id IS NULL AND ? = 'ws_default'))""",
+        (workspace_id, workspace_id)
     )
 
     # Group findings by rule (source_id)

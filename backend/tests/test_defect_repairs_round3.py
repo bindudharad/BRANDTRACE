@@ -103,12 +103,12 @@ def test_demo_reset_all_thirteen_tables_and_initial_snapshots():
             r = await client.post('/api/demo/reset', headers=ADMIN_HDR)
             assert r.status_code == 200
 
-            # 4. Verify 13 tables are clean or properly reset
-            assert len(rows("SELECT * FROM brand_assets")) == 0
-            assert len(rows("SELECT * FROM rule_suggestions")) == 0
+            # 4. Verify 13 tables are clean or properly reset (ws_default reset)
+            assert len(rows("SELECT * FROM brand_assets WHERE workspace_id='ws_default' OR workspace_id IS NULL")) == 0
+            assert len(rows("SELECT * FROM rule_suggestions WHERE workspace_id='ws_default' OR workspace_id IS NULL")) == 0
             assert len(rows("SELECT * FROM evidence_dependencies WHERE review_id='rev_sample'")) == 0
-            assert len(rows("SELECT * FROM rules")) == 3
-            assert len(rows("SELECT * FROM facts")) == 1
+            assert len(rows("SELECT * FROM rules WHERE workspace_id='ws_default'")) == 3
+            assert len(rows("SELECT * FROM facts WHERE workspace_id='ws_default'")) == 1
 
             # 5. Verify initial immutable snapshots were generated
             rule_vers = rows("SELECT * FROM rule_versions")

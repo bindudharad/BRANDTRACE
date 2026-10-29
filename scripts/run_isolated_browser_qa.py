@@ -99,6 +99,7 @@ def main():
         print(f"Starting dedicated backend on port {BACKEND_PORT}...")
         backend_cmd = [
             sys.executable, "-m", "uvicorn", "app.main:app",
+            "--host", "127.0.0.1",
             "--port", str(BACKEND_PORT),
             "--app-dir", "backend"
         ]
@@ -154,6 +155,7 @@ def main():
         frontend_env = os.environ.copy()
         frontend_env["VITE_API_PROXY"] = f"http://127.0.0.1:{BACKEND_PORT}"
         frontend_env["PORT"] = str(FRONTEND_PORT)
+        frontend_env["DISABLE_HMR"] = "true"
 
         # On Windows, resolve npx.cmd
         npx_path = shutil.which("npx") or "npx"

@@ -13,7 +13,22 @@ import {
   BrandAsset,
   GuidelineHealthItem,
   RuleSuggestion,
+  AuditEntry,
+  FactVersion,
 } from '../services/api';
+import { Edit2 } from 'lucide-react';
+import {
+  WorkflowStepper,
+  JudgeTourModal,
+  ReviewOutcomeDonut,
+  SeverityBarChart,
+  EvidenceStatusBarChart,
+  ActivityTimeline,
+  InteractiveImpactGraph,
+  EvidenceDecisionChain,
+  GuidelineHealthMeters,
+  HonestLimitationsBanner,
+} from './analytics';
 import {
   LayoutDashboard,
   Shield,
@@ -106,9 +121,11 @@ export function StatusBadge({ value }: { value: string }) {
 
 interface BrandtraceWorkspacePremiumProps {
   onBackToHero?: () => void;
+  initialTourOpen?: boolean;
+  onTourClosed?: () => void;
 }
 
-export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspacePremiumProps) {
+export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTourClosed }: BrandtraceWorkspacePremiumProps) {
   const [view, setView] = useState<View>('Overview');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -117,6 +134,13 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
 
   const [rules, setRules] = useState<Rule[]>([]);
   const [ruleHistory, setRuleHistory] = useState<Record<string, Rule[]>>({});
+  const [factHistory, setFactHistory] = useState<Record<string, FactVersion[]>>({});
+  const [editingRule, setEditingRule] = useState<Rule | null>(null);
+  const [editRuleForm, setEditRuleForm] = useState<Partial<Rule> & { reason: string }>({ reason: '' });
+  const [editRuleError, setEditRuleError] = useState('');
+  const [editingFact, setEditingFact] = useState<Fact | null>(null);
+  const [editFactForm, setEditFactForm] = useState<Partial<Fact> & { reason: string }>({ reason: '' });
+  const [editFactError, setEditFactError] = useState('');
   const [facts, setFacts] = useState<Fact[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
@@ -126,6 +150,9 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
   const [guidelineHealth, setGuidelineHealth] = useState<GuidelineHealthItem[]>([]);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState<Record<string, RuleSuggestion>>({});
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [isTourModalOpen, setIsTourModalOpen] = useState(initialTourOpen || false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [newAsset, setNewAsset] = useState<Partial<BrandAsset>>({
     name: '',
@@ -203,6 +230,9 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
       setFacts(f);
       setReviews(v);
       setInsights(i);
+      if (v && v.length > 0) {
+        api.audit(v[0].id).then(setAuditEntries).catch(() => {});
+      }
       if (bp) {
         setBrandProfile(bp);
         setProfileDraft(bp);
@@ -220,7 +250,14 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         setAcceptedSuggestions(acceptedMap);
       }
       if (selected) {
-        setSelected(v.find((x) => x.id === selected.id) || null);
+        try {
+          const full = await api.getReview(selected.id);
+          setSelected(full);
+          const auditLog = await api.audit(selected.id).catch(() => []);
+          setAuditEntries(auditLog);
+        } catch {
+          setSelected(v.find((x) => x.id === selected.id) || null);
+        }
       }
     } catch (e) {
       setError((e as Error).message);
@@ -376,6 +413,115 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
       setTimeout(() => setSuccess(''), 5000);
     } catch (e) {
       setError((e as Error).message);
+    }
+  };
+
+  const selectReview = async (r: Review | null) => {
+    if (!r) {
+      setSelected(null);
+      return;
+    }
+    setSelected(r);
+    try {
+      const full = await api.getReview(r.id);
+      setSelected(full);
+      const auditLog = await api.audit(r.id).catch(() => []);
+      setAuditEntries(auditLog);
+    } catch {
+      // Keep shallow copy if full fetch fails
+    }
+  };
+
+  const handleOpenEditRule = (r: Rule) => {
+    setEditingRule(r);
+    setEditRuleForm({
+      title: r.title,
+      kind: r.kind,
+      pattern: r.pattern,
+      requirement: r.requirement,
+      severity: r.severity,
+      source_title: r.source_title,
+      source_excerpt: r.source_excerpt,
+      expires_at: r.expires_at || '',
+      reason: '',
+    });
+    setEditRuleError('');
+  };
+
+  const handleSaveEditRule = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingRule) return;
+    setBusy(true);
+    setEditRuleError('');
+    try {
+      await api.updateRule(editingRule.id, {
+        ...editRuleForm,
+        expected_version: editingRule.version,
+      });
+      setSuccess(`Rule '${editingRule.title}' updated with immutable version history.`);
+      setTimeout(() => setSuccess(''), 4000);
+      setEditingRule(null);
+      await refresh();
+    } catch (err) {
+      const msg = (err as Error).message || String(err);
+      if (msg.includes('409') || msg.toLowerCase().includes('stale') || msg.toLowerCase().includes('conflict')) {
+        setEditRuleError('Stale version conflict: This rule was updated by another administrator. Please refresh before saving.');
+      } else {
+        setEditRuleError(msg);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOpenEditFact = (f: Fact) => {
+    setEditingFact(f);
+    setEditFactForm({
+      claim: f.claim,
+      value: f.value,
+      source_title: f.source_title,
+      source_excerpt: f.source_excerpt,
+      owner: f.owner,
+      status: f.status,
+      expires_at: f.expires_at ? f.expires_at.split('T')[0] : '',
+      notes: f.notes || '',
+      reason: '',
+    });
+    setEditFactError('');
+  };
+
+  const handleSaveEditFact = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingFact) return;
+    setBusy(true);
+    setEditFactError('');
+    try {
+      await api.updateFact(editingFact.id, {
+        ...editFactForm,
+        expected_version: editingFact.version,
+      });
+      setSuccess(`Fact '${editingFact.claim}' updated with immutable version history.`);
+      setTimeout(() => setSuccess(''), 4000);
+      setEditingFact(null);
+      await refresh();
+    } catch (err) {
+      const msg = (err as Error).message || String(err);
+      if (msg.includes('409') || msg.toLowerCase().includes('stale') || msg.toLowerCase().includes('conflict')) {
+        setEditFactError('Stale version conflict: This fact was updated by another administrator. Please refresh before saving.');
+      } else {
+        setEditFactError(msg);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleLoadFactHistory = async (factId: string) => {
+    try {
+      const vers = await api.factVersions(factId);
+      setFactHistory((prev) => ({ ...prev, [factId]: vers }));
+    } catch (e) {
+      setError('Failed to fetch fact history: ' + (e as Error).message);
     }
   };
 
@@ -725,6 +871,32 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
           LOCAL DEMO &middot; Judge Mode
         </div>
 
+        {/* Quick Tour Trigger */}
+        <button
+          type="button"
+          onClick={() => setIsTourModalOpen(true)}
+          style={{
+            width: '100%',
+            marginTop: 8,
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            color: '#FFFFFF',
+            fontSize: 12,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            transition: 'all 160ms ease',
+          }}
+        >
+          <Sparkles size={13} style={{ color: '#0E9F78' }} />
+          <span>Take Judge Tour</span>
+        </button>
+
         {/* Nav Items */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, marginTop: 8 }}>
           {views.map((v) => {
@@ -783,36 +955,73 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         {/* Sticky Header */}
         <header
           style={{
-            padding: '18px 36px',
+            padding: '16px 36px',
             borderBottom: '1px solid #DCE5DF',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(255, 255, 255, 0.96)',
+            background: 'rgba(255, 255, 255, 0.92)',
             position: 'sticky',
             top: 0,
             zIndex: 40,
-            backdropFilter: 'blur(12px)',
+            backdropFilter: 'blur(16px)',
+            gap: 16,
+            flexWrap: 'wrap',
           }}
         >
-          <div>
-            <div className="section-eyebrow" style={{ color: '#0E9F78', fontWeight: 700, fontSize: 11 }}>
-              EVIDENCE-LINKED BRAND GOVERNANCE / ROUND 3
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#617168', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <span style={{ color: '#0E9F78' }}>BRANDTRACE</span>
+                <span>/</span>
+                <span>{view}</span>
+              </div>
+              <h1 style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, letterSpacing: '-0.025em', color: '#123B2D' }}>
+                {view === 'Overview' ? 'Executive Governance Summary' : view}
+              </h1>
             </div>
-            <h1 style={{ margin: '3px 0 0', fontSize: 24, fontWeight: 800, letterSpacing: '-0.025em', color: '#123B2D' }}>
-              {view}
-            </h1>
           </div>
 
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Workspace Context Badge */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 10px',
+                borderRadius: 8,
+                background: '#FAFBF9',
+                border: '1px solid #DCE5DF',
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#15251E',
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0E9F78' }} />
+              <span>Workspace: <strong>ws_default</strong></span>
+            </div>
+
+            {/* Quick Tour Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsTourModalOpen(true)}
+              className="btn-secondary btn-sm"
+              style={{ fontSize: 12, padding: '6px 12px', minHeight: 36 }}
+            >
+              <Sparkles size={13} style={{ color: '#0E9F78' }} />
+              <span>Judge Tour</span>
+            </button>
+
             <button
               className="btn-primary btn-sm"
               onClick={() => {
                 setView('Content Review');
                 setSelected(null);
               }}
+              style={{ fontSize: 12, minHeight: 36 }}
             >
-              <Plus size={16} /> New Review
+              <Plus size={15} /> New Review
             </button>
           </div>
         </header>
@@ -850,13 +1059,85 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
              ========================================================================= */}
           {view === 'Overview' && (
             <div>
-              {/* 4 Metric Cards */}
+              {/* Executive Overview Header */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #123B2D 0%, #0A241B 100%)',
+                  borderRadius: 16,
+                  padding: '24px 28px',
+                  color: '#FFFFFF',
+                  marginBottom: 24,
+                  boxShadow: '0 4px 16px rgba(18, 59, 45, 0.12)',
+                  border: '1px solid #0A241B',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                  <div style={{ maxWidth: 840 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span
+                        style={{
+                          background: '#0E9F78',
+                          color: '#FFFFFF',
+                          fontSize: 10,
+                          fontWeight: 800,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                        }}
+                      >
+                        Evidence-Linked Governance
+                      </span>
+                      <span style={{ fontSize: 11, color: '#A6CDBA', fontWeight: 600 }}>
+                        Single-Enterprise Staging Active
+                      </span>
+                    </div>
+                    <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF' }}>
+                      Executive Governance Summary
+                    </h2>
+                    <p style={{ margin: 0, fontSize: 13, color: '#DCE5DF', lineHeight: 1.6 }}>
+                      BRANDTRACE helps teams monitor brand claims, evaluate content against governance rules, understand the impact of rule changes, and review evidence behind compliance findings.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsTourModalOpen(true)}
+                      className="btn-secondary btn-sm"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                        color: '#FFFFFF',
+                        fontSize: 12,
+                      }}
+                    >
+                      <Sparkles size={13} style={{ color: '#0E9F78' }} /> Judge Tour
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Interactive 5-Step Workflow Stepper */}
+              <WorkflowStepper
+                currentView={view}
+                onSelectView={(v) => setView(v)}
+                onOpenTour={() => setIsTourModalOpen(true)}
+              />
+
+              {/* Architectural Scope & Transparency Banner */}
+              <HonestLimitationsBanner />
+
+              {/* 4 Key Executive Performance Metrics */}
               <div
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                   gap: 16,
-                  marginBottom: 28,
+                  marginBottom: 24,
                 }}
               >
                 {[
@@ -877,7 +1158,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                     color: '#4ade80',
                   },
                 ].map(({ title, value, hint, icon: Icon, color }) => (
-                  <div key={title} className="metric-card">
+                  <div key={title} className="metric-card apple-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div className="metric-label">{title}</div>
                       <Icon size={18} color={color} />
@@ -888,42 +1169,28 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                 ))}
               </div>
 
-              {/* Evidence Engine Transparency Bar */}
+              {/* Interactive Data Visualizations Grid (Outcome, Severity, Status) */}
               <div
                 style={{
-                  background: '#06121c',
-                  border: '1px solid rgba(45, 212, 191, 0.25)',
-                  borderRadius: 10,
-                  padding: '12px 18px',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                  gap: 20,
                   marginBottom: 24,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 16,
-                  flexWrap: 'wrap',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Info size={16} style={{ color: '#2dd4bf', flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: '#c8dff0' }}>
-                    <strong>Deterministic Health Engine:</strong> Base 100 with dynamic point restorations. Unresolved Critical (-30), High (-18), Medium (-10), Low (-4). Zero hallucinated citations.
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="btn-secondary btn-sm"
-                  style={{ fontSize: 12, padding: '4px 12px' }}
-                  onClick={() => setView('Content Review')}
-                >
-                  Review Active Drafts →
-                </button>
+                <ReviewOutcomeDonut reviews={reviews} />
+                <SeverityBarChart bySeverity={insights?.by_severity} totalOpen={insights?.unresolved} />
+                <EvidenceStatusBarChart byStatus={insights?.by_evidence_status} />
               </div>
 
-              {/* Two Column Layout: Recent Reviews & Guidelines Summary */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 24 }}>
-                <div className="card-premium">
+              {/* Two Column Layout: Recent Reviews Table & Provenance Timeline */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 24 }}>
+                <div className="card-premium apple-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Recent Content Reviews</h2>
+                    <div>
+                      <span className="section-eyebrow" style={{ fontSize: 10 }}>SUBMISSIONS</span>
+                      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Recent Content Reviews</h2>
+                    </div>
                     <button
                       className="btn-secondary btn-sm"
                       onClick={() => setView('Content Review')}
@@ -934,14 +1201,24 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                   <ReviewTable
                     reviews={reviews.slice(0, 6)}
                     open={(r) => {
-                      setSelected(r);
+                      selectReview(r);
                       setView('Content Review');
                     }}
                   />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div className="card-premium">
+                  <ActivityTimeline
+                    reviews={reviews}
+                    auditEntries={auditEntries}
+                    onSelectReview={(r) => {
+                      setSelected(r);
+                      setView('Content Review');
+                    }}
+                    onViewAllAudit={() => setView('Audit History')}
+                  />
+
+                  <div className="card-premium apple-card">
                     <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Active Brand Guidelines</h2>
                     <div style={{ display: 'grid', gap: 12, fontSize: 13 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #DCE5DF' }}>
@@ -960,7 +1237,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #DCE5DF' }}>
                         <span style={{ color: '#617168' }}>WCAG Contrast Standard:</span>
-                        <strong style={{ color: '#2dd4bf' }}>{brandProfile?.min_contrast_ratio || 4.5}:1 (Normal text AA)</strong>
+                        <strong style={{ color: '#0E9F78' }}>{brandProfile?.min_contrast_ratio || 4.5}:1 (Normal text AA)</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid #DCE5DF' }}>
                         <span style={{ color: '#617168' }}>Active Constitution Rules:</span>
@@ -972,29 +1249,12 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                       </div>
                     </div>
                   </div>
-
-                  <div
-                    style={{
-                      background: 'rgba(13, 42, 64, 0.4)',
-                      border: '1px solid #DCE5DF',
-                      borderLeft: '4px solid #2dd4bf',
-                      borderRadius: 10,
-                      padding: '16px 20px',
-                      fontSize: 13,
-                      lineHeight: 1.6,
-                      color: 'var(--bt-text-secondary)',
-                    }}
-                  >
-                    <b style={{ color: '#2dd4bf' }}>Evidence-Linked Governance Active:</b> Every finding links to an approved rule or fact ID.
-                    Missing citations produce <span className="badge-needs-review">NEEDS REVIEW</span> rather than false certitude.
-                    Unresolved high-risk findings strictly block publication sign-off.
-                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* =========================================================================
+          {/* ===
              VIEW B: BRAND CONSTITUTION
              ========================================================================= */}
           {view === 'Brand Constitution' && (
@@ -1070,9 +1330,16 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                         </div>
                         <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
                           <StatusBadge value={r.severity} />
-                          <button className="btn-secondary btn-sm" onClick={() => handleLoadRuleHistory(r.id)}>
-                            <Clock size={13} /> Version history
-                          </button>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {role === 'brand_admin' && (
+                              <button className="btn-secondary btn-sm" onClick={() => handleOpenEditRule(r)}>
+                                <Edit2 size={13} /> Edit
+                              </button>
+                            )}
+                            <button className="btn-secondary btn-sm" onClick={() => handleLoadRuleHistory(r.id)}>
+                              <Clock size={13} /> Version history
+                            </button>
+                          </div>
                         </div>
                         {ruleHistory[r.id] && (
                           <div style={{ flexBasis: '100%', borderTop: '1px solid #DCE5DF', paddingTop: 10, fontSize: 12, color: '#617168' }}>
@@ -1132,7 +1399,25 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                             </div>
                           )}
                         </div>
-                        <StatusBadge value={f.status} />
+                        <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
+                          <StatusBadge value={f.status} />
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {role === 'brand_admin' && (
+                              <button className="btn-secondary btn-sm" onClick={() => handleOpenEditFact(f)}>
+                                <Edit2 size={13} /> Edit
+                              </button>
+                            )}
+                            <button className="btn-secondary btn-sm" onClick={() => handleLoadFactHistory(f.id)}>
+                              <Clock size={13} /> Version history
+                            </button>
+                          </div>
+                        </div>
+                        {factHistory[f.id] && (
+                          <div style={{ flexBasis: '100%', borderTop: '1px solid #DCE5DF', paddingTop: 10, fontSize: 12, color: '#617168' }}>
+                            <b>Immutable fact version history:</b>{' '}
+                            {factHistory[f.id].map((v) => `v${v.version} (${v.change_reason || 'SNAPSHOT'})`).join(' → ') || 'Initial version'}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1529,7 +1814,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                             <div>
                               <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--bt-forest)' }}>Click to select a file</p>
                               <p style={{ margin: '6px 0 0', fontSize: 12, color: '#8A9A91' }}>
-                                Supported: PDF (with text extraction), PNG/JPEG (palette & WCAG contrast)
+                                Supported: PDF (pure-Python text extraction), PNG/JPEG (CIELAB Delta-E palette; dominant-colour ratios are reference only, not semantic WCAG text contrast; OCR & perceptual logo recognition unsupported)
                               </p>
                             </div>
                           )}
@@ -1845,6 +2130,196 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         </div>
       )}
 
+      {/* Edit Rule Modal */}
+      {editingRule && (
+        <div className="bt-modal-backdrop" onClick={() => setEditingRule(null)}>
+          <div className="bt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bt-modal-head">
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Edit Approved Brand Rule</h2>
+              <button className="btn-icon" onClick={() => setEditingRule(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            {editRuleError && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
+                {editRuleError}
+              </div>
+            )}
+            <form onSubmit={handleSaveEditRule} style={{ display: 'grid', gap: 14 }}>
+              <div>
+                <label className="label-sm">Rule Title</label>
+                <input
+                  className="input-premium"
+                  value={editRuleForm.title || ''}
+                  onChange={(e) => setEditRuleForm({ ...editRuleForm, title: e.target.value })}
+                  required
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="label-sm">Severity</label>
+                  <select
+                    className="input-premium"
+                    value={editRuleForm.severity || 'MEDIUM'}
+                    onChange={(e) => setEditRuleForm({ ...editRuleForm, severity: e.target.value as any })}
+                  >
+                    <option value="CRITICAL">CRITICAL</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="LOW">LOW</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label-sm">Expected Version (Concurrency Check)</label>
+                  <input
+                    className="input-premium"
+                    value={`v${editingRule.version} (Active)`}
+                    disabled
+                    style={{ background: '#F0F4F1', color: '#617168' }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label-sm">Match Pattern</label>
+                <input
+                  className="input-premium"
+                  value={editRuleForm.pattern || ''}
+                  onChange={(e) => setEditRuleForm({ ...editRuleForm, pattern: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label-sm">Requirement Description</label>
+                <textarea
+                  className="input-premium"
+                  value={editRuleForm.requirement || ''}
+                  onChange={(e) => setEditRuleForm({ ...editRuleForm, requirement: e.target.value })}
+                  required
+                  style={{ minHeight: 70 }}
+                />
+              </div>
+              <div>
+                <label className="label-sm">Documented Change Reason (Required for Audit Trail)</label>
+                <input
+                  className="input-premium"
+                  value={editRuleForm.reason || ''}
+                  onChange={(e) => setEditRuleForm({ ...editRuleForm, reason: e.target.value })}
+                  placeholder="e.g. Q4 Tone of voice update approved by Brand Council"
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setEditingRule(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary btn-sm" disabled={busy}>
+                  {busy ? 'Saving…' : 'Save Rule Update'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Fact Modal */}
+      {editingFact && (
+        <div className="bt-modal-backdrop" onClick={() => setEditingFact(null)}>
+          <div className="bt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="bt-modal-head">
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Edit Approved Fact / Claim</h2>
+              <button className="btn-icon" onClick={() => setEditingFact(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            {editFactError && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>
+                {editFactError}
+              </div>
+            )}
+            <form onSubmit={handleSaveEditFact} style={{ display: 'grid', gap: 14 }}>
+              <div>
+                <label className="label-sm">Claim Title</label>
+                <input
+                  className="input-premium"
+                  value={editFactForm.claim || ''}
+                  onChange={(e) => setEditFactForm({ ...editFactForm, claim: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label-sm">Approved Assertion Value</label>
+                <input
+                  className="input-premium"
+                  value={editFactForm.value || ''}
+                  onChange={(e) => setEditFactForm({ ...editFactForm, value: e.target.value })}
+                  required
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="label-sm">Status</label>
+                  <select
+                    className="input-premium"
+                    value={editFactForm.status || 'APPROVED'}
+                    onChange={(e) => setEditFactForm({ ...editFactForm, status: e.target.value as any })}
+                  >
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="RETIRED">RETIRED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label-sm">Expected Version</label>
+                  <input
+                    className="input-premium"
+                    value={`v${editingFact.version} (Active)`}
+                    disabled
+                    style={{ background: '#F0F4F1', color: '#617168' }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label-sm">Expiration Date (Optional)</label>
+                <input
+                  type="date"
+                  className="input-premium"
+                  value={editFactForm.expires_at || ''}
+                  onChange={(e) => setEditFactForm({ ...editFactForm, expires_at: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label-sm">Change Reason (Required for Audit Trail)</label>
+                <input
+                  className="input-premium"
+                  value={editFactForm.reason || ''}
+                  onChange={(e) => setEditFactForm({ ...editFactForm, reason: e.target.value })}
+                  placeholder="e.g. Updated SLA benchmark from recent SOC2 audit"
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setEditingFact(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary btn-sm" disabled={busy}>
+                  {busy ? 'Saving…' : 'Save Fact Update'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Judge Interactive Walkthrough Modal */}
+      <JudgeTourModal
+        isOpen={isTourModalOpen}
+        onClose={() => setIsTourModalOpen(false)}
+        onNavigate={(stepView) => {
+          setView(stepView as any);
+          setIsTourModalOpen(false);
+        }}
+      />
+
       {isFactModalOpen && (
         <div className="bt-modal-backdrop" onClick={() => setIsFactModalOpen(false)}>
           <div className="bt-modal" onClick={(e) => e.stopPropagation()}>
@@ -2011,7 +2486,7 @@ function ReviewPanel({
   onRestoreVersion,
 }: {
   review: Review | null;
-  onFindingAction: (f: EvidenceFinding, action: string, customReplacement?: string) => void;
+  onFindingAction: (f: EvidenceFinding, action: string, customReplacement?: string, customReason?: string) => void;
   reason: string;
   setReason: (val: string) => void;
   manualEdit: string;
@@ -2344,6 +2819,9 @@ function ReviewPanel({
                             </div>
                           )}
 
+                          {/* Explainable Decision Chain Visualization */}
+                          <EvidenceDecisionChain finding={f} />
+
                           {/* Intent-Preserving Suggested Correction or Missing Term Placement */}
                           {isMissingTerm ? (
                             <div
@@ -2517,21 +2995,21 @@ function ReviewPanel({
                               />
                               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                                 <button
-                                  type="button"
-                                  className="btn-danger btn-sm"
-                                  onClick={() => {
-                                    if (!inlineDismissReason.trim()) {
-                                      alert('Please provide a documented reason before dismissing this finding.');
-                                      return;
-                                    }
-                                    setReason(inlineDismissReason.trim());
-                                    setDismissPromptId(null);
-                                    const findingWithReason = { ...f };
-                                    onFindingAction(findingWithReason, 'dismiss');
-                                  }}
-                                >
-                                  Confirm Dismissal
-                                </button>
+                                    type="button"
+                                    className="btn-danger btn-sm"
+                                    onClick={() => {
+                                      const reasonText = inlineDismissReason.trim();
+                                      if (!reasonText) {
+                                        alert('Please provide a documented reason before dismissing this finding.');
+                                        return;
+                                      }
+                                      setDismissPromptId(null);
+                                      setInlineDismissReason('');
+                                      onFindingAction(f, 'dismiss', undefined, reasonText);
+                                    }}
+                                  >
+                                    Confirm Dismissal
+                                  </button>
                                 <button
                                   type="button"
                                   className="btn-secondary btn-sm"
@@ -2623,7 +3101,7 @@ function ReviewPanel({
                                     setDismissPromptId(f.id);
                                     setInlineDismissReason('');
                                   } else {
-                                    onFindingAction(f, 'dismiss');
+                                    onFindingAction(f, 'dismiss', undefined, reason.trim());
                                   }
                                 }}
                               >
@@ -2894,7 +3372,7 @@ function InsightsView({
           { title: 'Disagreements', value: insights?.disagreements_count || 0, hint: 'Reviewer overrides', color: '#f87171' },
           { title: 'Impacted Drafts', value: impactMap?.total_impacted_drafts || 0, hint: 'Rule/fact changes', color: '#2dd4bf' },
         ].map(({ title, value, hint, color }) => (
-          <div key={title} className="metric-card">
+          <div key={title} className="metric-card apple-card">
             <div className="metric-label">{title}</div>
             <div className="metric-value" style={{ color }}>{value}</div>
             <div className="metric-sub">{hint}</div>
@@ -2902,8 +3380,8 @@ function InsightsView({
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        <div className="card-premium">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+        <div className="card-premium apple-card">
           <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>Recurring Policy Findings</h2>
           <p style={{ margin: '0 0 16px', fontSize: 13, color: '#617168' }}>
             Most frequently violated rule categories across historical drafts.
@@ -2911,7 +3389,7 @@ function InsightsView({
           <Bars values={insights?.recurring || []} />
         </div>
 
-        <div className="card-premium">
+        <div className="card-premium apple-card">
           <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>Candidate Rules for Clarification</h2>
           <p style={{ margin: '0 0 16px', fontSize: 13, color: '#617168' }}>
             Rules with high triage or dismissal rates suggesting ambiguous guidelines.
@@ -2921,223 +3399,20 @@ function InsightsView({
       </div>
 
       {/* Guideline Health Intelligence (Round 3 Commitment 3) */}
-      <div className="card-premium">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-            Guideline Health Intelligence
-          </h2>
-          <span className="badge-status badge-supported">Round 3 Live</span>
-        </div>
-        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--bt-text-secondary)' }}>
-          Autonomous governance telemetry: aggregates reviewer actions, detects human disagreement, and proposes source-linked clarifications for ambiguous guidelines without modifying live rules.
-        </p>
+      <GuidelineHealthMeters
+        guidelineHealth={guidelineHealth}
+        acceptedSuggestions={acceptedSuggestions}
+        role={role}
+        onRuleSuggestionAction={onRuleSuggestionAction}
+        onActivateSuggestion={onActivateSuggestion}
+      />
 
-        {guidelineHealth && guidelineHealth.length > 0 ? (
-          <div style={{ display: 'grid', gap: 14 }}>
-            {guidelineHealth.map((gh) => (
-              <div
-                key={gh.rule_id}
-                style={{
-                  background: '#FFFFFF',
-                  border: '1px solid var(--bt-border)',
-                  borderRadius: 10,
-                  padding: '16px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--bt-forest)' }}>
-                        {gh.rule_title}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--bt-text-secondary)', fontFamily: 'monospace' }}>
-                        ID: {gh.rule_id}
-                      </span>
-                      <StatusBadge value={gh.rule_severity} />
-                      <span
-                        className={`badge-status ${
-                          gh.data_confidence === 'SUFFICIENT' ? 'badge-supported' : 'badge-needs-review'
-                        }`}
-                      >
-                        {gh.data_confidence === 'SUFFICIENT' ? 'Sufficient Data' : 'Needs More Data'}
-                      </span>
-                      {gh.disagreement_detected && (
-                        <span className="badge-status badge-high">
-                          Reviewer Disagreement
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--bt-text-secondary)', marginTop: 6 }}>
-                      Triggered in <b>{gh.affected_draft_count}</b> draft(s) &middot; Total Findings: {gh.finding_count} &middot; Accepted: {gh.accepted_count} &middot; Dismissed: {gh.dismissed_count} &middot; Escalated: {gh.escalated_count}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Suggestion Box */}
-                {gh.suggestion && (
-                  <div
-                    style={{
-                      background: 'var(--bt-bg-surface-subtle)',
-                      border: '1px solid var(--bt-border)',
-                      borderRadius: 8,
-                      padding: '12px 16px',
-                      fontSize: 12,
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, color: 'var(--bt-forest)', marginBottom: 4 }}>
-                      Clarification Recommendation:
-                    </div>
-                    <div style={{ color: 'var(--bt-text-primary)', marginBottom: 6 }}>
-                      {gh.suggestion.proposed_clarification}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--bt-text-secondary)', fontStyle: 'italic', marginBottom: 10 }}>
-                      Observed Pattern: {gh.suggestion.observed_issue}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        className="btn-primary btn-sm"
-                        onClick={() => onRuleSuggestionAction?.(gh.rule_id, 'accept')}
-                        style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
-                      >
-                        Accept Suggestion
-                      </button>
-                      <button
-                        className="btn-secondary btn-sm"
-                        onClick={() => onRuleSuggestionAction?.(gh.rule_id, 'defer')}
-                        style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
-                      >
-                        Defer
-                      </button>
-                      <button
-                        className="btn-danger btn-sm"
-                        onClick={() => onRuleSuggestionAction?.(gh.rule_id, 'reject')}
-                        style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
-                      >
-                        Reject
-                      </button>
-                    </div>
-                    {acceptedSuggestions[gh.rule_id] && (
-                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span className="badge-status badge-needs-review">Approved — not live</span>
-                        <button
-                          className="btn-primary btn-sm"
-                          onClick={() => onActivateSuggestion?.(gh.rule_id)}
-                          disabled={role !== 'brand_admin'}
-                          style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
-                        >
-                          Activate New Rule Version
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: 'var(--bt-text-secondary)', fontSize: 13 }}>
-            Telemetry running. No rule friction or ambiguities detected across active drafts.
-          </p>
-        )}
-      </div>
-
-      {/* Time-Aware Claim Ledger & Impact Map */}
-      <div className="card-premium">
-        <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>
-          Time-Aware Claim Ledger &amp; Rule-Change Impact Map
-        </h2>
-        <p style={{ margin: '0 0 16px', fontSize: 13, color: '#617168' }}>
-          Targeted re-review engine: when an approved fact or rule expires or changes, BRANDTRACE pinpoints exactly
-          which drafts depend on it.
-        </p>
-
-        {impactMap && impactMap.items.length > 0 ? (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {impactMap.items.map((item) => (
-              <div
-                key={item.item_id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'start',
-                  gap: 16,
-                  padding: '16px 20px',
-                  border: '1px solid #DCE5DF',
-                  borderRadius: 10,
-                  background: '#F8FAF8',
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span className={item.status === 'EXPIRED' ? 'badge-high' : item.status === 'EXPIRING_SOON' ? 'badge-expiring-soon' : 'badge-medium'}>
-                      {item.status} &middot; {item.item_type}
-                    </span>
-                    <span className={item.re_review_urgency === 'URGENT' ? 'badge-high' : 'badge-medium'}>
-                      Urgency: {item.re_review_urgency}
-                    </span>
-                    {item.expiry_date && (
-                      <span style={{ fontSize: 11, color: 'var(--bt-text-secondary)' }}>
-                        Expires: {new Date(item.expiry_date).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ margin: '6px 0 2px', fontWeight: 700, color: 'var(--bt-forest)', fontSize: 15 }}>
-                    {item.item_title} <span style={{ fontSize: 11, color: 'var(--bt-text-secondary)', fontWeight: 400 }}>(ID: {item.item_id})</span>
-                  </p>
-                  {item.reason && (
-                    <div style={{ fontSize: 12, color: 'var(--bt-forest)', marginTop: 4, fontWeight: 500 }}>
-                      Reason: {item.reason}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 12, color: '#617168', marginTop: 4 }}>
-                    Affects {item.affected_review_ids.length} draft(s):
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                    {(item.affected_drafts || item.affected_review_titles.map((t, i) => ({ id: item.affected_review_ids[i], title: t, status: 'IN_REVIEW' }))).map((draft: any) => (
-                      <button
-                        key={draft.id}
-                        onClick={() => onNavigateToDraft?.(draft.id)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '4px 10px',
-                          borderRadius: 6,
-                          border: '1px solid #DCE5DF',
-                          background: '#F0F4F1',
-                          color: '#0E9F78',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: onNavigateToDraft ? 'pointer' : 'default',
-                          transition: 'border-color 180ms ease',
-                        }}
-                        title={`Open draft ${draft.id}`}
-                      >
-                        <FileText size={12} />
-                        {draft.title}
-                        <StatusBadge value={draft.status} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  className="btn-secondary btn-sm"
-                  onClick={() => onTriggerReReview(item.item_id)}
-                  style={{ flexShrink: 0 }}
-                >
-                  <RefreshCw size={14} /> Re-Review
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: '#8A9A91', fontSize: 13 }}>No expired sources currently impacting active drafts.</p>
-        )}
-      </div>
+      {/* Time-Aware Claim Ledger & Rule-Change Impact Map */}
+      <InteractiveImpactGraph
+        impactMap={impactMap}
+        onTriggerReReview={onTriggerReReview}
+        onNavigateToDraft={onNavigateToDraft}
+      />
     </div>
   );
 }
@@ -3295,20 +3570,20 @@ function Bars({ values }: { values: { label: string; count: number }[] }) {
     <div style={{ display: 'grid', gap: 12 }}>
       {values.map((x) => (
         <div key={x.label} style={{ display: 'grid', gridTemplateColumns: '130px 1fr 30px', gap: 12, alignItems: 'center' }}>
-          <span style={{ fontSize: 13, color: 'var(--bt-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 13, color: '#15251E', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {x.label}
           </span>
-          <div style={{ height: 8, background: '#102030', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: 8, background: '#F0F4F1', borderRadius: 4, overflow: 'hidden' }}>
             <div
               style={{
                 height: '100%',
-                background: 'linear-gradient(90deg, #0d9488, #2dd4bf)',
+                background: 'linear-gradient(90deg, #0E9F78, #2dd4bf)',
                 width: `${(x.count / max) * 100}%`,
                 borderRadius: 4,
               }}
             />
           </div>
-          <strong style={{ fontSize: 13, color: '#e8f0f8', textAlign: 'right' }}>{x.count}</strong>
+          <strong style={{ fontSize: 13, color: '#123B2D', textAlign: 'right' }}>{x.count}</strong>
         </div>
       ))}
     </div>

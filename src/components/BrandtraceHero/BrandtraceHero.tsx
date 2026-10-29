@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { api } from '../../services/api';
 import {
   Shield,
   FileText,
@@ -27,11 +28,35 @@ import {
 
 interface BrandtraceHeroProps {
   onEnterWorkspace: () => void;
+  onOpenTour?: () => void;
 }
 
-export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace }) => {
+export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace, onOpenTour }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<number | null>(0);
+  const [systemStatus, setSystemStatus] = useState<{
+    ready: boolean;
+    dialect?: string;
+    checking: boolean;
+  }>({ ready: false, checking: true });
+
+  useEffect(() => {
+    let mounted = true;
+    api.ready()
+      .then((res) => {
+        if (mounted) setSystemStatus({ ready: true, dialect: res.database || 'Database Ready', checking: false });
+      })
+      .catch(() => {
+        api.health()
+          .then(() => {
+            if (mounted) setSystemStatus({ ready: true, dialect: 'SQLite / Local', checking: false });
+          })
+          .catch(() => {
+            if (mounted) setSystemStatus({ ready: false, checking: false });
+          });
+      });
+    return () => { mounted = false; };
+  }, []);
 
   // Connected System Nodes (SVG Diagram)
   const systemNodes = [
@@ -76,7 +101,7 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
       id: 4,
       title: 'Visual Compliance',
       badge: 'PALETTE & ASSET REGISTRY',
-      desc: 'Pillow CIELAB Delta-E color distance, WCAG 2.1 contrast ratios, and SHA-256 asset registry verification (brand_assets).',
+      desc: 'Pillow CIELAB Delta-E color distance, dominant-color reference ratios, and SHA-256 byte hash verification. Raster OCR and perceptual logo matching are unsupported.',
       status: 'Available (R3)',
       x: 540,
       y: 260,
@@ -116,11 +141,23 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
           </div>
           <div className="flex items-center gap-4 text-[#B3C7BD] text-[11px]">
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#0E9F78] animate-pulse"></span>
-              FastAPI 0.115 Connected
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  systemStatus.checking
+                    ? 'bg-amber-400 animate-pulse'
+                    : systemStatus.ready
+                    ? 'bg-[#0E9F78]'
+                    : 'bg-red-400'
+                }`}
+              />
+              {systemStatus.checking
+                ? 'Connecting to backend...'
+                : systemStatus.ready
+                ? `FastAPI Online · ${systemStatus.dialect}`
+                : 'Backend Offline · Local Mode'}
             </span>
             <span className="hidden sm:inline text-[#275242]">|</span>
-            <span className="hidden sm:inline">87 Passed &middot; 27/27 Smoke Tests</span>
+            <span className="hidden sm:inline">126 Automated Tests · Verified Deterministic</span>
           </div>
         </div>
       </div>
@@ -264,11 +301,21 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <button
                   onClick={onEnterWorkspace}
-                  className="btn-primary text-base px-6 py-3 min-h-[50px] shadow-md"
+                  className="btn-primary text-base px-6 py-3 min-h-[50px] shadow-md cursor-pointer"
                 >
                   Enter the Workspace
                   <ArrowRight size={18} />
                 </button>
+                {onOpenTour && (
+                  <button
+                    type="button"
+                    onClick={onOpenTour}
+                    className="btn-secondary text-base px-6 py-3 min-h-[50px] flex items-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles size={16} className="text-[#0E9F78]" />
+                    Take Judge Tour
+                  </button>
+                )}
                 <a
                   href="#how-it-works"
                   className="btn-secondary text-base px-6 py-3 min-h-[50px]"
@@ -280,8 +327,8 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
               {/* Trust & Rigor Badges */}
               <div className="pt-6 border-t border-[#DCE5DF] grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
-                  <div className="text-xl font-bold text-[#123B2D]">87 Passed</div>
-                  <div className="text-xs text-[#617168] font-medium">Automated Tests</div>
+                  <div className="text-xl font-bold text-[#123B2D]">126 Passed</div>
+                  <div className="text-xs text-[#617168] font-medium">Backend Tests</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-[#0E9F78]">Deterministic</div>
@@ -292,8 +339,8 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
                   <div className="text-xs text-[#617168] font-medium">Server Approval Gate</div>
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-[#0E9F78]">100% Local</div>
-                  <div className="text-xs text-[#617168] font-medium">Zero Cloud Lock-in</div>
+                  <div className="text-xl font-bold text-[#0E9F78]">PostgreSQL + SQLite</div>
+                  <div className="text-xs text-[#617168] font-medium">Verified Dialects</div>
                 </div>
               </div>
             </div>

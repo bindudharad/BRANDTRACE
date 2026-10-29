@@ -89,7 +89,7 @@ def calculate_impact_map(workspace_id: Optional[str] = None) -> Dict[str, Any]:
     else:
         all_facts = rows("SELECT * FROM facts")
         all_reviews = rows("SELECT id, title, status, workspace_id FROM reviews")
-        # all_rules loaded above
+        all_rules = rows("SELECT * FROM rules")
 
     for fact in all_facts:
         fact_id = fact["id"]
@@ -165,7 +165,6 @@ def calculate_impact_map(workspace_id: Optional[str] = None) -> Dict[str, Any]:
                 })
 
     # 2. Inspect Rules for Version Superseding or Expiry
-    all_rules = rows("SELECT * FROM rules")
     for rule in all_rules:
         rule_id = rule["id"]
         rule_expired = _is_expired_dt(rule.get("expires_at"))

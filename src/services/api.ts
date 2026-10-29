@@ -95,6 +95,36 @@ export interface Fact {
   effective_at?: string;
   expires_at?: string;
   created_at?: string;
+  notes?: string;
+}
+
+export interface FactVersion {
+  id: string;
+  fact_id: string;
+  version: string;
+  claim: string;
+  value: string;
+  source_id?: string;
+  source_title: string;
+  source_excerpt: string;
+  effective_at?: string;
+  expires_at?: string;
+  status: string;
+  change_reason?: string;
+  changed_by?: string;
+  created_at: string;
+}
+
+export interface HealthStatus {
+  status: string;
+  service: string;
+  version: string;
+}
+
+export interface ReadyStatus {
+  status: string;
+  database: string;
+  elapsed_ms?: number;
 }
 
 export interface BrandProfile {
@@ -338,7 +368,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ expected_rule_version: expectedRuleVersion, new_requirement: newRequirement, reason }),
     }),
+  factVersions: (factId: string) => call<FactVersion[]>(`/api/facts/${factId}/versions`),
   ruleVersions: (ruleId: string) => call<Rule[]>(`/api/rules/${ruleId}/versions`),
+  health: () => call<HealthStatus>('/api/health'),
+  ready: () => call<ReadyStatus>('/api/ready'),
   brandAssets: () => call<BrandAsset[]>('/api/brand-assets'),
   registerAsset: (body: Partial<BrandAsset>) =>
     call<BrandAsset>('/api/brand-assets', { method: 'POST', body: JSON.stringify(body) }),

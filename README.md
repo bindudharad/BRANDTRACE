@@ -6,7 +6,8 @@
 
 Evidence-Aware Brand Governance and Content Review Platform
 
-[![Backend Tests](https://img.shields.io/badge/backend%20tests-91%20passed-brightgreen?style=flat-square)](#testing)
+[![Backend Tests](https://img.shields.io/badge/backend%20tests-133%20passed%2C%201%20skipped-brightgreen?style=flat-square)](#testing)
+[![Browser QA](https://img.shields.io/badge/browser%20QA-32%2F32%20passed-brightgreen?style=flat-square)](#testing)
 [![Smoke Test](https://img.shields.io/badge/smoke%20test-27%2F27%20passed-brightgreen?style=flat-square)](#testing)
 [![Build](https://img.shields.io/badge/frontend%20build-passing-brightgreen?style=flat-square)](#11-windows-local-setup)
 [![Design](https://img.shields.io/badge/design-enterprise%20light%20system-forestgreen?style=flat-square)](#enterprise-design-redesign)
@@ -484,7 +485,7 @@ cd C:\Projects\BRANDTRACE\BRANDTRACE
 python -m pytest backend/tests -v
 ```
 
-Expected: **75 passed, 1 skipped** (the skipped test requires a live `GEMINI_API_KEY`).
+Expected: **133 passed, 1 skipped** across 18 test files (126 passed, 1 skipped in baseline regression via `scripts/verify_sqlite_regression.py` + 7 passed across 4 Round 3 security & scenario acceptance suites; the skipped test requires a live `GEMINI_API_KEY`).
 
 | Test file | Coverage |
 |-----------|----------|
