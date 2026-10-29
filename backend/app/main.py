@@ -5,6 +5,7 @@ human approval gates, multi-format (PDF/Image) analysis, audit ledger, and gover
 """
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
@@ -20,7 +21,12 @@ from .config import (
     MAX_CONTENT_CHARS,
     MAX_UPLOAD_BYTES,
     normalize_database_url,
+    AUTH_MODE,
+    ALLOW_DEMO_AUTH,
+    API_KEY,
+    ADMIN_API_KEY,
 )
+from . import config
 from .models import (
     ENGINE,
     get_engine,
@@ -54,21 +60,144 @@ from .schemas import (
     GuidelineHealthItem,
     RuleSuggestionAction,
     RuleSuggestionOut,
+    RuleActivationIn,
+    WorkspaceMemberIn,
+    WorkspaceMemberOut,
+    WorkspaceIn,
+    WorkspaceOut,
+    BootstrapOut,
 )
 from .governance import run_governance_analysis, is_expired, calculate_health_score
 from .pdf_parser import extract_pdf_pages, format_pdf_text_for_review, PDFExtractionError
 from .image_analyzer import analyze_image_compliance, ImageAnalysisError
 from .impact_map import calculate_impact_map, trigger_targeted_rereview
 
-def get_demo_role(x_demo_role: Optional[str] = Header(None)) -> str:
-    """Extract simulated role from X-Demo-Role header or default to reviewer."""
+DEFAULT_WORKSPACE_MEMBERSHIPS: Dict[str, Set[str]] = {
+    "system.admin": {"ws_default"},
+    "system.user": {"ws_default"},
+    "admin@brandtrace.internal": {"ws_default"},
+    "reviewer@brandtrace.internal": {"ws_default"},
+    "creator@brandtrace.internal": {"ws_default"},
+    "auditor@brandtrace.internal": {"ws_default"},
+    "demo.brand_admin": {"ws_default"},
+    "demo.reviewer": {"ws_default"},
+    "demo.creator": {"ws_default"},
+    "demo.auditor": {"ws_default"},
+    "reviewer.alice": {"ws_default"},
+    "reviewer.bob": {"ws_default"},
+    "admin.lead": {"ws_default"},
+    "admin@foreign-corp.com": {"ws_unrelated"},
+    "intruder@foreign-corp.com": {"ws_unrelated"},
+    "user@foreign-corp.com": {"ws_unrelated"},
+}
+
+def is_actor_authorized_for_workspace(actor: str, workspace_id: str) -> bool:
+    """Verify that the caller identity is an authorized member of target workspace."""
+    # 1. First check verified database memberships in workspace_members
+    try:
+        with db() as conn:
+            m = conn.execute(
+                "SELECT 1 FROM workspace_members WHERE actor=? AND workspace_id=?",
+                (actor, workspace_id)
+            ).fetchone()
+            if m:
+                return True
+            has_any = conn.execute(
+                "SELECT 1 FROM workspace_members WHERE actor=?",
+                (actor,)
+            ).fetchone()
+            if has_any:
+                return False
+    except Exception:
+        pass
+
+    # 2. Authenticated system accounts mapped to default workspace
+    if actor in ("system.admin", "system.user"):
+        return workspace_id == "ws_default"
+
+    # 3. In production mode (ALLOW_DEMO_AUTH = False), reject all demo and synthetic identities
+    if not config.ALLOW_DEMO_AUTH:
+        return False
+
+    # 4. In demo/test mode only: check configured demo memberships and domain fixtures
+    allowed = DEFAULT_WORKSPACE_MEMBERSHIPS.get(actor)
+    if allowed is not None:
+        return workspace_id in allowed
+
+    if actor.endswith("@brandtrace.internal") or actor.startswith("demo."):
+        return workspace_id == "ws_default"
+    if actor.endswith("@foreign-corp.com") or actor.startswith("foreign."):
+        return workspace_id == "ws_unrelated"
+
+    return False
+
+def get_auth_context(
+    authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+    x_demo_role: Optional[str] = Header(None),
+    x_demo_actor: Optional[str] = Header(None),
+    x_workspace_id: Optional[str] = Header(None),
+) -> Dict[str, str]:
+    """Resolve caller identity, role and tenant workspace with environment-aware security boundaries.
+
+    In production mode (or when ALLOW_DEMO_AUTH is false), caller-supplied demo headers
+    are strictly rejected. Authentication must be provided via Bearer token or X-API-Key.
+    Constant-time comparison is enforced for all secret validation.
+    In permitted demo mode, simulated demo roles and workspace scopes are verified against
+    server-side configured workspace memberships. A client-supplied workspace ID alone
+    never grants access without authorized membership.
+    """
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    elif x_api_key:
+        token = x_api_key.strip()
+
+    target_workspace = (x_workspace_id or "ws_default").strip()
+
+    if token:
+        if config.ADMIN_API_KEY and hmac.compare_digest(token, config.ADMIN_API_KEY):
+            auth_ctx = {"role": "brand_admin", "actor": "system.admin", "auth_type": "api_key", "workspace_id": "ws_default"}
+        elif config.API_KEY and hmac.compare_digest(token, config.API_KEY):
+            auth_ctx = {"role": "reviewer", "actor": "system.user", "auth_type": "api_key", "workspace_id": "ws_default"}
+        else:
+            raise HTTPException(401, "Invalid authentication credentials.")
+
+        if x_workspace_id and target_workspace != auth_ctx["workspace_id"]:
+            if not is_actor_authorized_for_workspace(auth_ctx["actor"], target_workspace):
+                raise HTTPException(403, f"Authenticated credential is not authorized for workspace '{target_workspace}'.")
+            auth_ctx["workspace_id"] = target_workspace
+        return auth_ctx
+
+    if not config.ALLOW_DEMO_AUTH:
+        raise HTTPException(
+            401,
+            "Authentication required. Demo role simulation is disabled in production mode."
+        )
+
+    # Permitted demo mode
     role = (x_demo_role or "reviewer").lower().strip()
     if role not in ("creator", "reviewer", "brand_admin", "auditor"):
-        return "reviewer"
-    return role
+        role = "reviewer"
+    actor = (x_demo_actor or f"demo.{role}").strip()
 
-def get_demo_actor(x_demo_actor: Optional[str] = Header(None)) -> str:
-    return (x_demo_actor or "demo.user").strip()
+    # Enforce workspace authorization: client-supplied workspace ID must not itself grant access
+    if not is_actor_authorized_for_workspace(actor, target_workspace):
+        raise HTTPException(
+            403,
+            f"Caller '{actor}' is not authorized for workspace '{target_workspace}'."
+        )
+
+    return {"role": role, "actor": actor, "auth_type": "demo", "workspace_id": target_workspace}
+
+def get_demo_role(ctx: Dict[str, str] = Depends(get_auth_context)) -> str:
+    return ctx["role"]
+
+def get_demo_actor(ctx: Dict[str, str] = Depends(get_auth_context)) -> str:
+    return ctx["actor"]
+
+def get_workspace_id(ctx: Dict[str, str] = Depends(get_auth_context)) -> str:
+    return ctx.get("workspace_id", "ws_default")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -106,7 +235,14 @@ def ready():
     return {"status": "ready", "database": get_engine().dialect.name}
 
 @app.post("/api/demo/setup")
-async def demo_setup():
+async def demo_setup(
+    role: str = Depends(get_demo_role),
+    actor: str = Depends(get_demo_actor),
+):
+    if not config.ALLOW_DEMO_AUTH:
+        raise HTTPException(403, "Demo setup is disabled in production mode.")
+    if role not in ("reviewer", "brand_admin"):
+        raise HTTPException(403, "Reviewer or Brand Admin role required.")
     """Idempotently seed workspace, brand visual profile, rules, and facts."""
     init_db()
     with db() as conn:
@@ -205,9 +341,35 @@ async def demo_setup():
                     """,
                     r,
                 )
+                conn.execute(
+                    """
+                    INSERT INTO rule_versions (
+                        id, rule_id, workspace_id, version, title, category, kind,
+                        pattern, requirement, severity, source_title, source_excerpt, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(rule_id, version) DO NOTHING
+                    """,
+                    (ident("rulever"), r[0], r[1], r[8], r[2], r[3], r[4], r[5], r[6], r[7], r[12], r[13], r[16]),
+                )
 
         # Seed baseline fact
         if not rows("SELECT * FROM facts"):
+            f_data = (
+                "F-2026-01",
+                "ws_default",
+                "Product availability",
+                "Available in India",
+                "Product Marketing",
+                "APPROVED",
+                "2.0",
+                "src_launch_01",
+                "Launch brief",
+                "BRANDTRACE is available to teams in India.",
+                None,
+                None,
+                "2027-01-01T00:00:00+00:00",
+                now(),
+            )
             conn.execute(
                 """
                 INSERT INTO facts (
@@ -216,39 +378,56 @@ async def demo_setup():
                     effective_at, expires_at, created_at
                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
+                f_data,
+            )
+            conn.execute(
+                """
+                INSERT INTO fact_versions (
+                    id, fact_id, version, claim, value, source_id, source_title,
+                    source_excerpt, effective_at, expires_at, status, change_reason,
+                    changed_by, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(fact_id, version) DO NOTHING
+                """,
                 (
-                    "F-2026-01",
-                    "ws_default",
-                    "Product availability",
-                    "Available in India",
-                    "Product Marketing",
-                    "APPROVED",
-                    "2.0",
-                    "src_launch_01",
-                    "Launch brief",
-                    "BRANDTRACE is available to teams in India.",
-                    None,
-                    None,
-                    "2027-01-01T00:00:00+00:00",
-                    now(),
+                    ident("factver"), f_data[0], f_data[6], f_data[2], f_data[3],
+                    f_data[7], f_data[8], f_data[9], f_data[11], f_data[12],
+                    f_data[5], "INITIAL_APPROVAL", "system", f_data[13]
                 ),
             )
 
-    return await overview()
+    return await overview(workspace_id="ws_default")
 
 @app.post("/api/demo/reset")
-async def demo_reset():
-    """Completely wipe and restore pristine Northstar demo data."""
+async def demo_reset(
+    role: str = Depends(get_demo_role),
+    actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """Completely wipe and restore pristine Northstar demo data across all tables."""
+    if not config.ALLOW_DEMO_AUTH:
+        raise HTTPException(403, "Demo reset is disabled in production mode.")
+    if role not in ("reviewer", "brand_admin"):
+        raise HTTPException(403, "Reviewer or Brand Admin role required to reset demo data.")
+    if workspace_id != "ws_default":
+        raise HTTPException(403, "Demo reset is only permitted on the default workspace.")
+
     init_db()
     with db() as conn:
         conn.execute("DELETE FROM findings")
         conn.execute("DELETE FROM review_versions")
+        conn.execute("DELETE FROM evidence_dependencies")
         conn.execute("DELETE FROM reviews")
         conn.execute("DELETE FROM audit")
+        conn.execute("DELETE FROM rule_suggestions")
+        conn.execute("DELETE FROM brand_assets")
+        conn.execute("DELETE FROM rule_versions")
         conn.execute("DELETE FROM rules")
+        conn.execute("DELETE FROM fact_versions")
         conn.execute("DELETE FROM facts")
         conn.execute("DELETE FROM brand_profiles")
         conn.execute("DELETE FROM workspaces")
+        conn.execute("DELETE FROM system_state")
 
         # Workspace
         conn.execute("INSERT INTO workspaces VALUES (?, ?, ?)", ("ws_default", "Northstar demo workspace", now()))
@@ -342,8 +521,34 @@ async def demo_reset():
                 """,
                 r,
             )
+            conn.execute(
+                """
+                INSERT INTO rule_versions (
+                    id, rule_id, workspace_id, version, title, category, kind,
+                    pattern, requirement, severity, source_title, source_excerpt, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(rule_id, version) DO NOTHING
+                """,
+                (ident("rulever"), r[0], r[1], r[8], r[2], r[3], r[4], r[5], r[6], r[7], r[12], r[13], r[16]),
+            )
 
         # Seed baseline fact
+        rf_data = (
+            "F-2026-01",
+            "ws_default",
+            "Product availability",
+            "Available in India",
+            "Product Marketing",
+            "APPROVED",
+            "2.0",
+            "src_launch_01",
+            "Launch brief",
+            "BRANDTRACE is available to teams in India.",
+            None,
+            None,
+            "2027-01-01T00:00:00+00:00",
+            now(),
+        )
         conn.execute(
             """
             INSERT INTO facts (
@@ -352,21 +557,21 @@ async def demo_reset():
                 effective_at, expires_at, created_at
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
+            rf_data,
+        )
+        conn.execute(
+            """
+            INSERT INTO fact_versions (
+                id, fact_id, version, claim, value, source_id, source_title,
+                source_excerpt, effective_at, expires_at, status, change_reason,
+                changed_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(fact_id, version) DO NOTHING
+            """,
             (
-                "F-2026-01",
-                "ws_default",
-                "Product availability",
-                "Available in India",
-                "Product Marketing",
-                "APPROVED",
-                "2.0",
-                "src_launch_01",
-                "Launch brief",
-                "BRANDTRACE is available to teams in India.",
-                None,
-                None,
-                "2027-01-01T00:00:00+00:00",
-                now(),
+                ident("factver"), rf_data[0], rf_data[6], rf_data[2], rf_data[3],
+                rf_data[7], rf_data[8], rf_data[9], rf_data[11], rf_data[12],
+                rf_data[5], "INITIAL_APPROVAL", "system", rf_data[13]
             ),
         )
 
@@ -411,15 +616,15 @@ async def demo_reset():
     await run_governance_analysis(sample_review)
     audit(sample_id, "REVIEW_CREATED", actor="creator@demo.com", actor_role="creator")
 
-    return await overview()
+    return await overview(workspace_id="ws_default")
 
 @app.get("/api/overview")
-async def overview():
-    recent_reviews = rows("SELECT * FROM reviews ORDER BY created_at DESC LIMIT 6")
+async def overview(workspace_id: str = Depends(get_workspace_id)):
+    recent_reviews = rows("SELECT * FROM reviews WHERE workspace_id=? ORDER BY created_at DESC LIMIT 6", (workspace_id,))
     for r in recent_reviews:
         r["findings"] = rows("SELECT * FROM findings WHERE review_id=?", (r["id"],))
 
-    bp = row("SELECT * FROM brand_profiles WHERE workspace_id='ws_default'")
+    bp = row("SELECT * FROM brand_profiles WHERE workspace_id=?", (workspace_id,))
     if bp and isinstance(bp.get("accent_colors"), str):
         try:
             bp["accent_colors"] = json.loads(bp["accent_colors"])
@@ -427,16 +632,16 @@ async def overview():
             bp["accent_colors"] = []
 
     metrics = {
-        "total_reviews": len(rows("SELECT id FROM reviews")),
-        "open_findings": len(rows("SELECT id FROM findings WHERE disposition IS NULL")),
-        "pending_approval": len(rows("SELECT id FROM reviews WHERE status IN ('IN_REVIEW', 'PENDING_APPROVAL')")),
-        "approved": len(rows("SELECT id FROM reviews WHERE status='APPROVED'")),
-        "rules_count": len(rows("SELECT id FROM rules WHERE status='APPROVED'")),
-        "facts_count": len(rows("SELECT id FROM facts WHERE status='APPROVED'")),
+        "total_reviews": len(rows("SELECT id FROM reviews WHERE workspace_id=?", (workspace_id,))),
+        "open_findings": len(rows("SELECT f.id FROM findings f JOIN reviews r ON r.id=f.review_id WHERE r.workspace_id=? AND f.disposition IS NULL", (workspace_id,))),
+        "pending_approval": len(rows("SELECT id FROM reviews WHERE workspace_id=? AND status IN ('IN_REVIEW', 'PENDING_APPROVAL')", (workspace_id,))),
+        "approved": len(rows("SELECT id FROM reviews WHERE workspace_id=? AND status='APPROVED'", (workspace_id,))),
+        "rules_count": len(rows("SELECT id FROM rules WHERE workspace_id=? AND status='APPROVED'", (workspace_id,))),
+        "facts_count": len(rows("SELECT id FROM facts WHERE workspace_id=? AND status='APPROVED'", (workspace_id,))),
     }
 
     return {
-        "workspace": {"id": "ws_default", "name": "Northstar demo workspace", "demo_mode": True},
+        "workspace": {"id": workspace_id, "name": "Northstar demo workspace", "demo_mode": config.ALLOW_DEMO_AUTH},
         "reviews": recent_reviews,
         "metrics": metrics,
         "brand_profile": bp,
@@ -447,21 +652,22 @@ async def overview():
 # -----------------------------------------------------------------------------
 
 @app.get("/api/rules")
-def list_rules():
-    return rows("SELECT * FROM rules ORDER BY title")
+def list_rules(workspace_id: str = Depends(get_workspace_id)):
+    return rows("SELECT * FROM rules WHERE workspace_id=? ORDER BY title", (workspace_id,))
 
 @app.post("/api/rules", status_code=201)
 def create_rule(
     payload: RuleIn,
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role not in ("brand_admin",):
         raise HTTPException(403, "Brand Admin role required to create or modify brand rules.")
 
     data = payload.model_dump()
     data["id"] = ident("rule")
-    data["workspace_id"] = "ws_default"
+    data["workspace_id"] = workspace_id
     data["created_at"] = now()
     with db() as conn:
         conn.execute(
@@ -478,6 +684,14 @@ def create_rule(
             """,
             data,
         )
+        conn.execute(
+            """INSERT INTO rule_versions (id, rule_id, workspace_id, version, title, category, kind,
+            pattern, requirement, severity, source_title, source_excerpt, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (ident("rulever"), data["id"], data["workspace_id"], data["version"], data["title"],
+             data["category"], data["kind"], data["pattern"], data["requirement"], data["severity"],
+             data["source_title"], data["source_excerpt"], data["created_at"]),
+        )
     return data
 
 @app.put("/api/rules/{rule_id}")
@@ -485,41 +699,113 @@ def update_rule(
     rule_id: str,
     payload: RuleUpdateIn,
     role: str = Depends(get_demo_role),
+    actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
+    """Update brand rule with optimistic expected-version concurrency and immutable history."""
     if role not in ("brand_admin",):
         raise HTTPException(403, "Brand Admin role required to update brand rules.")
 
-    existing = row("SELECT * FROM rules WHERE id=?", (rule_id,))
-    if not existing:
-        raise HTTPException(404, "Rule not found.")
-
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-    if not updates:
-        return existing
-
-    set_clauses = [f"{k}=:{k}" for k in updates.keys()]
-    updates["id"] = rule_id
     with db() as conn:
+        existing_row = conn.execute("SELECT * FROM rules WHERE id=?", (rule_id,)).fetchone()
+        if not existing_row:
+            raise HTTPException(404, "Rule not found.")
+        existing = dict(existing_row._mapping)
+
+        # Cross-workspace authorization check
+        if existing.get("workspace_id") and existing["workspace_id"] != workspace_id:
+            raise HTTPException(403, "Access to rules outside caller workspace is forbidden.")
+
+        # Expected version check to prevent stale overwrites
+        if payload.expected_version and payload.expected_version != existing["version"]:
+            raise HTTPException(
+                409,
+                f"Stale update conflict: current rule version is {existing['version']}, expected {payload.expected_version}."
+            )
+
+        updates = {
+            k: v for k, v in payload.model_dump().items()
+            if v is not None and k not in ("expected_version", "reason")
+        }
+        if not updates:
+            return existing
+
+        material = {"pattern", "requirement", "severity", "category", "kind", "title"}
+        is_material = bool(material.intersection(updates))
+
+        # Rejection of illegal same-version reuse on material changes
+        if is_material and updates.get("version") == existing["version"]:
+            raise HTTPException(409, "Material rule changes cannot reuse the existing version.")
+
+        if is_material and "version" not in updates:
+            try:
+                updates["version"] = str(int(float(existing.get("version", "0"))) + 1)
+            except (TypeError, ValueError):
+                updates["version"] = f"{existing.get('version', '1.0')}-rev"
+
+        new_version = updates.get("version", existing["version"])
+        ts = now()
+
+        # Snapshot prior version if missing
+        conn.execute(
+            """INSERT INTO rule_versions (
+                id, rule_id, workspace_id, version, title, category, kind,
+                pattern, requirement, severity, source_title, source_excerpt, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(rule_id, version) DO NOTHING""",
+            (ident("rulever"), existing["id"], existing["workspace_id"], existing["version"],
+             existing["title"], existing["category"], existing["kind"], existing["pattern"],
+             existing["requirement"], existing["severity"], existing["source_title"],
+             existing["source_excerpt"], ts),
+        )
+
+        set_clauses = [f"{k}=:{k}" for k in updates.keys()]
+        updates["id"] = rule_id
         conn.execute(f"UPDATE rules SET {', '.join(set_clauses)} WHERE id=:id", updates)
+
+        current = {**existing, **updates}
+        if is_material:
+            conn.execute(
+                """INSERT INTO rule_versions (
+                    id, rule_id, workspace_id, version, title, category, kind,
+                    pattern, requirement, severity, source_title, source_excerpt,
+                    activated_by, activation_reason, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(rule_id, version) DO NOTHING""",
+                (ident("rulever"), current["id"], current["workspace_id"], current["version"],
+                 current["title"], current["category"], current["kind"], current["pattern"],
+                 current["requirement"], current["severity"], current["source_title"],
+                 current["source_excerpt"], actor, payload.reason or "DIRECT_UPDATE", ts),
+            )
+
+        conn.execute(
+            """INSERT INTO audit (id, workspace_id, review_id, action, actor, actor_role, reason, details, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (ident("aud"), existing["workspace_id"], "system", "RULE_UPDATED", actor, role,
+             payload.reason, f"Rule {rule_id} version {existing['version']} -> {new_version}", ts),
+        )
 
     return row("SELECT * FROM rules WHERE id=?", (rule_id,))
 
 @app.get("/api/facts")
-def list_facts():
-    return rows("SELECT * FROM facts ORDER BY claim")
+def list_facts(workspace_id: str = Depends(get_workspace_id)):
+    return rows("SELECT * FROM facts WHERE workspace_id=? ORDER BY claim", (workspace_id,))
 
 @app.post("/api/facts", status_code=201)
 def create_fact(
     payload: FactIn,
     role: str = Depends(get_demo_role),
+    actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role not in ("brand_admin",):
         raise HTTPException(403, "Brand Admin role required to create or modify approved facts.")
 
     data = payload.model_dump()
     data["id"] = ident("fact")
-    data["workspace_id"] = "ws_default"
+    data["workspace_id"] = workspace_id
     data["created_at"] = now()
+    data["updated_at"] = data["created_at"]
     with db() as conn:
         conn.execute(
             """
@@ -535,6 +821,16 @@ def create_fact(
             """,
             data,
         )
+        conn.execute(
+            """INSERT INTO fact_versions (
+                id, fact_id, version, claim, value, source_id, source_title,
+                source_excerpt, effective_at, expires_at, status, change_reason,
+                changed_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (ident("factver"), data["id"], data["version"], data["claim"], data["value"],
+             data["id"], data["source_title"], data["source_excerpt"], data.get("effective_at"),
+             data.get("expires_at"), data["status"], "INITIAL_APPROVAL", actor, data["created_at"]),
+        )
     return data
 
 @app.put("/api/facts/{fact_id}")
@@ -542,28 +838,98 @@ def update_fact(
     fact_id: str,
     payload: FactUpdateIn,
     role: str = Depends(get_demo_role),
+    actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role not in ("brand_admin",):
         raise HTTPException(403, "Brand Admin role required to update approved facts.")
 
-    existing = row("SELECT * FROM facts WHERE id=?", (fact_id,))
-    if not existing:
-        raise HTTPException(404, "Fact not found.")
-
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-    if not updates:
-        return existing
-
-    set_clauses = [f"{k}=:{k}" for k in updates.keys()]
-    updates["id"] = fact_id
     with db() as conn:
+        existing_row = conn.execute("SELECT * FROM facts WHERE id=?", (fact_id,)).fetchone()
+        if not existing_row:
+            raise HTTPException(404, "Fact not found.")
+        existing = dict(existing_row._mapping)
+
+        # Cross-workspace authorization check
+        if existing.get("workspace_id") and existing["workspace_id"] != workspace_id:
+            raise HTTPException(403, "Access to facts outside caller workspace is forbidden.")
+
+        # Expected version conflict check
+        if payload.expected_version and payload.expected_version != existing["version"]:
+            raise HTTPException(
+                409,
+                f"Stale update conflict: current fact version is {existing['version']}, expected {payload.expected_version}."
+            )
+
+        updates = {
+            k: v for k, v in payload.model_dump().items()
+            if v is not None and k not in ("expected_version", "reason")
+        }
+        if not updates:
+            return existing
+
+        material = {"claim", "value", "source_title", "source_excerpt", "effective_at", "expires_at", "status"}
+        is_material = bool(material.intersection(updates))
+
+        # Material fact changes cannot reuse the existing version
+        if is_material and updates.get("version") == existing["version"]:
+            raise HTTPException(409, "Material fact changes cannot reuse the existing version.")
+
+        if is_material and "version" not in updates:
+            try:
+                updates["version"] = str(int(float(existing.get("version", "0"))) + 1)
+            except (TypeError, ValueError):
+                updates["version"] = f"{existing.get('version', '1.0')}-rev"
+
+        new_version = updates.get("version", existing["version"])
+        updates["updated_at"] = now()
+        ts = updates["updated_at"]
+
+        # Ensure prior version is snapshotted
+        conn.execute(
+            """INSERT INTO fact_versions (
+                id, fact_id, version, claim, value, source_id, source_title,
+                source_excerpt, effective_at, expires_at, status, change_reason,
+                changed_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(fact_id, version) DO NOTHING""",
+            (ident("factver"), existing["id"], existing["version"], existing["claim"], existing["value"],
+             existing.get("source_id") or existing["id"], existing["source_title"], existing["source_excerpt"],
+             existing.get("effective_at"), existing.get("expires_at"), existing["status"],
+             "PRIOR_SNAPSHOT", actor, existing.get("created_at") or ts),
+        )
+
+        set_clauses = [f"{k}=:{k}" for k in updates.keys()]
+        updates["id"] = fact_id
         conn.execute(f"UPDATE facts SET {', '.join(set_clauses)} WHERE id=:id", updates)
+
+        current = {**existing, **updates}
+        if is_material:
+            conn.execute(
+                """INSERT INTO fact_versions (
+                    id, fact_id, version, claim, value, source_id, source_title,
+                    source_excerpt, effective_at, expires_at, status, change_reason,
+                    changed_by, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(fact_id, version) DO NOTHING""",
+                (ident("factver"), fact_id, current["version"], current["claim"], current["value"],
+                 current.get("source_id") or fact_id, current["source_title"], current["source_excerpt"],
+                 current.get("effective_at"), current.get("expires_at"), current["status"],
+                 payload.reason or "FACT_UPDATED", actor, ts),
+            )
+
+        conn.execute(
+            """INSERT INTO audit (id, workspace_id, review_id, action, actor, actor_role, reason, details, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (ident("aud"), existing["workspace_id"], "system", "FACT_UPDATED", actor, role,
+             payload.reason, f"Fact {fact_id} version {existing['version']} -> {new_version}", ts),
+        )
 
     return row("SELECT * FROM facts WHERE id=?", (fact_id,))
 
-@app.get("/api/brand-profile")
-def get_brand_profile():
-    bp = row("SELECT * FROM brand_profiles WHERE workspace_id='ws_default'")
+def get_brand_profile(workspace_id: Optional[str] = None):
+    ws_id = workspace_id or "ws_default"
+    bp = row("SELECT * FROM brand_profiles WHERE workspace_id=?", (ws_id,))
     if bp and isinstance(bp.get("accent_colors"), str):
         try:
             bp["accent_colors"] = json.loads(bp["accent_colors"])
@@ -571,15 +937,20 @@ def get_brand_profile():
             bp["accent_colors"] = []
     return bp
 
+@app.get("/api/brand-profile")
+def get_brand_profile_endpoint(workspace_id: str = Depends(get_workspace_id)):
+    return get_brand_profile(workspace_id=workspace_id)
+
 @app.put("/api/brand-profile")
 def update_brand_profile(
     payload: BrandProfileIn,
     role: str = Depends(get_demo_role),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role not in ("brand_admin",):
         raise HTTPException(403, "Brand Admin role required to modify visual brand profile.")
 
-    existing = row("SELECT id FROM brand_profiles WHERE workspace_id='ws_default'")
+    existing = row("SELECT id FROM brand_profiles WHERE workspace_id=?", (workspace_id,))
     pid = existing["id"] if existing else ident("profile")
     acc = json.dumps(payload.accent_colors)
 
@@ -599,17 +970,17 @@ def update_brand_profile(
                 """
                 INSERT INTO brand_profiles VALUES (?,?,?,?,?,?,?,?,?)
                 """,
-                (pid, "ws_default", payload.brand_name, payload.primary_color, payload.secondary_color, acc, payload.min_contrast_ratio, payload.approved_logo_aspect, now())
+                (pid, workspace_id, payload.brand_name, payload.primary_color, payload.secondary_color, acc, payload.min_contrast_ratio, payload.approved_logo_aspect, now())
             )
-    return get_brand_profile()
+    return get_brand_profile(workspace_id=workspace_id)
 
 # -----------------------------------------------------------------------------
 # Reviews & Analysis
 # -----------------------------------------------------------------------------
 
 @app.get("/api/reviews")
-def list_reviews():
-    result = rows("SELECT * FROM reviews ORDER BY created_at DESC")
+def list_reviews(workspace_id: str = Depends(get_workspace_id)):
+    result = rows("SELECT * FROM reviews WHERE workspace_id=? ORDER BY created_at DESC", (workspace_id,))
     for item in result:
         item["findings"] = rows("SELECT * FROM findings WHERE review_id=?", (item["id"],))
         item["score"] = calculate_health_score(item["findings"])
@@ -620,17 +991,18 @@ async def create_review(
     payload: ReviewIn,
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role == "auditor":
         raise HTTPException(403, "Auditor role has read-only access.")
 
     rid = ident("review")
-    active_rules = rows("SELECT id, version FROM rules WHERE status='APPROVED'")
+    active_rules = rows("SELECT id, version FROM rules WHERE status='APPROVED' AND workspace_id=?", (workspace_id,))
     rule_versions = {r["id"]: r["version"] for r in active_rules}
 
     review = {
         "id": rid,
-        "workspace_id": "ws_default",
+        "workspace_id": workspace_id,
         "title": payload.title,
         "content": payload.content,
         "content_type": payload.content_type,
@@ -681,6 +1053,7 @@ async def upload_and_review(
     file: UploadFile = File(...),
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     """
     Multi-format review endpoint.
@@ -690,9 +1063,19 @@ async def upload_and_review(
     if role == "auditor":
         raise HTTPException(403, "Auditor role has read-only access.")
 
-    file_bytes = await file.read()
-    if len(file_bytes) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f"File size exceeds maximum permitted {MAX_UPLOAD_BYTES // (1024*1024)} MB.")
+    CHUNK_SIZE = 64 * 1024
+    chunks = []
+    total_bytes = 0
+    while True:
+        chunk = await file.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        total_bytes += len(chunk)
+        if total_bytes > MAX_UPLOAD_BYTES:
+            await file.close()
+            raise HTTPException(413, f"File size exceeds maximum permitted {MAX_UPLOAD_BYTES // (1024*1024)} MB.")
+        chunks.append(chunk)
+    file_bytes = b"".join(chunks)
 
     filename = (file.filename or "upload").lower()
     mime = (file.content_type or "application/octet-stream").lower()
@@ -721,7 +1104,7 @@ async def upload_and_review(
 
     # 3. Image Processing (Palette, WCAG contrast, Logo aspect, OCR limitation)
     elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")) or mime.startswith("image/"):
-        bp = get_brand_profile()
+        bp = get_brand_profile(workspace_id=workspace_id)
         approved_palette = [bp["primary_color"], bp["secondary_color"]] if bp else ["#0f766e", "#2dd4bf"]
         if bp and bp.get("accent_colors"):
             approved_palette.extend(bp["accent_colors"])
@@ -754,12 +1137,15 @@ async def upload_and_review(
         raise HTTPException(422, "No readable content could be extracted from uploaded file.")
 
     rid = ident("review")
-    active_rules = rows("SELECT id, version FROM rules WHERE status='APPROVED'")
+    active_rules = rows(
+        "SELECT id, version FROM rules WHERE status='APPROVED' AND workspace_id=?",
+        (workspace_id,),
+    )
     rule_versions = {r["id"]: r["version"] for r in active_rules}
 
     review = {
         "id": rid,
-        "workspace_id": "ws_default",
+        "workspace_id": workspace_id,
         "title": title,
         "content": extracted_text[:MAX_CONTENT_CHARS],
         "content_type": content_type,
@@ -803,15 +1189,23 @@ async def upload_and_review(
     )
     return get_review(rid)
 
-@app.get("/api/reviews/{review_id}")
-def get_review(review_id: str):
+def get_review(review_id: str, workspace_id: Optional[str] = None):
     rev = row("SELECT * FROM reviews WHERE id=?", (review_id,))
     if not rev:
         raise HTTPException(404, "Review not found")
+    if workspace_id and rev.get("workspace_id") and rev["workspace_id"] != workspace_id:
+        raise HTTPException(403, "Access to reviews outside caller workspace is forbidden.")
     rev["findings"] = rows("SELECT * FROM findings WHERE review_id=?", (review_id,))
     rev["versions"] = rows("SELECT * FROM review_versions WHERE review_id=? ORDER BY created_at", (review_id,))
     rev["score"] = calculate_health_score(rev["findings"])
     return rev
+
+@app.get("/api/reviews/{review_id}")
+def get_review_endpoint(
+    review_id: str,
+    workspace_id: str = Depends(get_workspace_id),
+):
+    return get_review(review_id, workspace_id=workspace_id)
 
 @app.post("/api/reviews/{review_id}/findings/{finding_id}/actions")
 def finding_action(
@@ -820,11 +1214,12 @@ def finding_action(
     payload: FindingAction,
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role == "auditor":
         raise HTTPException(403, "Auditor role has read-only access.")
 
-    rev = get_review(review_id)
+    rev = get_review(review_id, workspace_id=workspace_id)
     finding = row("SELECT * FROM findings WHERE id=? AND review_id=?", (finding_id, review_id))
     if not finding:
         raise HTTPException(404, "Finding not found for this review")
@@ -936,11 +1331,12 @@ def approval(
     payload: ApprovalAction,
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role not in ("reviewer", "brand_admin"):
         raise HTTPException(403, "Reviewer or Brand Admin role required for approval decisions.")
 
-    rev = get_review(review_id)
+    rev = get_review(review_id, workspace_id=workspace_id)
     unresolved_high = [
         f for f in rev["findings"]
         if not f.get("disposition") and f.get("severity") in ("HIGH", "CRITICAL")
@@ -985,10 +1381,12 @@ async def restore_version(
     version_id: str,
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     if role not in ("creator", "reviewer", "brand_admin"):
         raise HTTPException(403, "Permission denied.")
 
+    rev = get_review(review_id, workspace_id=workspace_id)
     ver = row("SELECT * FROM review_versions WHERE id=? AND review_id=?", (version_id, review_id))
     if not ver:
         raise HTTPException(404, "Draft version not found.")
@@ -997,7 +1395,7 @@ async def restore_version(
         conn.execute("UPDATE reviews SET content=?, updated_at=? WHERE id=?", (ver["content"], now(), review_id))
 
     save_version(review_id, ver["content"], f"RESTORED_VERSION_{version_id}", created_by=actor)
-    rev = get_review(review_id)
+    rev = get_review(review_id, workspace_id=workspace_id)
     await run_governance_analysis(rev)
     audit(
         review_id,
@@ -1009,13 +1407,13 @@ async def restore_version(
     return get_review(review_id)
 
 @app.get("/api/reviews/{review_id}/audit")
-def get_audit(review_id: str):
-    get_review(review_id)
+def get_audit(review_id: str, workspace_id: str = Depends(get_workspace_id)):
+    get_review(review_id, workspace_id=workspace_id)
     return rows("SELECT * FROM audit WHERE review_id=? ORDER BY created_at DESC", (review_id,))
 
 @app.get("/api/reviews/{review_id}/versions")
-def get_versions(review_id: str):
-    get_review(review_id)
+def get_versions(review_id: str, workspace_id: str = Depends(get_workspace_id)):
+    get_review(review_id, workspace_id=workspace_id)
     return rows("SELECT * FROM review_versions WHERE review_id=? ORDER BY created_at", (review_id,))
 
 # -----------------------------------------------------------------------------
@@ -1023,19 +1421,21 @@ def get_versions(review_id: str):
 # -----------------------------------------------------------------------------
 
 @app.get("/api/insights")
-def insights():
-    recurring = rows("SELECT type label, COUNT(*) count FROM findings GROUP BY type ORDER BY count DESC LIMIT 6")
-    unresolved = len(rows("SELECT id FROM findings WHERE disposition IS NULL"))
-    dismissed = len(rows("SELECT id FROM findings WHERE disposition='DISMISSED'"))
-    unclear = rows("SELECT type label, COUNT(*) count FROM findings WHERE status='NEEDS_REVIEW' GROUP BY type ORDER BY count DESC")
+def insights(workspace_id: str = Depends(get_workspace_id)):
+    """Aggregate governance signals only for the authenticated workspace."""
+    scope = " FROM findings f JOIN reviews r ON r.id=f.review_id WHERE r.workspace_id=?"
+    recurring = rows("SELECT f.type label, COUNT(*) count" + scope + " GROUP BY f.type ORDER BY count DESC LIMIT 6", (workspace_id,))
+    unresolved = len(rows("SELECT f.id" + scope + " AND f.disposition IS NULL", (workspace_id,)))
+    dismissed = len(rows("SELECT f.id" + scope + " AND f.disposition='DISMISSED'", (workspace_id,)))
+    unclear = rows("SELECT f.type label, COUNT(*) count" + scope + " AND f.status='NEEDS_REVIEW' GROUP BY f.type ORDER BY count DESC", (workspace_id,))
 
-    by_sev_rows = rows("SELECT severity label, COUNT(*) count FROM findings GROUP BY severity")
+    by_sev_rows = rows("SELECT f.severity label, COUNT(*) count" + scope + " GROUP BY f.severity", (workspace_id,))
     by_severity = {r["label"]: r["count"] for r in by_sev_rows}
 
-    by_status_rows = rows("SELECT status label, COUNT(*) count FROM findings GROUP BY status")
+    by_status_rows = rows("SELECT f.status label, COUNT(*) count" + scope + " GROUP BY f.status", (workspace_id,))
     by_evidence_status = {r["label"]: r["count"] for r in by_status_rows}
 
-    disagreements = len(rows("SELECT id FROM findings WHERE disposition IN ('DISMISSED', 'ESCALATED')"))
+    disagreements = len(rows("SELECT f.id" + scope + " AND f.disposition IN ('DISMISSED', 'ESCALATED')", (workspace_id,)))
 
     return {
         "recurring": recurring,
@@ -1048,21 +1448,22 @@ def insights():
     }
 
 @app.get("/api/governance/impact-map")
-def get_impact_map():
-    """Time-aware claim ledger & rule-change dependency map."""
-    return calculate_impact_map()
+def get_impact_map(workspace_id: str = Depends(get_workspace_id)):
+    """Time-aware claim ledger & rule-change dependency map scoped by workspace."""
+    return calculate_impact_map(workspace_id=workspace_id)
 
 @app.post("/api/governance/re-review-impact")
 def re_review_impact(
     item_id: str = Form(...),
     role: str = Depends(get_demo_role),
     actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     """Trigger targeted re-review on all historical drafts affected by expired/changed fact or rule."""
     if role not in ("brand_admin", "reviewer"):
         raise HTTPException(403, "Brand Admin or Reviewer role required to trigger re-reviews.")
 
-    count = trigger_targeted_rereview(item_id, actor=actor)
+    count = trigger_targeted_rereview(item_id, actor=actor, workspace_id=workspace_id)
     return {"message": f"Targeted re-review triggered for {count} affected draft(s).", "affected_count": count}
 
 
@@ -1073,9 +1474,9 @@ def re_review_impact(
 
 @app.get("/api/brand-assets")
 def list_brand_assets(
-    workspace_id: str = "ws_default",
+    workspace_id: str = Depends(get_workspace_id),
 ):
-    """List all registered brand assets for the workspace."""
+    """List all registered brand assets for the caller workspace."""
     return rows("SELECT * FROM brand_assets WHERE workspace_id=? ORDER BY name", (workspace_id,))
 
 
@@ -1083,6 +1484,7 @@ def list_brand_assets(
 def register_brand_asset(
     payload: BrandAssetIn,
     role: str = Depends(get_demo_role),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     """Register a new brand asset. Requires brand_admin role."""
     if role not in ("brand_admin",):
@@ -1090,7 +1492,7 @@ def register_brand_asset(
 
     data = payload.model_dump()
     data["id"] = ident("asset")
-    data["workspace_id"] = "ws_default"
+    data["workspace_id"] = workspace_id
     data["created_at"] = now()
     data["updated_at"] = now()
 
@@ -1116,14 +1518,17 @@ def register_brand_asset(
 def delete_brand_asset(
     asset_id: str,
     role: str = Depends(get_demo_role),
+    workspace_id: str = Depends(get_workspace_id),
 ):
     """Remove a brand asset from the registry. Requires brand_admin role."""
     if role not in ("brand_admin",):
         raise HTTPException(403, "Brand Admin role required to remove brand assets.")
 
-    existing = row("SELECT id FROM brand_assets WHERE id=?", (asset_id,))
+    existing = row("SELECT id, workspace_id FROM brand_assets WHERE id=?", (asset_id,))
     if not existing:
         raise HTTPException(404, "Brand asset not found.")
+    if existing.get("workspace_id") and existing["workspace_id"] != workspace_id:
+        raise HTTPException(403, "Access to brand assets outside caller workspace is forbidden.")
 
     with db() as conn:
         conn.execute("DELETE FROM brand_assets WHERE id=?", (asset_id,))
@@ -1155,10 +1560,12 @@ def submit_rule_suggestion_action(
     """
     Accept, defer, or reject a guideline clarification suggestion.
     Stores the decision in rule_suggestions table. Does NOT modify the live rule.
-    Requires reviewer or brand_admin role.
+    Accepting a policy proposal requires brand_admin; reviewers may defer/reject.
     """
     if role not in ("reviewer", "brand_admin"):
         raise HTTPException(403, "Reviewer or Brand Admin role required.")
+    if payload.action == "accept" and role != "brand_admin":
+        raise HTTPException(403, "Brand Admin role required to accept a policy proposal.")
 
     rule_rec = row("SELECT * FROM rules WHERE id=?", (rule_id,))
     if not rule_rec:
@@ -1177,15 +1584,30 @@ def submit_rule_suggestion_action(
     status_map = {"accept": "ACCEPTED", "defer": "DEFERRED", "reject": "REJECTED"}
     new_status = status_map.get(payload.action, "PENDING")
 
+    supporting = rows(
+        """SELECT id, review_id, disposition, disposition_by FROM findings
+        WHERE source_id=?""", (rule_id,)
+    )
+    finding_ids = sorted({item["id"] for item in supporting})
+    review_ids = sorted({item["review_id"] for item in supporting})
+    decisions = [
+        {"finding_id": item["id"], "review_id": item["review_id"],
+         "disposition": item.get("disposition"), "actor": item.get("disposition_by")}
+        for item in supporting if item.get("disposition")
+    ]
     with db() as conn:
         conn.execute(
             """
             INSERT INTO rule_suggestions (
                 id, rule_id, observed_issue, proposed_clarification,
-                ambiguity_addressed, status, reviewed_by, reviewed_at, created_at
+                ambiguity_addressed, status, reviewed_by, reviewed_at, created_at,
+                workspace_id, rule_version, finding_ids, review_ids, decision_evidence,
+                sample_count, data_confidence
             ) VALUES (
                 :id, :rule_id, :observed_issue, :proposed_clarification,
-                :ambiguity_addressed, :status, :reviewed_by, :reviewed_at, :created_at
+                :ambiguity_addressed, :status, :reviewed_by, :reviewed_at, :created_at,
+                :workspace_id, :rule_version, :finding_ids, :review_ids, :decision_evidence,
+                :sample_count, :data_confidence
             )
             """,
             {
@@ -1198,8 +1620,18 @@ def submit_rule_suggestion_action(
                 "reviewed_by": actor,
                 "reviewed_at": ts,
                 "created_at": ts,
+                "workspace_id": rule_rec.get("workspace_id", "ws_default"),
+                "rule_version": rule_rec["version"],
+                "finding_ids": json.dumps(finding_ids),
+                "review_ids": json.dumps(review_ids),
+                "decision_evidence": json.dumps(decisions),
+                "sample_count": len(review_ids),
+                "data_confidence": health_item.get("data_confidence") if health_item else "INSUFFICIENT",
             },
         )
+    audit("system", "RULE_SUGGESTION_DECIDED", actor=actor, actor_role=role,
+          reason=f"Suggestion {suggestion_id} {new_status.lower()} for rule {rule_id}",
+          workspace_id=rule_rec.get("workspace_id", "ws_default"))
 
     return {
         "id": suggestion_id,
@@ -1212,6 +1644,306 @@ def submit_rule_suggestion_action(
         "reviewed_at": ts,
         "created_at": ts,
     }
+
+
+@app.get("/api/governance/rule-suggestions", response_model=List[RuleSuggestionOut])
+def list_rule_suggestions(
+    workspace_id: str = Depends(get_workspace_id),
+    role: str = Depends(get_demo_role),
+):
+    """List all persisted rule clarification suggestions for the caller workspace."""
+    return rows("SELECT * FROM rule_suggestions WHERE workspace_id=? ORDER BY created_at DESC", (workspace_id,))
+
+
+@app.post("/api/governance/rule-suggestions/{suggestion_id}/activate")
+def activate_rule_suggestion(
+    suggestion_id: str,
+    payload: RuleActivationIn,
+    role: str = Depends(get_demo_role),
+    actor: str = Depends(get_demo_actor),
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """Explicitly publish an accepted proposal using optimistic version checking."""
+    if role != "brand_admin":
+        raise HTTPException(403, "Brand Admin role required to activate a policy proposal.")
+    with db() as conn:
+        suggestion_result = conn.execute("SELECT * FROM rule_suggestions WHERE id=?", (suggestion_id,)).fetchone()
+        if not suggestion_result:
+            raise HTTPException(404, "Rule suggestion not found.")
+        suggestion = dict(suggestion_result._mapping)
+        if suggestion.get("workspace_id") and suggestion["workspace_id"] != workspace_id:
+            raise HTTPException(403, "Access to rule suggestions outside caller workspace is forbidden.")
+        if suggestion["status"] != "ACCEPTED":
+            raise HTTPException(409, "Only an accepted suggestion may be activated.")
+        rule_result = conn.execute("SELECT * FROM rules WHERE id=?", (suggestion["rule_id"],)).fetchone()
+        if not rule_result:
+            raise HTTPException(404, "Source rule not found.")
+        rule_rec = dict(rule_result._mapping)
+        if rule_rec["version"] != payload.expected_rule_version or suggestion.get("rule_version") != payload.expected_rule_version:
+            raise HTTPException(409, "Proposal is stale: the active rule version has changed.")
+        try:
+            new_version = str(int(float(rule_rec["version"])) + 1)
+        except (TypeError, ValueError):
+            new_version = f"{rule_rec['version']}-next"
+        if payload.new_requirement is not None:
+            candidate = payload.new_requirement.strip()
+            if not candidate or len(candidate) < 2:
+                raise HTTPException(422, "Candidate policy requirement cannot be empty.")
+            new_requirement = candidate
+        else:
+            new_requirement = rule_rec["requirement"]
+        ts = now()
+        # Legacy rules can predate the history table; snapshot their current
+        # immutable state before the first activation changes it.
+        conn.execute(
+            """INSERT INTO rule_versions (id, rule_id, workspace_id, version, title, category, kind,
+            pattern, requirement, severity, source_title, source_excerpt, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(rule_id, version) DO NOTHING""",
+            (ident("rulever"), rule_rec["id"], rule_rec["workspace_id"], rule_rec["version"],
+             rule_rec["title"], rule_rec["category"], rule_rec["kind"], rule_rec["pattern"],
+             rule_rec["requirement"], rule_rec["severity"], rule_rec["source_title"],
+             rule_rec["source_excerpt"], ts),
+        )
+        conn.execute("UPDATE rules SET version=?, requirement=? WHERE id=? AND version=?",
+                     (new_version, new_requirement, rule_rec["id"], payload.expected_rule_version))
+        conn.execute(
+            """INSERT INTO rule_versions (id, rule_id, workspace_id, version, title, category, kind,
+            pattern, requirement, severity, source_title, source_excerpt, originating_suggestion_id,
+            activated_by, activation_reason, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (ident("rulever"), rule_rec["id"], rule_rec["workspace_id"], new_version, rule_rec["title"],
+             rule_rec["category"], rule_rec["kind"], rule_rec["pattern"], new_requirement,
+             rule_rec["severity"], rule_rec["source_title"], rule_rec["source_excerpt"], suggestion_id,
+             actor, payload.reason, ts),
+        )
+        conn.execute("UPDATE rule_suggestions SET status='ACTIVATED', activated_by=?, activated_at=? WHERE id=?",
+                     (actor, ts, suggestion_id))
+        conn.execute("""INSERT INTO audit (id, workspace_id, review_id, action, actor, actor_role, reason, details, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                     (ident("aud"), rule_rec["workspace_id"], "system", "RULE_VERSION_ACTIVATED", actor,
+                      role, payload.reason, f"Rule {rule_rec['id']} {rule_rec['version']} -> {new_version}; suggestion {suggestion_id}", ts))
+    return {"suggestion_id": suggestion_id, "status": "ACTIVATED", "old_version": payload.expected_rule_version,
+            "new_version": new_version, "rule_id": suggestion["rule_id"]}
+
+
+@app.get("/api/rules/{rule_id}/versions")
+def list_rule_versions(rule_id: str, workspace_id: str = Depends(get_workspace_id)):
+    """Return immutable rule history only for a rule in the caller's workspace."""
+    rule_rec = row("SELECT workspace_id FROM rules WHERE id=?", (rule_id,))
+    if not rule_rec:
+        raise HTTPException(404, "Rule not found.")
+    if rule_rec.get("workspace_id") != workspace_id:
+        raise HTTPException(403, "Access to rule versions outside caller workspace is forbidden.")
+    return rows(
+        "SELECT * FROM rule_versions WHERE rule_id=? AND workspace_id=? ORDER BY created_at",
+        (rule_id, workspace_id),
+    )
+
+
+
+# ── Workspace Member Provisioning ───────────────────────────────────────────
+# Production-safe admin-only endpoints for managing workspace membership.
+# Only brand_admin actors can add or list members. This is the sole legitimate
+# path for provisioning production workspace access.
+
+
+# ── Production Bootstrap & Workspace Provisioning ───────────────────────────
+# Tightly gated bootstrap procedure. Only brand_admin (ADMIN_API_KEY) can execute.
+# Checks if system has already been bootstrapped (cannot re-enable itself).
+# Allows brand_admin to create workspaces and automatically gain membership,
+# preventing bootstrap deadlock.
+
+@app.post("/api/bootstrap", status_code=201, response_model=BootstrapOut)
+def bootstrap_production_system(
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """Initial production bootstrap. Requires ADMIN_API_KEY (brand_admin).
+
+    Permanently one-way: checks and records durable state in 'system_state' table.
+    Enforces atomic uniqueness on the bootstrap key to eliminate concurrency races.
+    Removing all administrator rows after bootstrap does not reopen bootstrap.
+    All operations execute in a unified atomic transaction with complete rollback on fault.
+    """
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin credential required to execute bootstrap.")
+
+    now_ts = now()
+    try:
+        with db() as conn:
+            # 1. Check durable bootstrap completion state in system_state table
+            state = conn.execute(
+                "SELECT value FROM system_state WHERE key='bootstrap_completed'"
+            ).fetchone()
+            if state:
+                raise HTTPException(409, "System has already been bootstrapped. Bootstrap cannot be re-executed.")
+
+            # 2. Atomic insertion of bootstrap marker with PRIMARY KEY constraint
+            # Guarantees that concurrent requests cannot both pass this boundary.
+            conn.execute(
+                "INSERT INTO system_state (key, value, created_at) VALUES ('bootstrap_completed', 'true', ?)",
+                (now_ts,)
+            )
+
+            # 3. Provision root default workspace and initial administrator membership
+            conn.execute(
+                "INSERT OR IGNORE INTO workspaces (id, name, created_at) VALUES ('ws_default', 'Default Production Workspace', ?)",
+                (now_ts,)
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO workspace_members (workspace_id, actor, role, created_at) VALUES ('ws_default', ?, 'brand_admin', ?)",
+                (ctx["actor"], now_ts)
+            )
+            if not conn.execute("SELECT 1 FROM brand_profiles WHERE workspace_id='ws_default'").fetchone():
+                conn.execute(
+                    "INSERT INTO brand_profiles VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (ident("profile"), "ws_default", "Brandtrace", "#0f766e", "#040b14", json.dumps(["#2dd4bf"]), 4.5, None, now_ts)
+                )
+
+            # 4. Atomic audit event recorded within the same transaction
+            conn.execute(
+                """
+                INSERT INTO audit (id, workspace_id, review_id, action, actor, actor_role, reason, details, created_at)
+                VALUES (?, 'ws_default', 'ws_default', 'SYSTEM_BOOTSTRAPPED', ?, 'brand_admin', NULL, ?, ?)
+                """,
+                (ident("aud"), ctx["actor"], json.dumps({"workspace_id": "ws_default"}), now_ts)
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        err_msg = str(exc).upper()
+        if "UNIQUE" in err_msg or "PRIMARY KEY" in err_msg or "DUPLICATE" in err_msg:
+            raise HTTPException(409, "System has already been bootstrapped. Bootstrap cannot be re-executed.")
+        raise HTTPException(500, f"Bootstrap transaction failed: {str(exc)}")
+
+    return {"status": "BOOTSTRAPPED", "workspace_id": "ws_default", "admin": ctx["actor"], "created_at": now_ts}
+
+
+@app.post("/api/workspaces", status_code=201, response_model=WorkspaceOut)
+def create_workspace(
+    payload: WorkspaceIn,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """Create a new workspace. Requires brand_admin role.
+
+    Automatically grants the creating brand_admin membership in the new workspace,
+    eliminating authorization deadlock when provisioning new workspaces.
+    """
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to create workspaces.")
+
+    ws_id = payload.id.strip()
+    ws_name = payload.name.strip()
+    now_ts = now()
+
+    with db() as conn:
+        existing = conn.execute("SELECT 1 FROM workspaces WHERE id=?", (ws_id,)).fetchone()
+        if existing:
+            raise HTTPException(409, f"Workspace '{ws_id}' already exists.")
+        conn.execute(
+            "INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)",
+            (ws_id, ws_name, now_ts)
+        )
+        # Automatically register creating admin as brand_admin of the new workspace
+        conn.execute(
+            "INSERT OR IGNORE INTO workspace_members (workspace_id, actor, role, created_at) VALUES (?, ?, 'brand_admin', ?)",
+            (ws_id, ctx["actor"], now_ts)
+        )
+
+    audit(ws_id, "WORKSPACE_CREATED", ctx["actor"], details=json.dumps({"name": ws_name, "workspace_id": ws_id}), workspace_id=ws_id)
+    return {"id": ws_id, "name": ws_name, "demo_mode": config.ALLOW_DEMO_AUTH}
+
+
+@app.get("/api/workspaces/{workspace_id}/members", response_model=List[WorkspaceMemberOut])
+def list_workspace_members(
+    workspace_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """List members of a workspace. Requires brand_admin role and membership in the target workspace."""
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to manage workspace members.")
+    if not is_actor_authorized_for_workspace(ctx["actor"], workspace_id):
+        raise HTTPException(403, f"Authenticated credential is not authorized for workspace '{workspace_id}'.")
+    members = rows(
+        "SELECT workspace_id, actor, role, created_at FROM workspace_members WHERE workspace_id=?",
+        (workspace_id,)
+    )
+    return members
+
+
+@app.post("/api/workspaces/{workspace_id}/members", status_code=201, response_model=WorkspaceMemberOut)
+def add_workspace_member(
+    workspace_id: str,
+    payload: WorkspaceMemberIn,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """Add a member to a workspace. Requires brand_admin role and membership in the target workspace.
+
+    This is the sole safe provisioning path for production workspace access.
+    The caller must already be an authorized brand_admin for the target workspace.
+    """
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to manage workspace members.")
+    if not is_actor_authorized_for_workspace(ctx["actor"], workspace_id):
+        raise HTTPException(403, f"Authenticated credential is not authorized for workspace '{workspace_id}'.")
+
+    actor = payload.actor.strip()
+    role = payload.role
+
+    # Prevent adding demo/synthetic identities in production mode
+    if not config.ALLOW_DEMO_AUTH:
+        if actor.startswith("demo.") or actor.endswith("@foreign-corp.com"):
+            raise HTTPException(422, "Synthetic demo identities cannot be provisioned in production mode.")
+
+    now_ts = now()
+    with db() as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM workspace_members WHERE workspace_id=? AND actor=?",
+            (workspace_id, actor)
+        ).fetchone()
+        if existing:
+            raise HTTPException(409, f"Actor '{actor}' is already a member of workspace '{workspace_id}'.")
+        conn.execute(
+            "INSERT INTO workspace_members (workspace_id, actor, role, created_at) VALUES (?, ?, ?, ?)",
+            (workspace_id, actor, role, now_ts)
+        )
+    audit(workspace_id, "MEMBER_ADDED", ctx["actor"], details=json.dumps({
+        "added_actor": actor, "role": role, "workspace_id": workspace_id
+    }), workspace_id=workspace_id)
+    return {"workspace_id": workspace_id, "actor": actor, "role": role, "created_at": now_ts}
+
+
+@app.delete("/api/workspaces/{workspace_id}/members/{actor_id}", status_code=204)
+def remove_workspace_member(
+    workspace_id: str,
+    actor_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """Remove a member from a workspace. Requires brand_admin role.
+
+    Actors cannot remove themselves (prevents lockout).
+    """
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to manage workspace members.")
+    if not is_actor_authorized_for_workspace(ctx["actor"], workspace_id):
+        raise HTTPException(403, f"Authenticated credential is not authorized for workspace '{workspace_id}'.")
+    if actor_id == ctx["actor"]:
+        raise HTTPException(422, "Cannot remove yourself from the workspace.")
+
+    with db() as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM workspace_members WHERE workspace_id=? AND actor=?",
+            (workspace_id, actor_id)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(404, f"Actor '{actor_id}' is not a member of workspace '{workspace_id}'.")
+        conn.execute(
+            "DELETE FROM workspace_members WHERE workspace_id=? AND actor=?",
+            (workspace_id, actor_id)
+        )
+    audit(workspace_id, "MEMBER_REMOVED", ctx["actor"], details=json.dumps({
+        "removed_actor": actor_id, "workspace_id": workspace_id
+    }), workspace_id=workspace_id)
 
 if __name__ == "__main__":
     import uvicorn

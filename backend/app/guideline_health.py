@@ -148,18 +148,24 @@ def compute_guideline_health(workspace_id: str = "ws_default") -> List[Dict[str,
         )
 
         # Disagreement detection: same rule accepted by actor A AND dismissed by different actor B
-        accepted_by = set(
-            f.get("disposition_by") or "unknown"
+        # Evaluates actual distinct actors rather than comparing set equality.
+        accepted_by = {
+            f.get("disposition_by")
             for f in rule_findings
-            if f.get("disposition") in ("ACCEPTED_EDIT", "EDITED")
-        )
-        dismissed_by = set(
-            f.get("disposition_by") or "unknown"
+            if f.get("disposition") in ("ACCEPTED_EDIT", "EDITED") and f.get("disposition_by")
+        }
+        dismissed_by = {
+            f.get("disposition_by")
             for f in rule_findings
-            if f.get("disposition") == "DISMISSED"
+            if f.get("disposition") == "DISMISSED" and f.get("disposition_by")
+        }
+        # True disagreement: at least one known actor accepted AND a DIFFERENT known actor dismissed
+        disagreement_detected = any(
+            a != d
+            for a in accepted_by
+            for d in dismissed_by
+            if a and d and a != "unknown" and d != "unknown"
         )
-        # True disagreement: at least one actor accepted AND at least one different actor dismissed
-        disagreement_detected = bool(accepted_by and dismissed_by and accepted_by != dismissed_by)
 
         # Data confidence: insufficient if fewer than 3 independent drafts
         data_confidence = "SUFFICIENT" if affected_draft_count >= 3 else "INSUFFICIENT"

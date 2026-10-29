@@ -116,6 +116,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
   const [role, setRole] = useState<UserRole>('reviewer');
 
   const [rules, setRules] = useState<Rule[]>([]);
+  const [ruleHistory, setRuleHistory] = useState<Record<string, Rule[]>>({});
   const [facts, setFacts] = useState<Fact[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
@@ -124,6 +125,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
   const [selected, setSelected] = useState<Review | null>(null);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
   const [guidelineHealth, setGuidelineHealth] = useState<GuidelineHealthItem[]>([]);
+  const [acceptedSuggestions, setAcceptedSuggestions] = useState<Record<string, RuleSuggestion>>({});
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [newAsset, setNewAsset] = useState<Partial<BrandAsset>>({
     name: '',
@@ -169,6 +171,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
     expires_at: '',
     notes: '',
   });
+  const [profileDraft, setProfileDraft] = useState<Partial<BrandProfile>>({});
 
   // File upload state
   const [submissionTab, setSubmissionTab] = useState<'text' | 'file'>('text');
@@ -184,7 +187,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
 
   const refresh = async () => {
     try {
-      const [, r, f, v, i, bp, im, assets, gHealth] = await Promise.all([
+      const [, r, f, v, i, bp, im, assets, gHealth, suggestions] = await Promise.all([
         api.overview(),
         api.rules(),
         api.facts(),
@@ -194,15 +197,28 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
         api.impactMap().catch(() => null),
         api.brandAssets().catch(() => []),
         api.guidelineHealth().catch(() => []),
+        api.ruleSuggestions().catch(() => []),
       ]);
       setRules(r);
       setFacts(f);
       setReviews(v);
       setInsights(i);
-      if (bp) setBrandProfile(bp);
+      if (bp) {
+        setBrandProfile(bp);
+        setProfileDraft(bp);
+      }
       if (im) setImpactMap(im);
       if (assets) setBrandAssets(assets);
       if (gHealth) setGuidelineHealth(gHealth);
+      if (suggestions && Array.isArray(suggestions)) {
+        const acceptedMap: Record<string, RuleSuggestion> = {};
+        for (const s of suggestions) {
+          if (s.status === 'ACCEPTED') {
+            acceptedMap[s.rule_id] = s;
+          }
+        }
+        setAcceptedSuggestions(acceptedMap);
+      }
       if (selected) {
         setSelected(v.find((x) => x.id === selected.id) || null);
       }
@@ -388,6 +404,16 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
     }
   };
 
+  const handleLoadRuleHistory = async (ruleId: string) => {
+    setError('');
+    try {
+      const history = await api.ruleVersions(ruleId);
+      setRuleHistory(current => ({ ...current, [ruleId]: history }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
   const handleCreateFact = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -406,6 +432,28 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
       });
       await refresh();
       setSuccess('Approved fact recorded in claim ledger.');
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const handleUpdateBrandProfile = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const updated = await api.updateBrandProfile({
+        brand_name: profileDraft.brand_name,
+        primary_color: profileDraft.primary_color,
+        secondary_color: profileDraft.secondary_color,
+        accent_colors: profileDraft.accent_colors || [],
+        min_contrast_ratio: Number(profileDraft.min_contrast_ratio || 4.5),
+        approved_logo_aspect: profileDraft.approved_logo_aspect,
+      });
+      setBrandProfile(updated);
+      setProfileDraft(updated);
+      await refresh();
+      setSuccess('Visual brand profile saved for this workspace.');
       setTimeout(() => setSuccess(''), 4000);
     } catch (e) {
       setError((e as Error).message);
@@ -440,12 +488,51 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
 
   const handleRuleSuggestionAction = async (ruleId: string, action: 'accept' | 'defer' | 'reject') => {
     try {
-      await api.ruleSuggestion(ruleId, action);
+      const suggestion = await api.ruleSuggestion(ruleId, action);
+      if (action === 'accept') {
+        setAcceptedSuggestions(current => ({ ...current, [ruleId]: suggestion }));
+      }
       await refresh();
-      setSuccess(`Guideline suggestion for ${ruleId} marked as ${action.toUpperCase()}.`);
+      setSuccess(action === 'accept'
+        ? 'Suggestion approved. Review it, then explicitly activate a new rule version.'
+        : `Guideline suggestion for ${ruleId} marked as ${action.toUpperCase()}.`);
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  const handleActivateSuggestion = async (ruleId: string) => {
+    const suggestion = acceptedSuggestions[ruleId];
+    const rule = rules.find(item => item.id === ruleId);
+    if (!suggestion || !rule) return;
+    const candidateText = window.prompt(
+      `Review and refine candidate policy requirement for "${rule.title}" before activation:`,
+      suggestion.proposed_clarification || rule.requirement
+    );
+    if (candidateText === null) return;
+    const trimmed = candidateText.trim();
+    if (!trimmed) {
+      setError('Activation cancelled: candidate policy requirement cannot be empty.');
+      return;
+    }
+    try {
+      const result = await api.activateRuleSuggestion(suggestion.id, rule.version, trimmed);
+      setAcceptedSuggestions(current => {
+        const next = { ...current };
+        delete next[ruleId];
+        return next;
+      });
+      await refresh();
+      setSuccess(`Rule version ${result.new_version} activated with reviewed policy text.`);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      const msg = (err as Error).message || '';
+      if (msg.includes('409') || msg.toLowerCase().includes('stale') || msg.toLowerCase().includes('version has changed')) {
+        setError('Activation conflict (409): The active rule version has changed since this proposal was generated. Please review the updated rule in Brand Guidelines before deciding.');
+      } else {
+        setError(msg);
+      }
     }
   };
 
@@ -966,6 +1053,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                           display: 'flex',
                           alignItems: 'start',
                           gap: 16,
+                          flexWrap: 'wrap',
                         }}
                       >
                         <StatusBadge value={r.status} />
@@ -980,7 +1068,18 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                             {r.expires_at && ` · Expires: ${new Date(r.expires_at).toLocaleDateString()}`}
                           </div>
                         </div>
-                        <StatusBadge value={r.severity} />
+                        <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
+                          <StatusBadge value={r.severity} />
+                          <button className="btn-secondary btn-sm" onClick={() => handleLoadRuleHistory(r.id)}>
+                            <Clock size={13} /> Version history
+                          </button>
+                        </div>
+                        {ruleHistory[r.id] && (
+                          <div style={{ flexBasis: '100%', borderTop: '1px solid #DCE5DF', paddingTop: 10, fontSize: 12, color: '#617168' }}>
+                            <b>Immutable version history:</b>{' '}
+                            {ruleHistory[r.id].map((version) => `v${version.version}`).join(' → ') || 'No snapshots available.'}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1116,7 +1215,10 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
               {/* Visual Brand Profile Tab */}
               {constTab === 'profile' && (
                 <div className="card-premium">
-                  <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Visual Brand Standards & Palette</h2>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Visual Brand Standards & Palette</h2>
+                    {role === 'brand_admin' && <span className="badge-status badge-supported">Editable by Brand Admin</span>}
+                  </div>
                   <div style={{ maxWidth: 640, display: 'grid', gap: 20 }}>
                     <div>
                       <div className="label-sm">Primary Brand Colour</div>
@@ -1158,6 +1260,21 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                       Visual rules are evaluated deterministically on uploaded images using Pillow quantization,
                       CIELAB Delta-E colour distance, and W3C WCAG 2.1 relative luminance formulas.
                     </div>
+                    {role === 'brand_admin' && (
+                      <form onSubmit={handleUpdateBrandProfile} style={{ display: 'grid', gap: 12, borderTop: '1px solid #DCE5DF', paddingTop: 18 }}>
+                        <div className="label-sm">Update this workspace profile</div>
+                        <input className="input-premium" required placeholder="Brand name" value={profileDraft.brand_name || ''} onChange={(e) => setProfileDraft({ ...profileDraft, brand_name: e.target.value })} />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <input className="input-premium" required pattern="^#?[0-9a-fA-F]{6}$" placeholder="#0f766e" value={profileDraft.primary_color || ''} onChange={(e) => setProfileDraft({ ...profileDraft, primary_color: e.target.value })} />
+                          <input className="input-premium" required pattern="^#?[0-9a-fA-F]{6}$" placeholder="#040b14" value={profileDraft.secondary_color || ''} onChange={(e) => setProfileDraft({ ...profileDraft, secondary_color: e.target.value })} />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <input className="input-premium" type="number" min="1" max="21" step="0.1" value={profileDraft.min_contrast_ratio || 4.5} onChange={(e) => setProfileDraft({ ...profileDraft, min_contrast_ratio: Number(e.target.value) })} />
+                          <input className="input-premium" type="number" min="0.1" max="10" step="0.1" placeholder="Logo aspect ratio" value={profileDraft.approved_logo_aspect || ''} onChange={(e) => setProfileDraft({ ...profileDraft, approved_logo_aspect: e.target.value ? Number(e.target.value) : undefined })} />
+                        </div>
+                        <button className="btn-primary btn-sm" type="submit">Save Visual Brand Profile</button>
+                      </form>
+                    )}
                   </div>
                 </div>
               )}
@@ -1252,7 +1369,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                       </div>
                       <div
                         style={{
-                          background: '#040b14',
+                          background: '#F8FAF8',
                           border: '1px solid #DCE5DF',
                           borderRadius: 8,
                           padding: '14px 16px',
@@ -1489,7 +1606,10 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
               insights={insights}
               impactMap={impactMap}
               guidelineHealth={guidelineHealth}
+              acceptedSuggestions={acceptedSuggestions}
+              role={role}
               onRuleSuggestionAction={handleRuleSuggestionAction}
+              onActivateSuggestion={handleActivateSuggestion}
               onTriggerReReview={handleTriggerImpactReReview}
               onNavigateToDraft={(reviewId: string) => {
                 const r = reviews.find((x) => x.id === reviewId);
@@ -1515,7 +1635,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero }: BrandtraceWorkspace
                 setBusy(true);
                 setError('');
                 try {
-                  await fetch('http://127.0.0.1:8000/api/demo/reset', { method: 'POST' });
+                  await api.reset();
                   await refresh();
                   setSelected(null);
                   setSuccess('Demo data has been reset to pristine initial state.');
@@ -1993,18 +2113,19 @@ function ReviewPanel({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.4)',
+                background: '#FEF2F2',
+                border: '1px solid #FCA5A5',
                 borderRadius: 8,
                 padding: '12px 16px',
                 marginBottom: 16,
-                color: '#fca5a5',
+                color: '#991B1B',
                 fontSize: 13,
+                fontWeight: 500,
               }}
             >
-              <AlertTriangle size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <strong style={{ color: '#fecaca' }}>Approval Gate Locked:</strong>{' '}
+              <AlertTriangle size={18} style={{ color: '#DC2626', flexShrink: 0 }} />
+              <div style={{ flex: 1, color: '#991B1B' }}>
+                <strong style={{ color: '#7F1D1D', fontWeight: 700 }}>Approval Gate Locked:</strong>{' '}
                 {unresolvedHigh.length} unresolved high-risk finding{unresolvedHigh.length > 1 ? 's' : ''} require disposition or documented waiver before sign-off can be granted.
               </div>
             </div>
@@ -2746,14 +2867,20 @@ function InsightsView({
   insights,
   impactMap,
   guidelineHealth = [],
+  acceptedSuggestions = {},
+  role,
   onRuleSuggestionAction,
+  onActivateSuggestion,
   onTriggerReReview,
   onNavigateToDraft,
 }: {
   insights: Insights | null;
   impactMap: ImpactMap | null;
   guidelineHealth?: GuidelineHealthItem[];
+  acceptedSuggestions?: Record<string, RuleSuggestion>;
+  role: UserRole;
   onRuleSuggestionAction?: (ruleId: string, action: 'accept' | 'defer' | 'reject') => void;
+  onActivateSuggestion?: (ruleId: string) => void;
   onTriggerReReview: (id: string) => void;
   onNavigateToDraft?: (reviewId: string) => void;
 }) {
@@ -2893,6 +3020,19 @@ function InsightsView({
                         Reject
                       </button>
                     </div>
+                    {acceptedSuggestions[gh.rule_id] && (
+                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span className="badge-status badge-needs-review">Approved — not live</span>
+                        <button
+                          className="btn-primary btn-sm"
+                          onClick={() => onActivateSuggestion?.(gh.rule_id)}
+                          disabled={role !== 'brand_admin'}
+                          style={{ padding: '4px 12px', fontSize: 11, minHeight: 32 }}
+                        >
+                          Activate New Rule Version
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -3041,7 +3181,7 @@ function HelpWalkthroughView({ onLoadDemo, onResetDemo }: { onLoadDemo: () => vo
           {onResetDemo && (
             confirmReset ? (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 12, color: '#fca5a5' }}>Reset all records?</span>
+                <span style={{ fontSize: 12, color: '#991B1B', fontWeight: 600 }}>Reset all records?</span>
                 <button
                   type="button"
                   className="btn-danger btn-sm"

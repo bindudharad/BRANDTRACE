@@ -273,8 +273,10 @@ async def run_governance_analysis(review: Dict[str, Any], additional_visual_find
             })
 
     # 5. Persist Findings & Compute Health Score
+    fact_source_ids = {fact["id"] for fact in active_facts}
     with db() as conn:
         conn.execute("DELETE FROM findings WHERE review_id=?", (review["id"],))
+        conn.execute("DELETE FROM evidence_dependencies WHERE review_id=?", (review["id"],))
         for item in findings_to_insert:
             fid = ident("finding")
             conn.execute(
@@ -304,6 +306,19 @@ async def run_governance_analysis(review: Dict[str, Any], additional_visual_find
                     item.get("uncertainty"),
                 )
             )
+            # Persist only resolved, stored evidence references.  Impact
+            # analysis must never infer a dependency from similar wording.
+            source_id = item.get("source_id")
+            if source_id:
+                source_type = "FACT" if source_id in fact_source_ids else "RULE"
+                conn.execute(
+                    """INSERT INTO evidence_dependencies
+                    (id, workspace_id, review_id, finding_id, source_type, source_id, source_version, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(review_id, finding_id, source_id, source_version) DO NOTHING""",
+                    (ident("dep"), review.get("workspace_id", "ws_default"), review["id"], fid,
+                     source_type, source_id, item.get("source_version"), now()),
+                )
 
         # Calculate score using unified calculate_health_score function
         final_score = calculate_health_score(findings_to_insert)

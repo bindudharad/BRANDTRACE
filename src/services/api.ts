@@ -199,6 +199,14 @@ export interface RuleSuggestion {
   created_at: string;
 }
 
+export interface RuleActivationResult {
+  suggestion_id: string;
+  rule_id: string;
+  status: 'ACTIVATED';
+  old_version: string;
+  new_version: string;
+}
+
 export interface ImpactMap {
   total_impacted_drafts: number;
   items: ImpactItem[];
@@ -206,14 +214,24 @@ export interface ImpactMap {
 
 let activeRole: UserRole = 'reviewer';
 let activeActor: string = 'demo.reviewer';
+let activeWorkspace: string = 'ws_default';
 
-export function setSimulatedUser(role: UserRole, actor?: string) {
-  activeRole = role;
-  activeActor = actor || `demo.${role}`;
+export function setSimulatedWorkspace(workspace: string) {
+  activeWorkspace = workspace || 'ws_default';
 }
 
-export function getSimulatedUser(): { role: UserRole; actor: string } {
-  return { role: activeRole, actor: activeActor };
+export function getSimulatedWorkspace(): string {
+  return activeWorkspace;
+}
+
+export function setSimulatedUser(role: UserRole, actor?: string, workspace?: string) {
+  activeRole = role;
+  activeActor = actor || `demo.${role}`;
+  if (workspace) activeWorkspace = workspace;
+}
+
+export function getSimulatedUser(): { role: UserRole; actor: string; workspace: string } {
+  return { role: activeRole, actor: activeActor, workspace: activeWorkspace };
 }
 
 const rawBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
@@ -224,6 +242,7 @@ async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'X-Demo-Role': activeRole,
     'X-Demo-Actor': activeActor,
+    'X-Workspace-Id': activeWorkspace,
     ...(options.headers as Record<string, string> || {}),
   };
 
@@ -240,11 +259,19 @@ async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
     throw new Error(error.detail || error.message || `Request failed with status ${response.status}`);
   }
-  return response.json() as Promise<T>;
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return {} as T;
+  }
+  const text = await response.text();
+  if (!text || !text.trim()) {
+    return {} as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export const api = {
   setup: () => call<Overview>('/api/demo/setup', { method: 'POST' }),
+  reset: () => call<Overview>('/api/demo/reset', { method: 'POST' }),
   overview: () => call<Overview>('/api/overview'),
   rules: () => call<Rule[]>('/api/rules'),
   facts: () => call<Fact[]>('/api/facts'),
@@ -300,11 +327,18 @@ export const api = {
     });
   },
   guidelineHealth: () => call<GuidelineHealthItem[]>('/api/governance/guideline-health'),
+  ruleSuggestions: () => call<RuleSuggestion[]>('/api/governance/rule-suggestions'),
   ruleSuggestion: (ruleId: string, action: 'accept' | 'defer' | 'reject') =>
     call<RuleSuggestion>(`/api/governance/rule-suggestions/${ruleId}`, {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
+  activateRuleSuggestion: (suggestionId: string, expectedRuleVersion: string, newRequirement?: string, reason?: string) =>
+    call<RuleActivationResult>(`/api/governance/rule-suggestions/${suggestionId}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ expected_rule_version: expectedRuleVersion, new_requirement: newRequirement, reason }),
+    }),
+  ruleVersions: (ruleId: string) => call<Rule[]>(`/api/rules/${ruleId}/versions`),
   brandAssets: () => call<BrandAsset[]>('/api/brand-assets'),
   registerAsset: (body: Partial<BrandAsset>) =>
     call<BrandAsset>('/api/brand-assets', { method: 'POST', body: JSON.stringify(body) }),

@@ -1,0 +1,21 @@
+# Backend–Frontend Feature Traceability Matrix
+
+Current audit: 2026-10-29. Statuses describe inspected source and the verification evidence available in this workspace; they are not a claim of browser execution.
+
+| Feature | Backend evidence | Persistence | Frontend evidence / entry point | Security | Tests | Status | Next action |
+|---|---|---|---|---|---|---|---|
+| Workspace overview | `main.py:overview`, `GET /api/overview` | `reviews`, `findings`, `rules`, `facts`, `brand_profiles` | `BrandtraceWorkspacePremium`, Overview navigation | `get_workspace_id`; all metrics scoped by workspace | Backend suite historical result; TypeScript check | IMPLEMENTED, NOT VERIFIED | Browser exercise required |
+| Rules and claim ledger | `GET/POST/PUT /api/rules`, `GET/POST/PUT /api/facts` | `rules`, `rule_versions`, `facts`, `fact_versions` | Constitution tabs; create forms | Admin write role; workspace-scoped reads/writes | Round-3 ledger tests | PARTIAL | Edit UI remains deferred; create and read are exposed |
+| Rule version history | `GET /api/rules/{id}/versions` | `rule_versions` | Constitution rule card “Version history” | Auth + rule workspace check added in this audit | `test_rule_version_history_requires_auth_and_workspace_membership` added | IMPLEMENTED, NOT VERIFIED | Run targeted test without terminal timeout |
+| Brand visual profile | `GET/PUT /api/brand-profile` | `brand_profiles` | Constitution > Visual Brand Profile; admin form added in this audit | Admin write role; workspace-scoped | TypeScript check | IMPLEMENTED, NOT VERIFIED | Browser form test required |
+| Draft review and findings | `GET/POST /api/reviews`, finding actions | `reviews`, `findings`, `review_versions`, `audit` | Content Review and Approval Queue | Role checks and review workspace check | Backend review tests | IMPLEMENTED, NOT VERIFIED | Browser review flow required |
+| File / visual review | `POST /api/reviews/upload`, `image_analyzer.py`, `pdf_parser.py` | Reviews/findings/audit | Content Review > File upload | Auth, role, streaming limit, workspace rules | Visual tests/benchmark | IMPLEMENTED, NOT VERIFIED | Browser upload required |
+| Approval and audit | approval, restore, audit, versions routes | `reviews`, `audit`, `review_versions` | Review panel and Audit History | Approval roles; high-risk gate; workspace validation | API/QA tests | IMPLEMENTED, NOT VERIFIED | Browser approval path required |
+| Impact map and targeted re-review | `impact_map.py`, impact routes | evidence dependencies/audit | Governance Insights | Auth, role and workspace scope | Claim-ledger tests | IMPLEMENTED, NOT VERIFIED | Browser re-review required |
+| Guideline-health suggestions | `guideline_health.py`, suggestion routes | `rule_suggestions`, `rule_versions`, audit | Governance Insights | Reviewer/admin actions, admin activation, workspace scope | Guideline-health tests | IMPLEMENTED, NOT VERIFIED | Browser acceptance/activation required |
+| Asset registry | brand asset routes | `brand_assets` | Constitution > Asset Registry | Admin writes/deletes; workspace scope | Round-3 visual tests | IMPLEMENTED, NOT VERIFIED | Browser lifecycle required |
+| Workspace membership | workspace member routes | `workspace_members`, `workspaces` | No production-facing UI | Admin and membership enforced server-side | Production-auth tests | INTERNAL / ADMIN-ONLY | Add only after real identity/auth UX is designed |
+| Bootstrap, demo setup/reset | bootstrap/demo routes | `system_state`, seed tables | Demo reset only; bootstrap hidden | Production bootstrap admin-only; reset disabled in production | Production-auth tests | INTERNAL / DEMO-ONLY | Keep bootstrap hidden; do not expose API secrets |
+| Health/readiness | health and ready routes | N/A | No product UI | Public diagnostics | API tests | INTERNAL-ONLY | Keep for operations |
+
+Counting method: each product workflow or intentional operational capability is one row. The audit identifies 13 capabilities: 9 user-facing workflows, 3 internal/admin workflows, and 1 diagnostic workflow. User-facing gaps confirmed at audit start were rule-history display and brand-profile editing; both are now connected. Rule/fact editing and membership management remain intentionally absent from the current active UI because a safe production identity/workspace-selection experience does not exist.

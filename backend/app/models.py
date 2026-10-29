@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import create_engine, inspect, text
 
 from .config import DATABASE_URL as DEFAULT_DATABASE_URL, normalize_database_url
+from . import config
 
 _CURRENT_ENGINE = None
 _CURRENT_URL = None
@@ -123,19 +124,32 @@ def save_version(review_id: str, content: str, reason: str, created_by: str = "d
         )
 
 def _safe_add_column(conn: Connection, table: str, column: str, col_type: str):
-    """Safely add a column to an existing table if it does not already exist."""
+    """Safely add a column to an existing table if it does not already exist.
+
+    Uses SQLAlchemy inspection to avoid transaction-aborting ALTER statements.
+    Tolerates benign already-exists races while re-raising genuine schema errors.
+    """
     try:
         insp = inspect(conn.connection)
         tables = set(insp.get_table_names())
-        if table in tables:
-            existing = {c["name"].lower() for c in insp.get_columns(table)}
-            if column.lower() not in existing:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-    except Exception:
-        try:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-        except Exception:
-            pass
+        if table not in tables:
+            return
+        existing = {c["name"].lower() for c in insp.get_columns(table)}
+        if column.lower() in existing:
+            return
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "already exists" in msg or "duplicate" in msg:
+            return
+        raise RuntimeError(f"Schema inspection failed on table '{table}': {exc}") from exc
+
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "duplicate column" in msg or "already exists" in msg:
+            return
+        raise RuntimeError(f"Migration failed adding column '{column}' to table '{table}': {exc}") from exc
 
 def init_db():
     """
@@ -308,6 +322,47 @@ def init_db():
 
         # Round 3 migrations
         _safe_add_column(conn, "facts", "notes", "TEXT")
+        _safe_add_column(conn, "facts", "updated_at", "TEXT")
+
+        # Immutable fact snapshots and review-time evidence links.  These tables
+        # deliberately keep the version used by a review even after the live
+        # fact is amended, retired, or expires.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS fact_versions (
+                id TEXT PRIMARY KEY,
+                fact_id TEXT NOT NULL,
+                version TEXT NOT NULL,
+                claim TEXT NOT NULL,
+                value TEXT NOT NULL,
+                source_id TEXT,
+                source_title TEXT NOT NULL,
+                source_excerpt TEXT NOT NULL,
+                effective_at TEXT,
+                expires_at TEXT,
+                status TEXT NOT NULL,
+                change_reason TEXT,
+                changed_by TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(fact_id, version)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS evidence_dependencies (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                review_id TEXT NOT NULL,
+                finding_id TEXT,
+                source_type TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                source_version TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(review_id, finding_id, source_id, source_version)
+            )
+            """
+        )
 
         # Brand Asset Registry table (Commitment 2)
         conn.execute(
@@ -340,6 +395,93 @@ def init_db():
                 status TEXT NOT NULL DEFAULT 'PENDING',
                 reviewed_by TEXT,
                 reviewed_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        _safe_add_column(conn, "rule_suggestions", "workspace_id", "TEXT NOT NULL DEFAULT 'ws_default'")
+        _safe_add_column(conn, "rule_suggestions", "rule_version", "TEXT")
+        _safe_add_column(conn, "rule_suggestions", "finding_ids", "TEXT")
+        _safe_add_column(conn, "rule_suggestions", "review_ids", "TEXT")
+        _safe_add_column(conn, "rule_suggestions", "decision_evidence", "TEXT")
+        _safe_add_column(conn, "rule_suggestions", "sample_count", "INTEGER NOT NULL DEFAULT 0")
+        _safe_add_column(conn, "rule_suggestions", "data_confidence", "TEXT")
+        _safe_add_column(conn, "rule_suggestions", "activated_at", "TEXT")
+        _safe_add_column(conn, "rule_suggestions", "activated_by", "TEXT")
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workspace_members (
+                workspace_id TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'reviewer',
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (workspace_id, actor)
+            )
+            """
+        )
+        # Internal demo actors and synthetic foreign-tenant identities must NEVER
+        # be silently provisioned into a production database.
+        if config.ALLOW_DEMO_AUTH:
+            default_members = [
+                ("ws_default", "demo.reviewer", "reviewer"),
+                ("ws_default", "demo.brand_admin", "brand_admin"),
+                ("ws_default", "demo.creator", "creator"),
+                ("ws_default", "demo.auditor", "auditor"),
+                ("ws_default", "system.admin", "brand_admin"),
+                ("ws_default", "system.user", "reviewer"),
+                ("ws_default", "admin@brandtrace.internal", "brand_admin"),
+                ("ws_default", "reviewer@brandtrace.internal", "reviewer"),
+                ("ws_default", "creator@brandtrace.internal", "creator"),
+                ("ws_default", "auditor@brandtrace.internal", "auditor"),
+                ("ws_default", "reviewer.alice", "reviewer"),
+                ("ws_default", "reviewer.bob", "reviewer"),
+                ("ws_default", "admin.lead", "brand_admin"),
+                ("ws_unrelated", "admin@foreign-corp.com", "brand_admin"),
+                ("ws_unrelated", "intruder@foreign-corp.com", "brand_admin"),
+                ("ws_unrelated", "user@foreign-corp.com", "reviewer"),
+            ]
+            now_ts = now()
+            for ws_id, act, rle in default_members:
+                conn.execute(
+                    """
+                    INSERT INTO workspace_members (workspace_id, actor, role, created_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(workspace_id, actor) DO NOTHING
+                    """,
+                    (ws_id, act, rle, now_ts)
+                )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rule_versions (
+                id TEXT PRIMARY KEY,
+                rule_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                version TEXT NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                requirement TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                source_title TEXT NOT NULL,
+                source_excerpt TEXT NOT NULL,
+                originating_suggestion_id TEXT,
+                activated_by TEXT,
+                activation_reason TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(rule_id, version)
+            )
+            """
+        )
+
+        # Durable System State table (permanent one-way bootstrap tracking)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
             """

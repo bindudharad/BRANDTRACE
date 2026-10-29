@@ -42,6 +42,8 @@ class RuleIn(BaseModel):
     expires_at: Optional[str] = None
 
 class RuleUpdateIn(BaseModel):
+    expected_version: Optional[str] = None
+    reason: Optional[str] = None
     title: Optional[str] = Field(None, min_length=2, max_length=120)
     category: Optional[str] = None
     kind: Optional[Literal["required_phrase", "prohibited_phrase", "approved_term", "forbidden_term", "tone_rule"]] = None
@@ -85,6 +87,8 @@ class FactIn(BaseModel):
     notes: Optional[str] = Field(None, max_length=1000)
 
 class FactUpdateIn(BaseModel):
+    expected_version: Optional[str] = None
+    reason: Optional[str] = None
     claim: Optional[str] = None
     value: Optional[str] = None
     owner: Optional[str] = None
@@ -92,6 +96,8 @@ class FactUpdateIn(BaseModel):
     version: Optional[str] = None
     source_title: Optional[str] = None
     source_excerpt: Optional[str] = None
+    review_at: Optional[str] = None
+    effective_at: Optional[str] = None
     expires_at: Optional[str] = None
     notes: Optional[str] = Field(None, max_length=1000)
 
@@ -272,6 +278,11 @@ class GuidelineHealthItem(BaseModel):
 class RuleSuggestionAction(BaseModel):
     action: Literal["accept", "defer", "reject"]
 
+class RuleActivationIn(BaseModel):
+    expected_rule_version: str = Field(..., min_length=1, max_length=64)
+    new_requirement: Optional[str] = Field(None, min_length=2, max_length=500)
+    reason: Optional[str] = Field(None, max_length=500)
+
 class RuleSuggestionOut(BaseModel):
     id: str
     rule_id: str
@@ -281,4 +292,24 @@ class RuleSuggestionOut(BaseModel):
     status: str
     reviewed_by: Optional[str] = None
     reviewed_at: Optional[str] = None
+    created_at: str
+
+class WorkspaceMemberIn(BaseModel):
+    actor: str = Field(..., min_length=2, max_length=120)
+    role: Literal["creator", "reviewer", "brand_admin", "auditor"] = "reviewer"
+
+class WorkspaceMemberOut(BaseModel):
+    workspace_id: str
+    actor: str
+    role: str
+    created_at: str
+
+class WorkspaceIn(BaseModel):
+    id: str = Field(..., min_length=2, max_length=64, pattern=r"^[a-zA-Z0-9_\-]+$")
+    name: str = Field(..., min_length=2, max_length=120)
+
+class BootstrapOut(BaseModel):
+    status: str
+    workspace_id: str
+    admin: str
     created_at: str

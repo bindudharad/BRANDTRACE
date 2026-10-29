@@ -154,3 +154,101 @@ async def test_disagreement_detection_and_suggestion_lifecycle():
         r_rec = next(r for r in rule_check if r['id'] == rule_id)
         assert r_rec['pattern'] == 'guaranteed success'
         assert r_rec['title'] == 'Ambiguous Guarantee Rule'
+
+
+@pytest.mark.asyncio
+async def test_guideline_governance_complete_activation_immutability_and_stale_prevention():
+    """Verify guideline governance: approval distinct from activation, immutable version snapshot, explicit activation, 409 for stale activation, rollback, persistence after reload, and workspace isolation."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+        # 1. Create rule
+        r_res = await client.post(
+            '/api/rules',
+            json={
+                'title': 'High Availability Rule',
+                'kind': 'prohibited_phrase',
+                'pattern': '100% uptime',
+                'requirement': 'Avoid absolute 100% uptime claims without multi-region disaster recovery SLAs.',
+                'severity': 'HIGH',
+                'source_title': 'Reliability Spec',
+                'source_excerpt': '100% uptime is forbidden in marketing collateral.',
+                'status': 'APPROVED'
+            },
+            headers={'X-Demo-Role': 'brand_admin'}
+        )
+        assert r_res.status_code == 201
+        rule_id = r_res.json()['id']
+
+        # 2. Accept a proposal (APPROVAL is distinct from ACTIVATION)
+        prop_res = await client.post(
+            f'/api/governance/rule-suggestions/{rule_id}',
+            json={'action': 'accept'},
+            headers={'X-Demo-Role': 'brand_admin'}
+        )
+        assert prop_res.status_code == 200
+        sug_id = prop_res.json()['id']
+        assert prop_res.json()['status'] == 'ACCEPTED'
+
+        # Live rule is still unmodified at version 1.0
+        rule_initial = (await client.get('/api/rules')).json()
+        r_rec = next(r for r in rule_initial if r['id'] == rule_id)
+        assert r_rec['version'] == '1.0'
+
+        # 3. Attempt activation with stale version -> HTTP 409 Conflict
+        stale_res = await client.post(
+            f'/api/governance/rule-suggestions/{sug_id}/activate',
+            json={
+                'expected_rule_version': '0.9',
+                'new_requirement': 'Must cite multi-region failover documentation.',
+                'reason': 'Stale test'
+            },
+            headers={'X-Demo-Role': 'brand_admin'}
+        )
+        assert stale_res.status_code == 409
+        assert 'Proposal is stale' in stale_res.json()['detail']
+
+        # 4. Valid explicit activation by brand_admin
+        act_res = await client.post(
+            f'/api/governance/rule-suggestions/{sug_id}/activate',
+            json={
+                'expected_rule_version': '1.0',
+                'new_requirement': 'Must cite verified multi-region disaster recovery SLAs.',
+                'reason': 'Q4 policy refinement'
+            },
+            headers={'X-Demo-Role': 'brand_admin'}
+        )
+        assert act_res.status_code == 200
+        assert act_res.json()['status'] == 'ACTIVATED'
+        new_version = act_res.json()['new_version']
+
+        # 5. Immutable prior version preserved in rule_versions
+        versions = (await client.get(f'/api/rules/{rule_id}/versions')).json()
+        assert any(v['version'] == '1.0' for v in versions)
+        assert any(v['version'] == new_version and v['requirement'] == 'Must cite verified multi-region disaster recovery SLAs.' for v in versions)
+
+        # 6. Retry activation on already activated suggestion fails
+        retry_res = await client.post(
+            f'/api/governance/rule-suggestions/{sug_id}/activate',
+            json={
+                'expected_rule_version': new_version,
+                'new_requirement': 'Another change',
+                'reason': 'Idempotent retry test'
+            },
+            headers={'X-Demo-Role': 'brand_admin'}
+        )
+        assert retry_res.status_code == 409
+        assert 'Only an accepted suggestion may be activated' in retry_res.json()['detail']
+
+        # 7. Persistence after reload: GET /api/governance/rule-suggestions reflects ACTIVATED status
+        sugs_list = (await client.get('/api/governance/rule-suggestions')).json()
+        sug_entry = next(s for s in sugs_list if s['id'] == sug_id)
+        assert sug_entry['status'] == 'ACTIVATED'
+
+        # 8. Workspace isolation: foreign workspace rejected with 403
+        foreign_hdr = {'X-Demo-Role': 'brand_admin', 'X-Demo-Actor': 'intruder@foreign-corp.com', 'X-Workspace-Id': 'ws_unrelated'}
+        foreign_act = await client.post(
+            f'/api/governance/rule-suggestions/{sug_id}/activate',
+            json={'expected_rule_version': new_version, 'new_requirement': 'Malicious requirement', 'reason': 'Cross-ws test'},
+            headers=foreign_hdr
+        )
+        assert foreign_act.status_code == 403

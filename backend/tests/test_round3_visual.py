@@ -171,10 +171,86 @@ async def test_palette_and_contrast_compliance():
     res_low = analyze_image_compliance(low_contrast_png, approved_palette=['#ffffff'])
     contrast_finding = next((f for f in res_low['visual_findings'] if f.get('category') == 'visual_accessibility'), None)
     assert contrast_finding is not None
-    assert contrast_finding['status'] == 'CONTRADICTED'
-    assert contrast_finding['severity'] == 'HIGH'
+    assert contrast_finding['status'] == 'NEEDS_REVIEW'
+    assert contrast_finding['type'] == 'contrast_pair_indeterminate'
+    assert 'not an automated WCAG text-contrast determination' in contrast_finding['explanation']
 
     high_contrast_png = make_two_color_png((255, 255, 255), (0, 0, 0))
     res_high = analyze_image_compliance(high_contrast_png, approved_palette=['#ffffff', '#000000'])
     high_contrast_finding = next((f for f in res_high['visual_findings'] if f.get('category') == 'visual_accessibility'), None)
-    assert high_contrast_finding is None
+    assert high_contrast_finding is not None
+    assert high_contrast_finding['status'] == 'NEEDS_REVIEW'
+
+
+@pytest.mark.asyncio
+async def test_visual_compliance_complete_workflow_and_disposition_persistence():
+    """Verify visual compliance: upload-size guard, honest OCR limitation, palette/contrast evidence, reviewer disposition persistence, and asset deletion."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+        # 1. Upload-size enforcement (HTTP 413)
+        oversized_data = b"x" * (10 * 1024 * 1024 + 1024)
+        files_huge = {'file': ('huge.png', oversized_data, 'image/png')}
+        data_huge = {'title': 'Huge File', 'content_type': 'image'}
+        res_huge = await client.post('/api/reviews/upload', data=data_huge, files=files_huge)
+        assert res_huge.status_code == 413
+        assert "exceeds maximum" in res_huge.json()["detail"].lower()
+
+        # 2. Upload valid image
+        test_png = make_two_color_png((255, 0, 0), (240, 240, 240))
+        files = {'file': ('banner.png', test_png, 'image/png')}
+        data = {'title': 'Hero Banner', 'content_type': 'image'}
+        upload_res = await client.post('/api/reviews/upload', data=data, files=files)
+        assert upload_res.status_code == 200
+        review = upload_res.json()
+        findings = review['findings']
+
+        # 3. Honest OCR-not-analysed finding exists
+        ocr_f = next((f for f in findings if f.get('type') == 'ocr_unsupported'), None)
+        assert ocr_f is not None
+        assert ocr_f['status'] == 'NEEDS_REVIEW'
+        assert 'Automated text extraction from raster graphics is not configured' in ocr_f['explanation']
+
+        # 4. Actual palette evidence contains measured colors
+        palette_f = next((f for f in findings if f.get('category') == 'visual_palette'), None)
+        assert palette_f is not None
+        assert 'Dominant image colour' in palette_f.get('explanation', '') and 'Nearest approved colour' in palette_f.get('explanation', '')
+
+        # 5. Reviewer applies disposition to finding and verifies persistence
+        unreg_f = next((f for f in findings if f.get('type') == 'unregistered_asset'), None)
+        assert unreg_f is not None
+        f_id = unreg_f['id']
+        rev_id = review['id']
+
+        disp_res = await client.post(
+            f'/api/reviews/{rev_id}/findings/{f_id}/actions',
+            json={'action': 'dismiss', 'reason': 'Verified by Creative Director for one-off campaign.'},
+            headers={'X-Demo-Role': 'reviewer'}
+        )
+        assert disp_res.status_code == 200
+        disp_finding = next(f for f in disp_res.json()['findings'] if f['id'] == f_id)
+        assert disp_finding['disposition'] == 'DISMISSED'
+
+        # Fetch review again to verify persistence across reloads
+        reloaded = (await client.get(f'/api/reviews/{rev_id}')).json()
+        persisted_finding = next(f for f in reloaded['findings'] if f['id'] == f_id)
+        assert persisted_finding['disposition'] == 'DISMISSED'
+        assert persisted_finding['disposition_reason'] == 'Verified by Creative Director for one-off campaign.'
+
+        # 6. Asset registration and HTTP 204 deletion
+        asset_res = await client.post(
+            '/api/brand-assets',
+            json={
+                'name': 'Temporary Asset',
+                'asset_type': 'image',
+                'content_hash': compute_sha256(test_png),
+                'approval_status': 'APPROVED',
+                'license_status': 'APPROVED'
+            },
+            headers={'X-Demo-Role': 'brand_admin'}
+        )
+        assert asset_res.status_code == 201
+        asset_id = asset_res.json()['id']
+
+        del_res = await client.delete(f'/api/brand-assets/{asset_id}', headers={'X-Demo-Role': 'brand_admin'})
+        assert del_res.status_code == 204
+        assert del_res.text == ""

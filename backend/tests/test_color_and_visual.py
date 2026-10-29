@@ -95,10 +95,11 @@ def test_image_palette_and_contrast_compliance():
     assert palette_finding is not None
     assert palette_finding["status"] == "CONTRADICTED"
 
-    # Should flag contrast failure
+    # Dominant image colours do not establish foreground/background text roles.
     contrast_finding = next((f for f in findings if f["category"] == "visual_accessibility"), None)
     assert contrast_finding is not None
-    assert contrast_finding["status"] == "CONTRADICTED"
+    assert contrast_finding["status"] == "NEEDS_REVIEW"
+    assert contrast_finding["type"] == "contrast_pair_indeterminate"
 
     # Should report OCR limitation transparently without giving a false pass
     ocr_finding = next((f for f in findings if f["category"] == "visual_ocr"), None)

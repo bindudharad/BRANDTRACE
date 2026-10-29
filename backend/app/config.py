@@ -31,3 +31,11 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "mock").lower()
 AI_PROVIDER_API_KEY = os.getenv("AI_PROVIDER_API_KEY") or os.getenv("GEMINI_API_KEY") or ""
 AI_MODEL_NAME = os.getenv("AI_MODEL_NAME", "gemini-2.5-flash")
 AI_TIMEOUT_SECONDS = float(os.getenv("AI_TIMEOUT_SECONDS", "8.0"))
+
+# Authentication & Trust Boundary Configuration
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower().strip()
+AUTH_MODE = os.getenv("AUTH_MODE", "demo" if ENVIRONMENT != "production" else "production").lower().strip()
+ALLOW_DEMO_AUTH = os.getenv("ALLOW_DEMO_AUTH", "true" if AUTH_MODE == "demo" else "false").lower() in ("true", "1", "yes")
+
+API_KEY = os.getenv("BRANDTRACE_API_KEY") or os.getenv("API_KEY") or ""
+ADMIN_API_KEY = os.getenv("BRANDTRACE_ADMIN_API_KEY") or os.getenv("ADMIN_API_KEY") or API_KEY

@@ -67,9 +67,9 @@ def _expiry_status(expires_at: Optional[str], item_status: str) -> str:
     return "ACTIVE"
 
 
-def calculate_impact_map() -> Dict[str, Any]:
+def calculate_impact_map(workspace_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Evaluate dependencies between expired/updated facts & rules and historical drafts.
+    Evaluate dependencies between expired/updated facts & rules and historical drafts scoped by tenant workspace.
     Returns structured list of impact items with affected draft IDs and urgency levels.
 
     Round 3 improvements:
@@ -82,8 +82,14 @@ def calculate_impact_map() -> Dict[str, Any]:
     current_time = _now_utc()
 
     # 1. Inspect Facts for Expiration or Invalidation
-    all_facts = rows("SELECT * FROM facts")
-    all_reviews = rows("SELECT id, title, content, status, rule_versions FROM reviews")
+    if workspace_id:
+        all_facts = rows("SELECT * FROM facts WHERE workspace_id=?", (workspace_id,))
+        all_reviews = rows("SELECT id, title, status, workspace_id FROM reviews WHERE workspace_id=?", (workspace_id,))
+        all_rules = rows("SELECT * FROM rules WHERE workspace_id=?", (workspace_id,))
+    else:
+        all_facts = rows("SELECT * FROM facts")
+        all_reviews = rows("SELECT id, title, status, workspace_id FROM reviews")
+        # all_rules loaded above
 
     for fact in all_facts:
         fact_id = fact["id"]
@@ -92,9 +98,14 @@ def calculate_impact_map() -> Dict[str, Any]:
         fact_expired = _is_expired_dt(fact.get("expires_at"))
         fact_expiring_soon = _is_expiring_soon_dt(fact.get("expires_at"))
         fact_retired = fact.get("status") == "RETIRED"
+        fact_changed = bool(rows(
+            "SELECT id FROM evidence_dependencies WHERE source_type='FACT' AND source_id=? AND source_version<>?",
+            (fact_id, fact.get("version")),
+        ))
 
-        # Include items that are expired, expiring soon, or retired
-        if fact_expired or fact_retired or fact_expiring_soon:
+        # A materially newer source version also requires review of the drafts
+        # which relied on an earlier snapshot.
+        if fact_expired or fact_retired or fact_expiring_soon or fact_changed:
             seen_ids: set = set()
             affected_ids: List[str] = []
             affected_titles: List[str] = []
@@ -104,11 +115,12 @@ def calculate_impact_map() -> Dict[str, Any]:
                 rid = r["id"]
                 if rid in seen_ids:
                     continue
-                # Check if review content references the fact value or has a finding citing it
-                has_finding = bool(rows("SELECT id FROM findings WHERE review_id=? AND source_id=?", (rid, fact_id)))
-                mentions_fact = bool(fact_val and fact_val in r.get("content", "").lower())
-
-                if has_finding or mentions_fact:
+                if r.get("workspace_id") != fact.get("workspace_id"):
+                    continue
+                dependency = row("""SELECT source_version FROM evidence_dependencies
+                                  WHERE review_id=? AND workspace_id=? AND source_type='FACT' AND source_id=?""",
+                                 (rid, fact.get("workspace_id"), fact_id))
+                if dependency:
                     seen_ids.add(rid)
                     affected_ids.append(rid)
                     affected_titles.append(r["title"])
@@ -116,12 +128,16 @@ def calculate_impact_map() -> Dict[str, Any]:
                         "id": rid,
                         "title": r["title"],
                         "status": r.get("status", "IN_REVIEW"),
+                        "dependency_version": dependency.get("source_version"),
+                        "current_version": fact.get("version"),
                     })
 
             if affected_ids:
                 status_label = _expiry_status(fact.get("expires_at"), fact.get("status", "APPROVED"))
                 if fact_retired and not fact_expired:
                     status_label = "RETIRED"
+                elif fact_changed and not fact_expired and not fact_expiring_soon:
+                    status_label = "CHANGED"
 
                 urgency = "URGENT" if fact_expired or fact_retired else "RECOMMENDED"
                 reason_str = (
@@ -129,6 +145,8 @@ def calculate_impact_map() -> Dict[str, Any]:
                     if fact_expired
                     else f"Approved fact '{fact_claim}' ({fact_id}) will expire within 30 days."
                     if fact_expiring_soon
+                    else f"Approved fact '{fact_claim}' ({fact_id}) changed from a version used by one or more reviews."
+                    if fact_changed
                     else f"Approved fact '{fact_claim}' ({fact_id}) has been retired."
                 )
                 impacted_items.append({
@@ -153,8 +171,12 @@ def calculate_impact_map() -> Dict[str, Any]:
         rule_expired = _is_expired_dt(rule.get("expires_at"))
         rule_expiring_soon = _is_expiring_soon_dt(rule.get("expires_at"))
         rule_retired = rule.get("status") == "RETIRED"
+        rule_changed = bool(rows(
+            "SELECT id FROM evidence_dependencies WHERE source_type='RULE' AND source_id=? AND source_version<>?",
+            (rule_id, rule.get("version")),
+        ))
 
-        if rule_expired or rule_retired or rule_expiring_soon:
+        if rule_expired or rule_retired or rule_expiring_soon or rule_changed:
             seen_ids = set()
             affected_ids = []
             affected_titles = []
@@ -164,16 +186,12 @@ def calculate_impact_map() -> Dict[str, Any]:
                 rid = r["id"]
                 if rid in seen_ids:
                     continue
-                has_finding = bool(rows("SELECT id FROM findings WHERE review_id=? AND source_id=?", (rid, rule_id)))
-                in_rule_versions = False
-                try:
-                    rv = json.loads(r.get("rule_versions", "{}"))
-                    if rule_id in rv:
-                        in_rule_versions = True
-                except Exception:
-                    pass
-
-                if has_finding or in_rule_versions:
+                if r.get("workspace_id") != rule.get("workspace_id"):
+                    continue
+                dependency = row("""SELECT source_version FROM evidence_dependencies
+                                  WHERE review_id=? AND workspace_id=? AND source_type='RULE' AND source_id=?""",
+                                 (rid, rule.get("workspace_id"), rule_id))
+                if dependency:
                     seen_ids.add(rid)
                     affected_ids.append(rid)
                     affected_titles.append(r["title"])
@@ -181,12 +199,16 @@ def calculate_impact_map() -> Dict[str, Any]:
                         "id": rid,
                         "title": r["title"],
                         "status": r.get("status", "IN_REVIEW"),
+                        "dependency_version": dependency.get("source_version"),
+                        "current_version": rule.get("version"),
                     })
 
             if affected_ids:
                 status_label = _expiry_status(rule.get("expires_at"), rule.get("status", "APPROVED"))
                 if rule_retired and not rule_expired:
                     status_label = "RETIRED"
+                elif rule_changed and not rule_expired and not rule_expiring_soon:
+                    status_label = "CHANGED"
 
                 urgency = "URGENT" if rule_expired or rule_retired else "RECOMMENDED"
                 reason_str = (
@@ -194,6 +216,8 @@ def calculate_impact_map() -> Dict[str, Any]:
                     if rule_expired
                     else f"Brand rule '{rule['title']}' ({rule_id}) will expire within 30 days."
                     if rule_expiring_soon
+                    else f"Brand rule '{rule['title']}' ({rule_id}) changed from a version used by one or more reviews."
+                    if rule_changed
                     else f"Brand rule '{rule['title']}' ({rule_id}) has been retired."
                 )
                 impacted_items.append({
@@ -221,12 +245,12 @@ def calculate_impact_map() -> Dict[str, Any]:
     }
 
 
-def trigger_targeted_rereview(item_id: str, actor: str = "brand_admin") -> int:
+def trigger_targeted_rereview(item_id: str, actor: str = "brand_admin", workspace_id: Optional[str] = None) -> int:
     """
     Flag all drafts affected by an expired/changed fact or rule for re-review.
     Moves previously APPROVED drafts back to CHANGES_REQUESTED with recorded audit trail.
     """
-    imap = calculate_impact_map()
+    imap = calculate_impact_map(workspace_id=workspace_id)
     matched = next((item for item in imap["items"] if item["item_id"] == item_id), None)
     if not matched:
         return 0

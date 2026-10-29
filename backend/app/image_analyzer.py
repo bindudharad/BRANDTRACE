@@ -32,8 +32,12 @@ class ImageAnalysisError(Exception):
 
 
 def is_ocr_available() -> bool:
-    """Check if tesseract OCR executable is available on the system PATH."""
-    return shutil.which("tesseract") is not None
+    """Check if automated raster OCR is active in this release pipeline.
+
+    Under Option B, raster image text extraction is explicitly marked unsupported
+    so behavior is 100% deterministic across all test and production environments.
+    """
+    return False
 
 
 def compute_sha256(data: bytes) -> str:
@@ -92,6 +96,23 @@ def check_asset_registry(content_hash: str) -> Optional[Dict[str, Any]]:
         return row("SELECT * FROM brand_assets WHERE content_hash=?", (content_hash,))
     except Exception:
         return None
+
+
+def assess_known_contrast_pair(foreground: Tuple[int, int, int], background: Tuple[int, int, int], minimum: float = 4.5) -> Dict[str, Any]:
+    """Assess an explicitly supplied foreground/background pair only.
+
+    This helper is intentionally separate from dominant-colour extraction: callers
+    must establish the semantic roles before a WCAG text conclusion is possible.
+    """
+    ratio = contrast_ratio(foreground, background)
+    return {
+        "foreground": rgb_to_hex(foreground),
+        "background": rgb_to_hex(background),
+        "ratio": ratio,
+        "threshold": minimum,
+        "status": "SUPPORTED" if ratio >= minimum else "CONTRADICTED",
+        "analysis_method": "WCAG_2_1_KNOWN_FOREGROUND_BACKGROUND_PAIR",
+    }
 
 
 def analyze_image_compliance(
@@ -222,28 +243,30 @@ def analyze_image_compliance(
                 "uncertainty": "Deterministic CIELAB Delta-E calculation.",
             })
 
-    # 2. WCAG Contrast Check
+    # 2. Contrast evidence. Dominant image colours are not reliably a text /
+    # background pair, so they must never be represented as a WCAG text pass
+    # or failure. OCR/text segmentation would be required for that conclusion.
     if len(extracted_palette) >= 2:
         c1, _ = extracted_palette[0]
         c2, _ = extracted_palette[1]
         c_ratio = contrast_ratio(c1, c2)
         hex1, hex2 = rgb_to_hex(c1), rgb_to_hex(c2)
 
-        if c_ratio < min_contrast:
-            visual_findings.append({
+        visual_findings.append({
                 "category": "visual_accessibility",
-                "type": "contrast_violation",
-                "severity": "HIGH",
-                "status": "CONTRADICTED",
+                "type": "contrast_pair_indeterminate",
+                "severity": "LOW",
+                "status": "NEEDS_REVIEW",
                 "passage": f"[Contrast Pair: {hex1} on {hex2} = {c_ratio}:1]",
                 "explanation": (
-                    f"Dominant colour contrast ratio is {c_ratio}:1, which fails the minimum "
-                    f"WCAG AA threshold of {min_contrast}:1 for text readability."
+                    f"Dominant colours measure {c_ratio}:1 (reference threshold {min_contrast}:1), "
+                    "but the pipeline did not identify a foreground text/background pair. "
+                    "This is not an automated WCAG text-contrast determination."
                 ),
-                "suggested_correction": f"Increase lightness contrast between {hex1} and {hex2} to achieve at least {min_contrast}:1.",
-                "source_excerpt": f"Measured contrast: {c_ratio}:1. Required minimum: {min_contrast}:1 (WCAG AA).",
-                "analysis_method": "WCAG_2_1_LUMINANCE",
-                "uncertainty": "Deterministic W3C WCAG 2.1 relative luminance calculation.",
+                "suggested_correction": "Inspect the actual text/background pair manually or use a supported text-segmentation method.",
+                "source_excerpt": f"Measured dominant-colour ratio: {c_ratio}:1. Reference threshold: {min_contrast}:1.",
+                "analysis_method": "DOMINANT_COLOR_CONTRAST_REFERENCE",
+                "uncertainty": "Dominant colours do not establish text/background roles; no WCAG pass or failure is inferred.",
             })
 
     # 3. Logo Aspect Ratio Check (if configured)
@@ -267,24 +290,22 @@ def analyze_image_compliance(
                 "uncertainty": "Deterministic geometric measurement.",
             })
 
-    # 4. OCR Availability Reporting (Strict honesty requirement)
-    ocr_ready = is_ocr_available()
-    if not ocr_ready:
-        visual_findings.append({
-            "category": "visual_ocr",
-            "type": "ocr_unavailable",
-            "severity": "LOW",
-            "status": "NEEDS_REVIEW",
-            "passage": "[Image Embedded Text]",
-            "explanation": (
-                "OCR engine (Tesseract) is not configured in this environment. "
-                "Embedded text within the image was not analysed; human visual inspection required."
-            ),
-            "suggested_correction": "Review text inside graphics manually against brand guidelines.",
-            "source_excerpt": "OCR capability check: Tesseract not found on PATH.",
-            "analysis_method": "OCR_CAPABILITY_CHECK",
-            "uncertainty": "Transparent limitation notice; no false pass given.",
-        })
+    # 4. OCR text inspection boundary (Option B: deterministic limitation notice)
+    visual_findings.append({
+        "category": "visual_ocr",
+        "type": "ocr_unsupported",
+        "severity": "LOW",
+        "status": "NEEDS_REVIEW",
+        "passage": "[Image Embedded Text]",
+        "explanation": (
+            "Automated text extraction from raster graphics is not configured in this release pipeline. "
+            "Embedded text within graphics was not analysed; human visual inspection is required."
+        ),
+        "suggested_correction": "Review text inside graphics manually against brand guidelines.",
+        "source_excerpt": "Visual pipeline limitation: automated raster OCR text inspection is unsupported.",
+        "analysis_method": "OCR_CAPABILITY_CHECK",
+        "uncertainty": "Transparent limitation notice; no false pass given.",
+    })
 
     return {
         "width": width,
