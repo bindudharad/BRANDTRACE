@@ -5,13 +5,17 @@ Repository: `https://github.com/bindudharad/BRANDTRACE`
 Branch: `main`  
 Python Environment: Python 3.10.11 (`python`; the Windows `py -3.10` launcher is unavailable)  
 Node / Frontend Environment: Node v20 / Vite 6.4.5 / React 19  
-Verification Summary: Initial pre-audit suite: **120 passed, 1 skipped** (pytest). Post-audit backend rerun: **BLOCKED / NOT RUN** because this terminal terminates the pytest process at 30 seconds without a result. TypeScript: **0 errors**; Vite build and prerender: **passed**. Browser and live PostgreSQL: **BLOCKED / NOT RUN**.
+Verification Summary: Full backend suite (per-file incremental execution): **122 passed, 1 skipped** (pytest, Python 3.10.11). Smoke test: **27/27 passed**. TypeScript: **0 errors** (`npx tsc --noEmit`). Vite build and prerender: **passed** (50,498 chars). Browser QA and live PostgreSQL staging: **BLOCKED / NOT RUN** (no browser binaries or staging credentials configured).
 
 ---
 
 ## 1. Defect Repairs & Architectural Hardening Verification
 
-Current-session audit addendum: overview, insights, upload rule-version capture, and new brand-profile inserts use the authenticated workspace. `GET /api/rules/{rule_id}/versions` now also requires authentication, verifies the parent rule workspace, and scopes snapshots; a three-path regression test was added. Runtime test execution remains **BLOCKED** by the terminal timeout. The frontend now exposes immutable rule history and a brand-admin visual-profile editor; browser verification remains **BLOCKED / NOT RUN**.
+Current-session audit addendum: overview, insights, upload rule-version capture, and new brand-profile inserts use the authenticated workspace. `GET /api/rules/{rule_id}/versions` now also requires authentication, verifies the parent rule workspace, and scopes snapshots; a three-path regression test was added. The frontend now exposes immutable rule history and a brand-admin visual-profile editor; browser verification remains **BLOCKED / NOT RUN**.
+
+Closure audit addendum: `run_governance_analysis` was found to query active rules and facts without filtering to the review workspace. It now scopes both queries to `review.workspace_id`; a regression test (`test_governance_analysis_uses_only_the_review_workspace_policy_and_facts`) verifies foreign-workspace policy and fact records do not produce findings. **VERIFIED BY AUTOMATED TEST** — test passes in 2.71s.
+
+Test-execution blocker diagnosis: The previous "stall" was caused by running the **entire** 122-test backend suite in a single `pytest` process, which exceeded the terminal's ~30-second execution limit. Individual test files each complete in 1–13 seconds. Per-file incremental execution confirms all 122 tests pass with 1 skipped (`test_live_provider_configuration_status` requires a live Gemini API key). No code defect, fixture hang, or database deadlock was found.
 
 | Defect ID | Description / Defect Repaired | Architectural Resolution | Test Coverage | Classification | Evidence |
 |---|---|---|---|---|---|
@@ -89,53 +93,42 @@ Raster graphics with unsegmented or uniform color distribution are deterministic
 ## 4. Test & Build Execution Evidence
 
 ```powershell
-# 1. Full Backend Pytest Suite
-py -3.10 -m pytest backend/tests -q
-# Exit code: 0
-# Result: 120 passed, 1 skipped in 27.86s
+# 1. Full Backend Pytest Suite (per-file incremental execution)
+python -m pytest backend/tests/test_production_auth.py -xvs         # 12 passed in 7.55s
+python -m pytest backend/tests/test_round3_claim_ledger.py -xvs     # 7 passed in 5.61s
+python -m pytest backend/tests/test_defect_repairs_round3.py -xvs   # 11 passed in 4.00s
+python -m pytest backend/tests/test_api.py -xvs                     # 9 passed in 4.20s
+python -m pytest backend/tests/test_qa_comprehensive.py -xvs        # 24 passed in 7.64s
+python -m pytest backend/tests/test_disposition_integrity.py \
+  backend/tests/test_color_and_visual.py \
+  backend/tests/test_round3_visual.py \
+  backend/tests/test_round3_visual_benchmark.py \
+  backend/tests/test_round3_guideline_health.py -xvs                # 25 passed in 13.32s
+python -m pytest backend/tests/test_qa_phase2_regression.py \
+  backend/tests/test_ai_adapter.py \
+  backend/tests/test_pdf_parser.py -xvs                             # 30 passed, 1 skipped in 6.89s
+python -m pytest backend/tests/test_postgresql_compatibility.py -xvs # 4 passed in 0.53s
+# Total: 122 passed, 1 skipped (test_live_provider_configuration_status requires live Gemini API key)
 
-# 2. Production Auth & Bootstrap Suite
-py -3.10 -m pytest backend/tests/test_production_auth.py -v
-# Exit code: 0
-# Result: 11 passed, 0 failed in 4.08s
+# 2. Smoke Test
+python scripts/smoke_test.py                                        # 27/27 passed
 
-# 3. Visual Benchmark Suite
-py -3.10 -m pytest backend/tests/test_round3_visual_benchmark.py -v
-# Exit code: 0
-# Result: 3 passed, 0 failed in 0.49s
+# 3. Python Compilation
+python -m py_compile backend/app/main.py                            # OK
+python -m py_compile backend/app/governance.py                      # OK
 
-# 4. Smoke Test
-py -3.10 scripts/smoke_test.py
-# Exit code: 0
-# Result: 27/27 passed in 3.05s
+# 4. TypeScript Type-Check
+npx tsc --noEmit                                                    # 0 errors, exit code 0
 
-# 5. TypeScript Type-Check
-npx tsc --noEmit
-# Exit code: 0
-# Result: 0 errors
-
-# 6. Lint
-npm run lint
-# Exit code: 0
-# Note: "lint" in package.json executes "tsc --noEmit". ESLint is not installed.
-
-# 7. Production Build & Static Prerendering
-npm run build
-# Exit code: 0
-# Result:
+# 5. Production Build & Static Prerendering
+npm run build                                                       # exit code 0
 # dist/index.html                   2.97 kB │ gzip:   1.09 kB
 # dist/assets/index-BUFull0d.css  104.58 kB │ gzip:  15.77 kB
-# dist/assets/index-BV3zZLcK.js   379.55 kB │ gzip: 106.15 kB
-# Static HTML successfully prerendered into dist\index.html (50498 characters) in 5.70s
+# dist/assets/index-C3EGjj5d.js   382.30 kB │ gzip: 106.77 kB
+# Static HTML successfully prerendered into dist\index.html (50498 characters)
 
-# 8. Git whitespace check
-git diff --check
-# Exit code: 0 (no whitespace errors)
-
-# 9. Working Tree Status
-git status --short
-# Status: Tree contains uncommitted modifications (16 modified files, 4 untracked files).
-# It is NOT clean. Changes are verified and ready for operator staging review.
+# 6. Git Whitespace Check
+git diff --check                                                    # CRLF warnings only, no errors
 ```
 
 ---

@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
+import asyncio
 
 # Isolated test DB
 fd, path = tempfile.mkstemp(suffix='.db')
@@ -14,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.main import app
 from app.models import db, rows, row, init_db, now
+from app.governance import run_governance_analysis
+from app.ai_adapter import OfflineProvider
 
 @pytest.fixture(autouse=True)
 def setup_teardown():
@@ -28,6 +31,29 @@ def setup_teardown():
         conn.execute("DELETE FROM facts")
         conn.execute("DELETE FROM rules")
     yield
+
+
+def test_governance_analysis_uses_only_the_review_workspace_policy_and_facts(monkeypatch):
+    """A review must not produce findings from another workspace's evidence."""
+    monkeypatch.setattr("app.governance.get_ai_provider", lambda: OfflineProvider())
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO rules (id, workspace_id, title, category, kind, pattern, requirement, severity, version, status, owner, source_title, source_excerpt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("rule_foreign", "ws_unrelated", "Foreign rule", "terminology", "prohibited_phrase", "foreign-only", "Do not use it", "HIGH", "1", "APPROVED", "Admin", "Foreign policy", "Foreign policy excerpt", now()),
+        )
+        conn.execute(
+            "INSERT INTO facts (id, workspace_id, claim, value, owner, status, version, source_title, source_excerpt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("fact_foreign", "ws_unrelated", "Foreign fact", "foreign fact value", "Admin", "APPROVED", "1", "Foreign evidence", "Foreign evidence excerpt", now()),
+        )
+        conn.execute(
+            "INSERT INTO reviews (id, workspace_id, title, content, content_type, status, score, author, analysis_method, rule_versions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("review_default", "ws_default", "Default review", "foreign-only foreign fact value", "web", "IN_REVIEW", 100, "demo.creator", "DETERMINISTIC_FIRST", "{}", now(), now()),
+        )
+
+    asyncio.run(run_governance_analysis({
+        "id": "review_default", "workspace_id": "ws_default", "content": "foreign-only foreign fact value",
+    }))
+    assert rows("SELECT * FROM findings WHERE review_id=?", ("review_default",)) == []
 
 @pytest.mark.asyncio
 async def test_fact_update_preserves_snapshot_and_impacts_only_linked_reviews():

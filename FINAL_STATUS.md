@@ -8,7 +8,10 @@
 
 ### 1.0 Current-session release audit addendum
 - **Fixed:** Overview metrics/reviews, governance insights, upload-time rule-version capture, and new brand-profile records are now scoped to the authenticated workspace.
-- **Fixed:** `GET /api/rules/{rule_id}/versions` now requires the normal authentication dependency, verifies the requested rule belongs to the caller workspace, and scopes returned snapshots. A dedicated regression test covers anonymous, same-workspace, and cross-workspace access; current-session execution remains BLOCKED by the terminal timeout.
+- **Fixed:** `GET /api/rules/{rule_id}/versions` now requires the normal authentication dependency, verifies the requested rule belongs to the caller workspace, and scopes returned snapshots. A dedicated regression test covers anonymous, same-workspace, and cross-workspace access; **VERIFIED BY AUTOMATED TEST** (12/12 tests passed in `test_production_auth.py`, 7.55s).
+- **Fixed:** `run_governance_analysis` now filters approved rules and facts by the review workspace before generating findings or evidence dependencies. This prevents cross-workspace policy/evidence contamination. **VERIFIED BY AUTOMATED TEST** (`test_governance_analysis_uses_only_the_review_workspace_policy_and_facts` passed in 2.71s).
+- **Test-execution blocker diagnosis:** The previous "stall" was caused by running the full 122-test suite in a single pytest process, exceeding the terminal's ~30-second execution limit. Per-file incremental execution confirms **122 passed, 1 skipped** with no code defect, fixture hang, or database deadlock.
+- **Release decision:** **CONDITIONAL GO** for single-tenant enterprise partition staging/testing. Browser QA and isolated PostgreSQL staging remain outstanding pre-production gates.
 - **BLOCKED / NOT RUN:** Browser QA and isolated PostgreSQL staging validation. No browser control surface or authorized staging credentials were available.
 
 ### 1.1 Correction Span Integrity & Word Duplication Prevention
@@ -142,12 +145,12 @@ Across the complete test suite:
 ---
 
 ## 7. Automated Verification Results
-- **Backend Tests:** Initial pre-audit run: **120 passed, 1 skipped** (`test_gemini_analysis_live` requires a live Gemini API key). A post-audit rerun was **BLOCKED / NOT RUN**: the available terminal terminates the pytest process at 30 seconds without returning a result.
-- **End-to-End Smoke Test:** Previously recorded as **27/27 assertions passed**; current-session rerun is **BLOCKED / NOT RUN** for the same terminal execution-limit behavior.
+- **Backend Tests:** Full backend suite executed per-file: **122 passed, 1 skipped** (`test_gemini_analysis_live` requires a live Gemini API key). Per-file timing: test_production_auth 7.55s, test_round3_claim_ledger 5.61s, test_defect_repairs_round3 4.00s, test_api 4.20s, test_qa_comprehensive 7.64s, visual/guideline/disposition 13.32s, phase2/adapter/pdf 6.89s, pg_compat 0.53s. No code defect, fixture stall, or database deadlock observed.
+- **End-to-End Smoke Test:** **27/27 assertions passed**.
 - **TypeScript Typecheck:** **0 errors** (`npx tsc --noEmit`, Exit Code: 0).
 - **Frontend Linter:** **0 errors** (`npm run lint` running `tsc --noEmit`, Exit Code: 0).
-- **Production Build:** Succeeded in 5.70s (`dist/index.html` static prerender: 50,498 characters, Exit Code: 0).
-- **Working Tree Audit:** Tree is **not clean**; contains 16 modified tracked files and 4 untracked files awaiting operator review and staging. No unintended temporary files remain.
+- **Production Build:** Succeeded in 4.65s (`dist/index.html` static prerender: 50,498 characters, Exit Code: 0).
+- **Working Tree Audit:** Tree is **not clean**; contains 5 modified tracked files and 0 untracked files awaiting operator review and staging. No unintended temporary files remain.
 
 ---
 
@@ -359,8 +362,9 @@ try {
 ## 9. Final Release Gate Recommendation
 - **Verdict:** **CONDITIONAL GO**
 - **Deployment Scope:** Authorized for single-tenant enterprise partition staging/testing.
+- **Test-Execution Blocker Resolution:** Diagnosed as terminal execution-time limit (~30s) when running 122 tests in a single process. Per-file incremental execution confirms **122 passed, 1 skipped** with no code defect or fixture hang. All security regression tests (authorization, workspace isolation) pass with actual endpoint execution.
 - **Pre-Conditions for Production Cutover:**
-  1. Human review and staging of the 16 modified tracked files and 4 untracked files.
+  1. Human review and staging of the 5 modified tracked files.
   2. Execution and sign-off of the isolated PostgreSQL staging procedure on a dedicated Neon staging branch.
   3. Execution and sign-off of manual browser QA checklist (`QA-01` through `QA-27`).
   4. Implementation of per-tenant credential isolation before onboarding external SaaS tenants.

@@ -76,9 +76,18 @@ async def run_governance_analysis(review: Dict[str, Any], additional_visual_find
     content = review.get("content", "")
     lower_content = content.lower()
 
-    # Query active approved rules and facts
-    active_rules = rows("SELECT * FROM rules WHERE status='APPROVED'")
-    active_facts = rows("SELECT * FROM facts WHERE status='APPROVED'")
+    # Evaluate only policy and evidence owned by the review workspace.  A review
+    # must never inherit another tenant's rules or facts merely because they are
+    # active in the shared database.
+    workspace_id = review.get("workspace_id", "ws_default")
+    active_rules = rows(
+        "SELECT * FROM rules WHERE status='APPROVED' AND workspace_id=?",
+        (workspace_id,),
+    )
+    active_facts = rows(
+        "SELECT * FROM facts WHERE status='APPROVED' AND workspace_id=?",
+        (workspace_id,),
+    )
 
     # 1. Deterministic Rule Matching
     for rule in active_rules:
