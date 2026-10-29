@@ -15,9 +15,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-fd, path = tempfile.mkstemp(suffix='.db')
-os.close(fd)
-os.environ['DATABASE_URL'] = f'sqlite:///{path}'
+if 'DATABASE_URL' not in os.environ:
+    fd, path = tempfile.mkstemp(suffix='.db')
+    os.close(fd)
+    os.environ['DATABASE_URL'] = f'sqlite:///{path}'
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.main import app
@@ -733,6 +734,9 @@ def test_rule_version_history_requires_auth_and_workspace_membership():
         try:
             config.ALLOW_DEMO_AUTH = True
             init_db()
+            with db() as conn:
+                conn.execute("DELETE FROM rules")
+                conn.execute("DELETE FROM rule_versions")
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
                 await client.post('/api/demo/setup', headers=DEMO_HDR)

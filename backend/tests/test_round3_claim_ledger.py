@@ -8,9 +8,10 @@ import pytest
 import asyncio
 
 # Isolated test DB
-fd, path = tempfile.mkstemp(suffix='.db')
-os.close(fd)
-os.environ['DATABASE_URL'] = f'sqlite:///{path}'
+if 'DATABASE_URL' not in os.environ:
+    fd, path = tempfile.mkstemp(suffix='.db')
+    os.close(fd)
+    os.environ['DATABASE_URL'] = f'sqlite:///{path}'
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.main import app

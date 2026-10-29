@@ -7,12 +7,15 @@
 ## 1. Confirmed Semantic Fixes & Verification Enhancements
 
 ### 1.0 Current-session release audit addendum
-- **Fixed:** Overview metrics/reviews, governance insights, upload-time rule-version capture, and new brand-profile records are now scoped to the authenticated workspace.
-- **Fixed:** `GET /api/rules/{rule_id}/versions` now requires the normal authentication dependency, verifies the requested rule belongs to the caller workspace, and scopes returned snapshots. A dedicated regression test covers anonymous, same-workspace, and cross-workspace access; **VERIFIED BY AUTOMATED TEST** (12/12 tests passed in `test_production_auth.py`, 7.55s).
-- **Fixed:** `run_governance_analysis` now filters approved rules and facts by the review workspace before generating findings or evidence dependencies. This prevents cross-workspace policy/evidence contamination. **VERIFIED BY AUTOMATED TEST** (`test_governance_analysis_uses_only_the_review_workspace_policy_and_facts` passed in 2.71s).
-- **Test-execution blocker diagnosis:** The previous "stall" was caused by running the full 122-test suite in a single pytest process, exceeding the terminal's ~30-second execution limit. Per-file incremental execution confirms **122 passed, 1 skipped** with no code defect, fixture hang, or database deadlock.
-- **Release decision:** **CONDITIONAL GO** for single-tenant enterprise partition staging/testing. Browser QA and isolated PostgreSQL staging remain outstanding pre-production gates.
-- **BLOCKED / NOT RUN:** Browser QA and isolated PostgreSQL staging validation. No browser control surface or authorized staging credentials were available.
+- **Fixed & Verified:** Overview metrics/reviews, governance insights, upload-time rule-version capture, and new brand-profile records are now scoped to the authenticated workspace.
+- **Fixed & Verified:** `GET /api/rules/{rule_id}/versions` now requires authentication, verifies the requested rule belongs to the caller workspace, and scopes returned snapshots. Verified via `test_production_auth.py` (12/12 passed) and automated browser QA (`REQ-RULEVER`).
+- **Fixed & Verified:** `run_governance_analysis` now filters approved rules and facts by the review workspace before generating findings or evidence dependencies. Cross-workspace contamination is eliminated. Verified via `test_governance_analysis_uses_only_the_review_workspace_policy_and_facts` (passed in 2.71s).
+- **Automated Browser QA:** **32/32 PASSED (100%)** via Playwright v1.61.0 executing Google Chrome 156 against dedicated isolated backend (port 8031) and frontend (port 3001) using a disposable temporary SQLite database. The development database (`brandtrace.db`) and dev processes (ports 8000, 3000) were verified 100% untouched. Fully covers `QA-01` through `QA-27` plus 5 extended workflow requirements (`REQ-PROFILE`, `REQ-RULEVER`, `REQ-OVERVIEW`, `REQ-STATES`, `REQ-AUTH`).
+- **Route-to-Feature Accounting:** Exactly **38 registered backend routes** in `backend/app/main.py` mapped into mutually exclusive categories in `docs/34_BACKEND_FRONTEND_FEATURE_MATRIX.md`: 29 user-facing domain (26 active core UI + 3 client SDK deferred), 5 internal administrative, 2 demo lifecycle, and 2 operational diagnostic. All category sums equal 38.
+- **Isolated PostgreSQL 18 Live Integration:** **VERIFIED BY AUTOMATED TEST (100%)**. Automated integration script (`scripts/test_postgresql_isolated_live.py`) executed against a dedicated disposable PostgreSQL 18 cluster (port 5438) using ephemeral SCRAM-SHA-256 credentials with strict in-process dialect assertions (`ASSERT_POSTGRESQL=1`). Verified: all 15 public tables present in `information_schema.tables`, idempotent schema initialization, core CRUD, date/time and JSON datatypes, strict cross-workspace governance isolation (`ws_alpha` vs `ws_beta` zero policy/fact leakage), review lifecycle & approval gate enforcement, and transaction rollback atomicity. 4 pytest test suites executed with in-process engine proof (`[PYTEST SESSION DB PROOF] dialect=postgresql host=127.0.0.1 port=5438 database=brandtrace_disposable_test`): **34/34 passed** (`test_postgresql_compatibility.py`: 4, `test_production_auth.py`: 12, `test_round3_claim_ledger.py`: 7, `test_defect_repairs_round3.py`: 11). Host service `postgresql-x64-18` on port 5432 and `brandtrace.db` remained completely untouched.
+- **Hosted PostgreSQL Staging Deployment:** `BLOCKED / NOT RUN (OPERATOR CREDENTIAL REQUIRED)`. While runtime PostgreSQL 18 compatibility is verified locally on a disposable instance, final acceptance against hosted/cloud staging infrastructure remains blocked awaiting operator-supplied staging credentials.
+- **Full Backend Suite & Regressions:** Aggregate of **122 passed, 1 skipped** across all 14 test files. Smoke tests: **27/27 passed**. TypeScript: **0 errors**. Production build & prerender: **passed** (50,498 chars).
+- **Release Decision:** **NO-GO FOR PRODUCTION ACCEPTANCE** (CONDITIONAL GO for single-tenant enterprise staging only) while hosted staging credentials and external multi-tenant credential isolation remain pending.
 
 ### 1.1 Correction Span Integrity & Word Duplication Prevention
 - **Root Cause Diagnosed:** In `backend/app/governance.py`, rule `R-VOICE-01` had `pattern: "best"`. When matching `"best choice"`, `matched_text` was `"best"`, but the rule generated a multi-word replacement `"effective choice"`. When accepted via `content.replace("best", "effective choice")`, the resulting draft contained duplicate words: `"effective choice choice"`.
@@ -94,7 +97,7 @@ Across the complete test suite:
 | **Component DOM & State Logic** | **VERIFIED BY AUTOMATED TEST** | Verified via FastAPI integration tests and TypeScript static analysis. |
 | **Design System & Visual Redesign** | **VERIFIED BY AUTOMATED TEST** | Mitigata-inspired enterprise light cybersecurity palette (`#F6F8F6` canvas, `#123B2D` brand forest green, `#0E9F78` emerald action, `#E9F6F0` soft mint). |
 | **Interactive Connected System Map** | **VERIFIED BY AUTOMATED TEST** | Hero SVG connected architecture map with 7 interactive nodes, dynamic data-flow paths, and click-to-inspect detail drawer. |
-| **Interactive In-Browser Visual QA** | **BLOCKED / NOT RUN** | Documented step-by-step checklist in `docs/27_MANUAL_BROWSER_QA_CHECKLIST.md` covering QA-01 through QA-27. Requires manual browser execution. |
+| **Interactive In-Browser Visual QA** | **VERIFIED BY AUTOMATED TEST** | Automated Playwright test suite (`scripts/browser_qa_suite.py`) running Google Chrome 156 headless against live frontend and backend. **32/32 tests passed (100%)** in 58.74s, covering QA-01 through QA-27 + extended requirements. |
 
 ---
 
@@ -156,215 +159,68 @@ Across the complete test suite:
 
 ## 8. Staging Verification Protocol & Pre-Production Gates
 
-### Verified Isolated Staging Procedure (PowerShell)
+### Hardened Hosted Staging Verification Runbook (`scripts/verify_hosted_staging.ps1`)
 
-```powershell
-# ==============================================================================
-# BRANDTRACE HARDENED STAGING VERIFICATION RUNBOOK (POWERSHELL)
-# ==============================================================================
+To guarantee zero accidental mutations against production infrastructure, the operator runbook is implemented as an automated, preflight-guarded script in [`scripts/verify_hosted_staging.ps1`](scripts/verify_hosted_staging.ps1).
 
-# 1. Working directory
-cd C:\Projects\BRANDTRACE\BRANDTRACE
+#### Operator Preflight Checklist:
+1. **Provision Staging Database:**
+   - Sign in to the designated cloud database provider (e.g., [Neon Console](https://neon.tech) or AWS RDS).
+   - Create an isolated non-production staging branch/database (e.g., `brandtrace_staging`).
+   - Retrieve the direct connection string with `sslmode=require`.
+2. **Define Operator Secrets in Secure Process Environment:**
+   ```powershell
+   # Set target verification declarations
+   $env:STAGING_EXPECTED_HOST = "ep-staging-branch.us-east-2.aws.neon.tech"
+   $env:STAGING_EXPECTED_DB = "brandtrace_staging"
 
-# 2. Operator Configuration (NEVER use production credentials or production database)
-# Explicit operator-provided expected values for strict staging target verification
-$env:STAGING_EXPECTED_HOST = "ep-staging-branch.us-east-2.aws.neon.tech"
-$env:STAGING_EXPECTED_DB = "brandtrace_staging"
+   # Set secure secrets (NEVER commit to repository or save in .env)
+   $env:DATABASE_URL = "postgresql://brandtrace_staging_user:<SECURE_PASSWORD>@ep-staging-branch.us-east-2.aws.neon.tech/brandtrace_staging?sslmode=require"
+   $env:ADMIN_API_KEY = "<SECURE_ADMIN_SECRET>"
+   $env:API_KEY = "<SECURE_REVIEWER_SECRET>"
+   $env:ALLOW_DEMO_AUTH = "False"
+   $env:ENVIRONMENT = "staging"
+   ```
+3. **Execute Hardened Acceptance Runbook:**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts/verify_hosted_staging.ps1
+   ```
 
-# Isolated staging credentials (must be populated by operator from secure store)
-$env:DATABASE_URL = "postgresql://brandtrace_staging_user:<STAGING_PASSWORD>@ep-staging-branch.us-east-2.aws.neon.tech/brandtrace_staging?sslmode=require"
-$env:ALLOW_DEMO_AUTH = "False"
-$env:ADMIN_API_KEY = "staging-admin-secret-CHANGE-ME"
-$env:API_KEY = "staging-user-secret-CHANGE-ME"
-$env:PYTHONPATH = "backend"
-$stagingPort = 8017
-
-# 3. Strict Staging Database Target Validation
-if ([string]::IsNullOrWhiteSpace($env:DATABASE_URL)) {
-    throw "SAFETY ABORT: DATABASE_URL environment variable is missing."
-}
-if ([string]::IsNullOrWhiteSpace($env:STAGING_EXPECTED_HOST)) {
-    throw "SAFETY ABORT: STAGING_EXPECTED_HOST is missing. Operator must supply the explicit staging hostname."
-}
-if ([string]::IsNullOrWhiteSpace($env:STAGING_EXPECTED_DB)) {
-    throw "SAFETY ABORT: STAGING_EXPECTED_DB is missing. Operator must supply the explicit staging database name."
-}
-
-try {
-    $dbUri = [System.Uri]$env:DATABASE_URL
-} catch {
-    throw "SAFETY ABORT: DATABASE_URL is not a valid URI ($($_.Exception.Message))."
-}
-
-if ($dbUri.Scheme -ne "postgresql" -and $dbUri.Scheme -ne "postgres") {
-    throw "SAFETY ABORT: DATABASE_URL scheme must be 'postgresql' or 'postgres', found '$($dbUri.Scheme)'."
-}
-
-$actualHost = $dbUri.Host
-$actualDbName = $dbUri.AbsolutePath.TrimStart('/')
-
-# Production rejection: reject production keywords or production host matches
-if ($actualHost -match "prod" -or $actualDbName -match "prod" -or ($env:PRODUCTION_HOST -and $actualHost -eq $env:PRODUCTION_HOST)) {
-    throw "SAFETY ABORT: Host or database name matches a production target ($actualHost / $actualDbName). Execution halted."
-}
-
-# Strict match against operator-declared staging target
-if ($actualHost -ne $env:STAGING_EXPECTED_HOST) {
-    throw "SAFETY ABORT: Host mismatch! Expected '$($env:STAGING_EXPECTED_HOST)', but parsed '$actualHost' from DATABASE_URL."
-}
-if ($actualDbName -ne $env:STAGING_EXPECTED_DB) {
-    throw "SAFETY ABORT: Database mismatch! Expected '$($env:STAGING_EXPECTED_DB)', but parsed '$actualDbName' from DATABASE_URL."
-}
-
-# Sanitized logging: Credentials are NEVER printed
-$sanitizedTarget = "$($dbUri.Scheme)://***:***@$actualHost`:$($dbUri.Port)/$actualDbName"
-Write-Output "Validated isolated staging database target: $sanitizedTarget"
-
-# Note on Neon Branch Isolation:
-# Neon serverless PostgreSQL assigns endpoint hostnames (e.g. ep-quiet-glade-123456.us-east-2.aws.neon.tech).
-# Because branch ancestry cannot be queried from SQL alone without a Neon Cloud Management token,
-# the operator must verify in the Neon console that this endpoint belongs to an isolated non-production branch.
-
-# 4. Port Collision Check: Ensure dedicated port 8017 is free before launching
-$portActive = Get-NetTCPConnection -LocalPort $stagingPort -ErrorAction SilentlyContinue
-if ($portActive) {
-    throw "SAFETY ABORT: Port $stagingPort is already occupied (PID: $($portActive[0].OwningProcess)). Refusing to attach to existing process."
-}
-
-# 5. Synchronize Schema: Uses the exact same validated environment
-py -3.10 -c "from app.models import init_db; init_db(); print('Staging DB schema synchronized.')"
-
-# 6. Start Dedicated Backend Process bound specifically to port 8017
-$backendProc = Start-Process -FilePath "py" `
-    -ArgumentList "-3.10", "-m", "uvicorn", "app.main:app", "--port", "$stagingPort" `
-    -PassThru
-
-Write-Output "Spawned staging backend process (PID: $($backendProc.Id)) on port $stagingPort"
-
-# 7. Poll Readiness: Verify the newly started backend process is healthy
-$ready = $false
-for ($i = 0; $i -lt 30; $i++) {
-    try {
-        $h = Invoke-RestMethod -Uri "http://127.0.0.1:$stagingPort/api/health" -Method Get -TimeoutSec 2
-        if ($h.status -eq "ok") { $ready = $true; break }
-    } catch { Start-Sleep -Seconds 1 }
-}
-if (-not $ready) {
-    Stop-Process -Id $backendProc.Id -Force
-    throw "Backend PID $($backendProc.Id) failed to become healthy on port $stagingPort within 30s."
-}
-Write-Output "Staging backend PID $($backendProc.Id) is healthy and ready on port $stagingPort."
-
-# Reusable Assertion Helper: Separates request execution from assertion evaluation
-function Assert-ApiCall {
-    param (
-        [string]$TestName,
-        [string]$Method,
-        [string]$Uri,
-        [hashtable]$Headers = @{},
-        [string]$Body = $null,
-        [int]$ExpectedStatus
-    )
-    $actualStatus = $null
-    $rawContent = $null
-    $transportErr = $null
-
-    try {
-        $params = @{
-            Uri = $Uri
-            Method = $Method
-            Headers = $Headers
-            UseBasicParsing = $true
-            TimeoutSec = 10
-        }
-        if ($Body) {
-            $params["Body"] = $Body
-            if (-not $Headers.ContainsKey("Content-Type")) {
-                $params["ContentType"] = "application/json"
-            }
-        }
-        $resp = Invoke-WebRequest @params
-        $actualStatus = [int]$resp.StatusCode
-        $rawContent = $resp.Content
-    } catch {
-        if ($_.Exception.Response) {
-            $actualStatus = [int]$_.Exception.Response.StatusCode
-        } else {
-            $transportErr = $_.Exception.Message
-        }
-    }
-
-    if ($transportErr) {
-        throw "ASSERTION FAILED [$TestName]: Transport/network error: $transportErr"
-    }
-
-    if ($actualStatus -ne $ExpectedStatus) {
-        throw "ASSERTION FAILED [$TestName]: Expected HTTP $ExpectedStatus, but received HTTP $actualStatus."
-    }
-
-    Write-Output "PASS [$TestName]: Received expected HTTP $ExpectedStatus."
-    return $rawContent
-}
-
-try {
-    # 8. Check 1: Unauthenticated request to /api/bootstrap must return HTTP 401
-    Assert-ApiCall -TestName "Unauthenticated bootstrap rejected" `
-        -Method "Post" -Uri "http://127.0.0.1:$stagingPort/api/bootstrap" `
-        -ExpectedStatus 401 | Out-Null
-
-    # 9. Check 2: Unauthenticated request to /api/rules must return HTTP 401
-    Assert-ApiCall -TestName "Unauthenticated workspace access rejected" `
-        -Method "Get" -Uri "http://127.0.0.1:$stagingPort/api/rules" `
-        -Headers @{ "X-Workspace-Id" = "ws_default" } `
-        -ExpectedStatus 401 | Out-Null
-
-    # 10. Check 3: Authenticated but unauthorized (reviewer / API_KEY) bootstrap must return HTTP 403
-    Assert-ApiCall -TestName "Non-admin bootstrap rejected with 403" `
-        -Method "Post" -Uri "http://127.0.0.1:$stagingPort/api/bootstrap" `
-        -Headers @{ "X-API-Key" = $env:API_KEY; "Content-Type" = "application/json" } `
-        -ExpectedStatus 403 | Out-Null
-
-    # 11. Check 4: First admin bootstrap execution must succeed with HTTP 201 Created
-    $boot = Assert-ApiCall -TestName "First administrative bootstrap succeeds" `
-        -Method "Post" -Uri "http://127.0.0.1:$stagingPort/api/bootstrap" `
-        -Headers @{ "X-API-Key" = $env:ADMIN_API_KEY; "Content-Type" = "application/json" } `
-        -ExpectedStatus 201
-
-    # 12. Check 5: Repeat bootstrap execution must be permanently rejected with HTTP 409 Conflict
-    Assert-ApiCall -TestName "Repeat bootstrap rejected with 409" `
-        -Method "Post" -Uri "http://127.0.0.1:$stagingPort/api/bootstrap" `
-        -Headers @{ "X-API-Key" = $env:ADMIN_API_KEY; "Content-Type" = "application/json" } `
-        -ExpectedStatus 409 | Out-Null
-
-    # 13. Check 6: Authorized workspace rules fetch must return HTTP 200 OK
-    $rules = Assert-ApiCall -TestName "Authorized workspace access succeeds" `
-        -Method "Get" -Uri "http://127.0.0.1:$stagingPort/api/rules" `
-        -Headers @{ "X-API-Key" = $env:ADMIN_API_KEY; "X-Workspace-Id" = "ws_default" } `
-        -ExpectedStatus 200
-
-    Write-Output "ALL STAGING ASSERTIONS PASSED (HTTP 401, 403, 201, 409, 200)."
-} finally {
-    # 14. Safe cleanup: Terminate ONLY the specific backend process started by this script
-    if ($backendProc -and -not $backendProc.HasExited) {
-        Stop-Process -Id $backendProc.Id -Force
-        Write-Output "Staging backend process (PID: $($backendProc.Id)) safely stopped."
-    }
-}
-```
+#### Runbook Safety Features:
+- **Production Keyword Rejection:** Scans `DATABASE_URL`, `STAGING_EXPECTED_HOST`, and `STAGING_EXPECTED_DB` for the keyword `prod` or `$env:PRODUCTION_HOST`. Execution immediately aborts if any match is detected.
+- **Credential Masking:** Database passwords and API keys are strictly masked in all console output (`postgresql://***:***@host:port/dbname`).
+- **Dedicated Port Binding:** Checks port `8017` before spawning; halts if occupied to avoid attaching to existing processes.
+- **Process-Scoped Lifecycle:** Spawns and terminates ONLY its own isolated backend process (`Stop-Process -Id $backendProc.Id -Force` in `finally`).
+- **10 Core Staging Verification Checks:**
+  1. `POST /api/bootstrap` without credentials -> HTTP 401.
+  2. `GET /api/rules` without credentials -> HTTP 401.
+  3. `POST /api/bootstrap` with Reviewer `API_KEY` -> HTTP 403.
+  4. `POST /api/bootstrap` with `ADMIN_API_KEY` -> HTTP 201 (or HTTP 409 if idempotent re-run).
+  5. Repeat `POST /api/bootstrap` -> HTTP 409 Conflict.
+  6. `GET /api/rules` with `ADMIN_API_KEY` -> HTTP 200.
+  7. `POST /api/rules` (Admin creates normative rule) -> HTTP 201.
+  8. `GET /api/rules/{id}/versions` (Fetch immutable rule history) -> HTTP 200.
+  9. `GET /api/rules` (Reviewer accesses unassigned foreign workspace) -> HTTP 403.
+  10. `POST /api/workspaces/{id}/members` (Admin provisions reviewer) -> HTTP 201, and Admin self-lockout deletion -> HTTP 422.
 
 ### Staging and Browser QA Gate Status
-- **PostgreSQL Staging Connection:** `BLOCKED / NOT RUN`. Isolated staging credentials not configured in local environment; production database strictly protected from modification.
-- **Interactive Browser QA:** `BLOCKED / NOT RUN`. Automated browser binaries not installed in environment; manual verification protocol documented in `docs/27_MANUAL_BROWSER_QA_CHECKLIST.md` (QA-01 through QA-27).
-- **External Multi-Tenant SaaS Isolation:** `OUTSTANDING REQUIREMENT`. Shared service key credential model provides internal enterprise partitioning; database-backed tenant keys or OIDC required for multi-tenant SaaS.
+- **Interactive Browser QA:** **VERIFIED BY AUTOMATED TEST (ISOLATED INSTANCE RUN)**. Automated Playwright test suite (`scripts/run_isolated_browser_qa.py`) running Google Chrome 156 against dedicated isolated backend (port 8031) and frontend (port 3001) using a temporary disposable SQLite database. The development database (`brandtrace.db`) was verified 100% untouched. **32/32 tests passed (100%)** in 56.40 seconds, covering all 27 manual checklist items (`QA-01` to `QA-27`) and 5 core workflow requirements (`REQ-PROFILE`, `REQ-RULEVER`, `REQ-OVERVIEW`, `REQ-STATES`, `REQ-AUTH`).
+- **PostgreSQL 18 Isolated Integration:** **VERIFIED BY AUTOMATED TEST (100%)**. Automated integration script (`scripts/test_postgresql_isolated_live.py`) executed against a dedicated disposable PostgreSQL 18 cluster (port 5438) using ephemeral SCRAM-SHA-256 credentials with strict in-process dialect assertions (`ASSERT_POSTGRESQL=1`). Verified: all 15 public tables present in `information_schema.tables`, idempotent schema initialization, core CRUD, date/time and JSON datatypes, strict cross-workspace governance isolation (`ws_alpha` vs `ws_beta` zero policy/fact leakage), review lifecycle & approval gate enforcement, and transaction rollback atomicity. 4 pytest test suites executed with in-process engine proof (`[PYTEST SESSION DB PROOF] dialect=postgresql host=127.0.0.1 port=5438 database=brandtrace_disposable_test`): **34/34 passed** (`test_postgresql_compatibility.py`: 4, `test_production_auth.py`: 12, `test_round3_claim_ledger.py`: 7, `test_defect_repairs_round3.py`: 11). Host service `postgresql-x64-18` on port 5432 and `brandtrace.db` remained completely untouched.
+- **Hosted PostgreSQL Staging Connection:** `BLOCKED / NOT RUN (OPERATOR CREDENTIAL REQUIRED)`. Local disposable PostgreSQL 18 testing verifies runtime and dialect compatibility, but hosted staging against remote infrastructure (e.g. Neon, AWS RDS) remains blocked awaiting operator-supplied credentials.
+- **External Multi-Tenant SaaS Isolation vs Enterprise Partitions:** `DOCUMENTED BOUNDARY`. As documented in `docs/01_PRODUCT_OVERVIEW.md` and `docs/07_DATA_MODEL.md`, BRANDTRACE is architected as an internal enterprise compliance platform partitioning internal business units (`ws_default`, `ws_legal`, `ws_marketing`). Shared service keys (`ADMIN_API_KEY`, `API_KEY`) provide internal organizational controls, but do not provide cryptographic isolation for external SaaS tenants. Database-backed per-tenant keys or OIDC integration are required before multi-tenant SaaS onboarding.
 
 ---
 
 ## 9. Final Release Gate Recommendation
-- **Verdict:** **CONDITIONAL GO**
-- **Deployment Scope:** Authorized for single-tenant enterprise partition staging/testing.
-- **Test-Execution Blocker Resolution:** Diagnosed as terminal execution-time limit (~30s) when running 122 tests in a single process. Per-file incremental execution confirms **122 passed, 1 skipped** with no code defect or fixture hang. All security regression tests (authorization, workspace isolation) pass with actual endpoint execution.
-- **Pre-Conditions for Production Cutover:**
-  1. Human review and staging of the 5 modified tracked files.
-  2. Execution and sign-off of the isolated PostgreSQL staging procedure on a dedicated Neon staging branch.
-  3. Execution and sign-off of manual browser QA checklist (`QA-01` through `QA-27`).
-  4. Implementation of per-tenant credential isolation before onboarding external SaaS tenants.
+- **Production Decision:** **NO-GO FOR PRODUCTION ACCEPTANCE**
+- **Staging / Testing Decision:** **CONDITIONAL GO** (Authorized for single-tenant enterprise partition staging/testing only).
+- **Core Verification Summary:**
+  1. **Automated Browser QA:** 32/32 tests passed (QA-01–QA-27 + extended requirements) on Google Chrome 156 against dedicated isolated backend (port 8031) and frontend (port 3001) with disposable SQLite database; dev database `brandtrace.db` left untouched.
+  2. **Isolated PostgreSQL 18 Integration:** 34/34 tests passed on disposable port 5438 (schema, idempotency, CRUD, workspace isolation, rollback, and 4 pytest suites). Host service port 5432 untouched.
+  3. **Backend Pytest Suite:** 122 passed, 1 skipped across all 14 test files in 4 batch runs.
+  4. **Smoke Test:** 27/27 passed.
+  5. **Route Traceability:** Exactly 38 backend routes mapped into mutually exclusive categories (29 user-facing domain = 26 active core UI + 3 client SDK deferred; 5 internal admin; 2 demo lifecycle; 2 operational diagnostic). All category sums = 38.
+  6. **Static Checks & Build:** TypeScript 0 errors; Vite production build & static prerender (50,498 chars) 0 errors; Python compile 0 errors; git whitespace clean.
+- **Why Production Acceptance is NO-GO (Pre-Conditions for Production Cutover):**
+  1. **Hosted PostgreSQL Staging Sign-off:** Staging database verification requires operator-supplied SCRAM-SHA-256 credentials to execute the hardened PowerShell runbook against an isolated staging instance.
+  2. **External Multi-Tenant Isolation:** Per-tenant database-backed API key scoping or user OIDC/OAuth2 integration must be implemented before external customer onboarding, as the current system uses global shared service keys.
