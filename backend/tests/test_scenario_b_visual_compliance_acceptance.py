@@ -55,7 +55,7 @@ def test_scenario_b_visual_compliance_fixtures_and_evaluations():
         )
 
     approved_palette = ["#0f766e", "#2dd4bf", "#123b2d"]
-    c_results = analyze_image_compliance(c_data, approved_palette=approved_palette, min_contrast=4.5)
+    c_results = analyze_image_compliance(c_data, approved_palette=approved_palette, min_contrast=4.5, workspace_id="ws_default")
     c_findings = c_results["visual_findings"]
 
     # Assert compliant outcomes:
@@ -85,7 +85,7 @@ def test_scenario_b_visual_compliance_fixtures_and_evaluations():
             (ident("asset"), "Unapproved Promotional Graphic", "image", nc_hash, "EXPIRED_LICENSE", "RESTRICTED", "License expired Jan 2026", "ws_default", now(), now())
         )
 
-    nc_results = analyze_image_compliance(nc_data, approved_palette=approved_palette, min_contrast=4.5)
+    nc_results = analyze_image_compliance(nc_data, approved_palette=approved_palette, min_contrast=4.5, workspace_id="ws_default")
     nc_findings = nc_results["visual_findings"]
 
     # Asset registry finding is CONTRADICTED / RESTRICTED
