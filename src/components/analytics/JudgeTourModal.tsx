@@ -46,7 +46,7 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     title: '2. Multi-Format Content Analysis & Deterministic Engine',
-    tagline: 'Zero hallucinated violations. Exact passage spans with neutral replacements.',
+    tagline: 'Source-grounded evaluations. Exact passage spans with neutral replacements.',
     badge: 'Step 2 of 5',
     content:
       'Content (plain copy, Markdown, or PDF text layers) is analyzed through our deterministic first engine. Rules fire on exact regex and string boundaries. When rules are triggered, the engine proposes replacements only if a strictly neutral alternative exists, avoiding word duplication and broken grammar.',
@@ -70,11 +70,11 @@ const TOUR_STEPS: TourStep[] = [
       'Server-side gate returns HTTP 409 Conflict on unresolved high-severity findings',
       'Dismissals require auditable reason strings (reason cannot overwrite draft copy)',
       'QA metadata contamination strictly rejected with HTTP 422 Unprocessable Entity',
-      'Role-based permissions (Reviewer, Creator, Brand Admin, Auditor)',
+      'Simulated demo roles (Reviewer, Creator, Brand Admin, Auditor) with server-enforced authorization',
     ],
     targetView: 'Content Review',
     actionText: 'View Human Review Gate',
-    evidenceCode: 'POST /api/reviews/{id}/approval • HTTP 409 Conflict Gate',
+    evidenceCode: 'POST /api/reviews/{review_id}/approval • HTTP 409 Conflict Gate',
   },
   {
     title: '4. Immutable Version History & Chronological Audit Ledger',
@@ -90,7 +90,7 @@ const TOUR_STEPS: TourStep[] = [
     ],
     targetView: 'Audit History',
     actionText: 'Inspect Audit Ledger',
-    evidenceCode: 'GET /api/reviews/{id}/versions • GET /api/reviews/{id}/audit',
+    evidenceCode: 'GET /api/reviews/{review_id}/versions • GET /api/reviews/{review_id}/audit',
   },
   {
     title: '5. Rule-Change Impact Map & Guideline Health Intelligence',
@@ -102,7 +102,7 @@ const TOUR_STEPS: TourStep[] = [
       'Claim Impact Map identifies affected historical drafts with URGENT / RECOMMENDED tiers',
       'Targeted re-review trigger updates affected reviews without full database reset',
       'Reviewer disagreement telemetry detects conflicting dispositions across actors',
-      'Autonomous rule clarification lifecycle: PENDING → ACCEPTED → ACTIVATED',
+      'Reviewer-guided rule clarification lifecycle: PENDING → ACCEPTED → ACTIVATED',
     ],
     targetView: 'Governance Insights',
     actionText: 'Explore Impact & Telemetry',

@@ -16,6 +16,7 @@ import {
   AuditEntry,
   FactVersion,
 } from '../services/api';
+import { SystemStatus } from './system/SystemStatus';
 import { Edit2 } from 'lucide-react';
 import {
   WorkflowStepper,
@@ -205,10 +206,18 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
+    creator: 'Creator',
+    reviewer: 'Reviewer',
+    brand_admin: 'Brand Admin',
+    auditor: 'Auditor',
+  };
+
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
     setSimulatedUser(newRole);
-    setSuccess(`Role changed to ${newRole.toUpperCase()}. Server-side permissions updated.`);
+    const roleName = ROLE_DISPLAY_NAMES[newRole] || newRole;
+    setSuccess(`Demo role switched to ${roleName}. Backend authorization checks remain enforced.`);
     setTimeout(() => setSuccess(''), 4000);
   };
 
@@ -941,6 +950,9 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
             <option value="brand_admin">Brand Admin (Rules & Facts)</option>
             <option value="auditor">Auditor (Read-Only)</option>
           </select>
+          <div style={{ fontSize: 10, color: '#8A9A91', marginTop: 6, lineHeight: 1.4 }}>
+            Demo role simulation changes the request context for this demonstration. It does not create a real user account or grant independent production permissions.
+          </div>
         </div>
 
         {/* Governance Policy Notice */}
@@ -1091,9 +1103,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                       >
                         Evidence-Linked Governance
                       </span>
-                      <span style={{ fontSize: 11, color: '#A6CDBA', fontWeight: 600 }}>
-                        Single-Enterprise Staging Active
-                      </span>
+                      <SystemStatus variant="inline" className="text-white text-xs" />
                     </div>
                     <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF' }}>
                       Executive Governance Summary
@@ -1130,6 +1140,9 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
 
               {/* Architectural Scope & Transparency Banner */}
               <HonestLimitationsBanner />
+
+              {/* Truthful System & Environment Status Card */}
+              <SystemStatus variant="card" className="mb-6" showRefresh />
 
               {/* 4 Key Executive Performance Metrics */}
               <div
@@ -1814,7 +1827,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                             <div>
                               <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--bt-forest)' }}>Click to select a file</p>
                               <p style={{ margin: '6px 0 0', fontSize: 12, color: '#8A9A91' }}>
-                                Supported: PDF (pure-Python text extraction), PNG/JPEG (CIELAB Delta-E palette; dominant-colour ratios are reference only, not semantic WCAG text contrast; OCR & perceptual logo recognition unsupported)
+                                Supported: Digital PDF text extraction, PNG/JPEG palette analysis (CIELAB Delta-E), and SHA-256 asset verification. Raster OCR, semantic logo recognition, and unsegmented WCAG auditing are unsupported; uncertain checks require human review.
                               </p>
                             </div>
                           )}
@@ -3545,12 +3558,11 @@ function HelpWalkthroughView({ onLoadDemo, onResetDemo }: { onLoadDemo: () => vo
         }}>
           <div className="section-eyebrow" style={{ marginBottom: 12 }}>Technical Disclosures</div>
           <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#617168' }}>
-            <div>&bull; Automated tests: 21 passed, 1 skipped (requires live AI API key)</div>
-            <div>&bull; Smoke assertions: 27/27 passed</div>
+            <div>&bull; Automated regression test suites are executed in offline CI pipelines; runtime UI displays live backend connectivity and readiness rather than static test counters</div>
             <div>&bull; Deterministic policy checks run first; AI triage is additive and optional</div>
-            <div>&bull; No API key required for the local demo &mdash; the offline provider covers all core scenarios</div>
-            <div>&bull; Role simulation is client-side via X-Demo-Role header; no real authentication in demo mode</div>
-            <div>&bull; OCR for image uploads requires Tesseract installed locally; without it, a safe fallback notice is shown</div>
+            <div>&bull; No external API key required for core demo &mdash; deterministic rule matching and offline analysis cover primary governance workflows</div>
+            <div>&bull; Demo role simulation changes client request headers (X-Demo-Role); backend authorization checks remain enforced</div>
+            <div>&bull; Digital PDF text extraction supported; raster OCR and semantic logo recognition are not supported (Option B transparent notice)</div>
           </div>
         </div>
       </div>

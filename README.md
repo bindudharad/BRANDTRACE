@@ -27,7 +27,7 @@ Evidence-Aware Brand Governance and Content Review Platform
 | ??? **[Architecture](./docs/ARCHITECTURE.md)** | Complete system architecture, component boundaries, and sequence diagrams. |
 | ?? **[End-to-End Workflow](./docs/WORKFLOW_AND_STATE_MACHINE.md)** | State machine: submission, exact-span edit, approval gate, and audit logging. |
 | ?? **[API Reference](./docs/API_REFERENCE.md)** | All implemented endpoints, request schemas, and HTTP status codes. |
-| ?? **[Testing Guide](./docs/TESTING_AND_QA.md)** | Automated test suites (75 backend tests, 27 smoke tests) and verification proof. |
+| ?? **[Testing Guide](./docs/TESTING_AND_QA.md)** | Automated test suites (133 backend tests passed, 1 skipped; 32 browser QA tests; 27 smoke tests) and verification proof. |
 | ?? **[Known Limitations](./docs/SECURITY_AND_LIMITATIONS.md)** | Full transparency on simulated authentication, OCR requirements, and visual bounds. |
 | ?? **[Round 2 Summary](./docs/ROUND2_SUMMARY.md)** | Complete executive summary of Round 2 deliverables and architectural evolution. |
 | ??? **[Round 3 Roadmap](./docs/ROUND3_ROADMAP.md)** | Three major planned additions with measurable acceptance criteria. |
@@ -439,21 +439,29 @@ With the backend running, open the interactive OpenAPI docs at:
 
 **<http://127.0.0.1:8000/docs>**
 
-Key endpoint groups:
+Key endpoint groups (39 registered application routes across 4 categories):
 
 | Group | Path prefix | Purpose |
 |-------|------------|---------|
-| Health | `/api/health` | Liveness check |
-| Reviews | `/api/reviews` | Submit, list, get, update reviews |
-| Findings | `/api/reviews/{id}/findings/{id}/actions` | Disposition actions |
-| Approval | `/api/reviews/{id}/approval` | Approve, waive, request-changes |
-| Versions | `/api/reviews/{id}/versions` | Version history and restoration |
-| Audit | `/api/reviews/{id}/audit` | Audit event log |
-| Rules | `/api/rules` | Brand rule CRUD |
-| Facts | `/api/facts` | Approved fact CRUD |
-| Insights | `/api/insights` | Governance analytics |
-| Impact Map | `/api/governance/impact-map` | Affected-draft analysis |
-| Demo | `/api/demo/setup` | Reset to clean demo state |
+| Health | `/api/health` | Liveness diagnostic probe |
+| Ready | `/api/ready` | Readiness and database dialect probe |
+| Reviews | `/api/reviews` | Submit, list, get, upload (`/upload`), and update reviews |
+| Findings | `/api/reviews/{review_id}/findings/{finding_id}/actions` | Disposition actions |
+| Approval | `/api/reviews/{review_id}/approval` | Approve, waive, request-changes |
+| Versions | `/api/reviews/{review_id}/versions` | Version history and restoration (`/restore/{version_id}`) |
+| Audit | `/api/reviews/{review_id}/audit` | Append-only audit event log |
+| Rules | `/api/rules` | Brand rule CRUD & version history (`/api/rules/{rule_id}/versions`) |
+| Facts | `/api/facts` | Approved fact CRUD & version history (`/api/facts/{fact_id}/versions`) |
+| Profile | `/api/brand-profile` | Brand visual identity standards (GET/PUT) |
+| Assets | `/api/brand-assets` | Registered brand asset CRUD (`/api/brand-assets/{asset_id}`) & SHA-256 validation |
+| Insights | `/api/insights` | Governance analytics & violation trends |
+| Impact Map | `/api/governance/impact-map` | Affected-draft analysis & dependency graph |
+| Re-Review | `/api/governance/re-review-impact` | Targeted re-review trigger for affected drafts |
+| Health Intel | `/api/governance/guideline-health` | Guideline health telemetry & disagreement detection |
+| Suggestions | `/api/governance/rule-suggestions` | Triage proposals (`/api/governance/rule-suggestions/{rule_id}`) and activate (`/api/governance/rule-suggestions/{suggestion_id}/activate`) |
+| Workspaces | `/api/workspaces` | Workspace provisioning & membership management (`/api/workspaces/{workspace_id}/members`) |
+| Bootstrap | `/api/bootstrap` | Durable one-way initial system initialization |
+| Demo | `/api/demo/setup` | Reset / setup demo state (`/api/demo/reset`) |
 
 Full endpoint documentation: [`docs/08_API_REFERENCE.md`](./docs/08_API_REFERENCE.md)
 
@@ -546,7 +554,7 @@ See [`SECURITY.md`](./SECURITY.md) and [`docs/24_SECURITY_AND_PRIVACY.md`](./doc
 | **AI rule refinement** | Pattern analysis for rule improvement is planned, not delivered |
 | **Production hardening** | No rate limiting, no row-level security, no encryption at rest |
 | **PostgreSQL SSL** | SSL configuration not yet documented |
-| **Browser verification** | Interactive browser tests not automated; manual QA required |
+| **Browser verification** | Automated via Playwright (32/32 tests passed); manual visual inspection recommended for responsive layout QA |
 
 Full limitations list: [`docs/33_KNOWN_LIMITATIONS.md`](./docs/33_KNOWN_LIMITATIONS.md)
 
@@ -582,11 +590,12 @@ See [`docs/29_DEPLOYMENT_GUIDE.md`](./docs/29_DEPLOYMENT_GUIDE.md).
 - Claim/rule impact map
 - 75-test automated suite
 
-### Planned (Round 3)
+### Completed (Round 3 Final Deliverables)
 
-1. **Time-aware Claim Ledger and Rule-Change Impact Map** — Automated background re-review when facts expire or rules change; webhook notifications; scheduled expiry alerts.
-2. **Multimodal Visual Compliance** — Bounding-box logo placement, font identification from rendered regions, full brand-visual compliance scoring.
-3. **AI-assisted Rule Refinement** — Identifies frequently waived or dismissed rules and proposes clarifications; multi-stakeholder approval before rule changes take effect.
+1. **Time-aware Claim Ledger and Rule-Change Impact Map** — Fact validity windows, 30-day proactive expiring-soon alerts, hard expiration detection, bi-directional evidence dependencies, and targeted re-review (`POST /api/governance/re-review-impact`) transitioning affected drafts to `CHANGES_REQUESTED`.
+2. **Multimodal Visual Compliance** — Bounded 64KB chunked streaming upload guard, PDF text layer extraction, WCAG 2.1 relative luminance contrast evaluation on semantic token pairs, CIELAB Delta-E color distance calculations, and Brand Asset Registry with cryptographic SHA-256 byte hashing (`GET/POST/DELETE /api/brand-assets`).
+3. **Guideline-Health Intelligence & Reviewer Feedback** — Telemetry per rule, deterministic multi-reviewer disagreement detection, proposal triage (`POST /api/governance/rule-suggestions/{rule_id}`), and optimistic locking proposal activation (`POST /api/governance/rule-suggestions/{suggestion_id}/activate`).
+4. **Security & Acceptance Hardening** — Strict production authentication (`ALLOW_DEMO_AUTH=False`), durable one-way bootstrap (`POST /api/bootstrap`), tenant isolation (`get_workspace_id`), 133 backend tests passed (1 skipped), 32/32 browser QA tests, and 10/10 hosted Neon PostgreSQL acceptance checks.
 
 See [`docs/32_ROUND3_IMPROVEMENT_ROADMAP.md`](./docs/32_ROUND3_IMPROVEMENT_ROADMAP.md) for measurable acceptance criteria.
 

@@ -26,6 +26,13 @@ import {
   GitBranch,
 } from 'lucide-react';
 
+import {
+  subscribeSystemStatus,
+  getCachedSystemStatus,
+  probeSystemStatus,
+  SystemStatusData,
+} from '../../services/environment';
+
 interface BrandtraceHeroProps {
   onEnterWorkspace: () => void;
   onOpenTour?: () => void;
@@ -34,28 +41,16 @@ interface BrandtraceHeroProps {
 export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace, onOpenTour }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<number | null>(0);
-  const [systemStatus, setSystemStatus] = useState<{
-    ready: boolean;
-    dialect?: string;
-    checking: boolean;
-  }>({ ready: false, checking: true });
+  const [systemStatus, setSystemStatus] = useState<SystemStatusData>(getCachedSystemStatus);
 
   useEffect(() => {
-    let mounted = true;
-    api.ready()
-      .then((res) => {
-        if (mounted) setSystemStatus({ ready: true, dialect: res.database || 'Database Ready', checking: false });
-      })
-      .catch(() => {
-        api.health()
-          .then(() => {
-            if (mounted) setSystemStatus({ ready: true, dialect: 'SQLite / Local', checking: false });
-          })
-          .catch(() => {
-            if (mounted) setSystemStatus({ ready: false, checking: false });
-          });
-      });
-    return () => { mounted = false; };
+    const unsub = subscribeSystemStatus((newStatus) => {
+      setSystemStatus(newStatus);
+    });
+    if (systemStatus.readiness === 'checking') {
+      probeSystemStatus();
+    }
+    return unsub;
   }, []);
 
   // Connected System Nodes (SVG Diagram)
@@ -143,21 +138,33 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
             <span className="inline-flex items-center gap-1.5">
               <span
                 className={`w-2 h-2 rounded-full ${
-                  systemStatus.checking
+                  systemStatus.readiness === 'checking'
                     ? 'bg-amber-400 animate-pulse'
-                    : systemStatus.ready
+                    : systemStatus.readiness === 'ready'
                     ? 'bg-[#0E9F78]'
+                    : systemStatus.readiness === 'mismatch'
+                    ? 'bg-amber-500'
                     : 'bg-red-400'
                 }`}
               />
-              {systemStatus.checking
+              {systemStatus.readiness === 'checking'
                 ? 'Connecting to backend...'
-                : systemStatus.ready
-                ? `FastAPI Online · ${systemStatus.dialect}`
-                : 'Backend Offline · Local Mode'}
+                : systemStatus.readiness === 'ready'
+                ? `FastAPI Online · ${systemStatus.databaseDialect === 'postgresql' ? 'PostgreSQL' : 'SQLite'}`
+                : systemStatus.readiness === 'mismatch'
+                ? `API Online · ${systemStatus.environmentLabel}`
+                : 'Backend Offline'}
             </span>
             <span className="hidden sm:inline text-[#275242]">|</span>
-            <span className="hidden sm:inline">126 Automated Tests · Verified Deterministic</span>
+            <span className="hidden sm:inline font-medium text-[#DCE5DF]">
+              Environment: {systemStatus.environmentLabel}
+            </span>
+            <span className="hidden sm:inline text-[#275242]">|</span>
+            <span className="hidden sm:inline text-[#A6CDBA]">
+              {systemStatus.databaseConnected
+                ? `${systemStatus.databaseDialect === 'postgresql' ? 'PostgreSQL' : 'SQLite'} Connected`
+                : 'Database Disconnected'}
+            </span>
           </div>
         </div>
       </div>
@@ -327,8 +334,14 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
               {/* Trust & Rigor Badges */}
               <div className="pt-6 border-t border-[#DCE5DF] grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
-                  <div className="text-xl font-bold text-[#123B2D]">126 Passed</div>
-                  <div className="text-xs text-[#617168] font-medium">Backend Tests</div>
+                  <div className="text-xl font-bold text-[#123B2D]">
+                    {systemStatus.readiness === 'ready'
+                      ? systemStatus.environmentLabel
+                      : systemStatus.readiness === 'checking'
+                      ? 'Probing...'
+                      : 'Unavailable'}
+                  </div>
+                  <div className="text-xs text-[#617168] font-medium">Verified Environment</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-[#0E9F78]">Deterministic</div>
@@ -340,7 +353,7 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
                 </div>
                 <div>
                   <div className="text-xl font-bold text-[#0E9F78]">PostgreSQL + SQLite</div>
-                  <div className="text-xs text-[#617168] font-medium">Verified Dialects</div>
+                  <div className="text-xs text-[#617168] font-medium">Supported Dialects</div>
                 </div>
               </div>
             </div>
@@ -503,7 +516,7 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
               </div>
               <h3 className="font-bold text-sm text-[#123B2D]">Deterministic-First</h3>
               <p className="text-xs text-[#617168] mt-1.5 leading-relaxed">
-                Core governance runs with deterministic accuracy. No black-box model drift, hallucinations, or mandatory cloud keys.
+                Core governance runs with deterministic rules and grounded evidence citations. Unverified claims are flagged for human review.
               </p>
             </div>
 
@@ -1078,17 +1091,17 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
             <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded uppercase">
-                  DELIVERED &middot; 4 TESTS PASSING
+                  DELIVERED &middot; TIME-AWARE BOUNDS
                 </span>
                 <h3 className="text-base font-bold text-[#123B2D] mt-3">
                   Time-Aware Claim Ledger & Impact Map
                 </h3>
                 <p className="text-xs text-[#617168] mt-2 leading-relaxed">
-                  Fact notes field support, timezone-safe ISO comparisons, EXPIRING_SOON status (30-day window), and targeted re-review trigger moving affected approved drafts to CHANGES_REQUESTED.
+                  Fact validity tracking, timezone-safe ISO comparisons, EXPIRING_SOON status (30-day window), and targeted re-review trigger moving affected approved drafts to CHANGES_REQUESTED.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168] font-mono">
-                test_round3_claim_ledger.py
+              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168]">
+                Claim validity windows & impact map
               </div>
             </div>
 
@@ -1096,7 +1109,7 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
             <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded uppercase">
-                  DELIVERED &middot; 4 TESTS PASSING
+                  DELIVERED &middot; MEASURED METRICS
                 </span>
                 <h3 className="text-base font-bold text-[#123B2D] mt-3">
                   Multimodal Visual Compliance & Registry
@@ -1105,8 +1118,8 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
                   Brand asset registry (brand_assets) with SHA-256 hash matching. Supported finding for approved assets, high-severity finding for restricted assets, and measured Delta-E hex reporting.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168] font-mono">
-                test_round3_visual.py
+              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168]">
+                CIELAB Delta-E & SHA-256 asset registry
               </div>
             </div>
 
@@ -1114,7 +1127,7 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
             <div className="p-6 rounded-2xl bg-[#F6F8F6] border border-[#DCE5DF] flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold text-[#166534] bg-[#F0FDF4] border border-[#86EFAC] px-2 py-0.5 rounded uppercase">
-                  DELIVERED &middot; 3 TESTS PASSING
+                  DELIVERED &middot; REVIEWER-GUIDED
                 </span>
                 <h3 className="text-base font-bold text-[#123B2D] mt-3">
                   Guideline-Health Intelligence & Suggestions
@@ -1123,8 +1136,8 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({ onEnterWorkspace
                   Aggregates findings per rule across reviews, detects reviewer disagreement, labels data confidence (SUFFICIENT vs INSUFFICIENT), and logs human suggestion decisions without altering live rules.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168] font-mono">
-                test_round3_guideline_health.py
+              <div className="mt-4 pt-3 border-t border-[#DCE5DF] text-[11px] text-[#617168]">
+                Reviewer telemetry & proposal triage
               </div>
             </div>
           </div>

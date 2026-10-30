@@ -12,6 +12,7 @@ import {
   setSimulatedUser,
   getSimulatedUser,
 } from '../services/api';
+import { SystemStatus } from './system/SystemStatus';
 
 type View =
   | 'Overview'
@@ -98,7 +99,8 @@ export function BrandtraceWorkspace() {
   const handleRoleChange = (newRole: UserRole) => {
     setRole(newRole);
     setSimulatedUser(newRole);
-    setSuccess(`Active simulated role changed to ${newRole.toUpperCase()}. Server permissions updated.`);
+    const roleName = newRole === 'creator' ? 'Creator' : newRole === 'reviewer' ? 'Reviewer' : newRole === 'brand_admin' ? 'Brand Admin' : 'Auditor';
+    setSuccess(`Demo role switched to ${roleName}. Backend authorization checks remain enforced.`);
     setTimeout(() => setSuccess(''), 4000);
   };
 
@@ -362,7 +364,9 @@ export function BrandtraceWorkspace() {
           </span>
         </div>
 
-        <div className="bt-demo">● LOCAL RUN — Judge Demo Mode</div>
+        <div className="bt-demo">
+          <SystemStatus variant="inline" className="text-xs" />
+        </div>
 
         <nav>
           {views.map((v) => (
@@ -377,7 +381,7 @@ export function BrandtraceWorkspace() {
             <b>Deterministic First:</b> Prohibited terms and missing disclaimers are flagged deterministically.
           </p>
           <p style={{ marginTop: '8px' }}>
-            Offline model triage returns <b>NEEDS REVIEW</b>, never hallucinated evidence.
+            Unverified assertions return <b>NEEDS REVIEW</b> for human determination, citing only grounded sources.
           </p>
         </div>
       </aside>
@@ -392,14 +396,19 @@ export function BrandtraceWorkspace() {
           </div>
 
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div className="bt-role-bar">
-              <span>Simulated Role:</span>
-              <select value={role} onChange={(e) => handleRoleChange(e.target.value as UserRole)}>
-                <option value="reviewer">Reviewer (Approval & Actions)</option>
-                <option value="creator">Creator (Draft Submissions)</option>
-                <option value="brand_admin">Brand Admin (Full Control)</option>
-                <option value="auditor">Auditor (Read-Only)</option>
-              </select>
+            <div className="bt-role-bar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Simulated Role:</span>
+                <select value={role} onChange={(e) => handleRoleChange(e.target.value as UserRole)}>
+                  <option value="reviewer">Reviewer (Approval & Actions)</option>
+                  <option value="creator">Creator (Draft Submissions)</option>
+                  <option value="brand_admin">Brand Admin (Full Control)</option>
+                  <option value="auditor">Auditor (Read-Only)</option>
+                </select>
+              </div>
+              <span style={{ fontSize: '11px', color: '#617168', maxWidth: '340px', lineHeight: 1.2 }}>
+                Demo role simulation changes the request context for this demonstration. It does not create a real user account or grant independent production permissions.
+              </span>
             </div>
 
             <button
@@ -723,7 +732,7 @@ export function BrandtraceWorkspace() {
                       <div>
                         <p style={{ margin: 0, fontWeight: 'bold' }}>Click to select a file</p>
                         <p className="bt-muted" style={{ margin: '6px 0 0', fontSize: '12px' }}>
-                          Supported: PDF (with text extraction), PNG/JPEG (palette & WCAG contrast)
+                          Supported: Digital PDF text extraction, PNG/JPEG palette analysis (CIELAB Delta-E), and SHA-256 asset verification. Raster OCR and semantic logo recognition are unsupported.
                         </p>
                       </div>
                     )}

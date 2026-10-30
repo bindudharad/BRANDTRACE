@@ -110,7 +110,7 @@ export const EvidenceDecisionChain: React.FC<EvidenceDecisionChainProps> = ({ fi
 
           {finding.uncertainty && (
             <div className="bg-[#FFFBEB] p-2.5 rounded-lg border border-[#FCD34D] text-[#92400E]">
-              <span className="font-bold block mb-0.5">Uncertainty Note (No Hallucination):</span>
+              <span className="font-bold block mb-0.5">Uncertainty & Source Grounding Note:</span>
               <p className="m-0">{finding.uncertainty}</p>
             </div>
           )}

@@ -1,5 +1,5 @@
 # BRANDTRACE — Final Quality, Functionality, QA & Semantic Correctness Report
-**Inkloom AI CodeAxis Round 3: The Final Build**  
+**Inkloom AI CodeAxis Round 3: The Final Build**
 *Timestamp: 2026-10-29T08:40:00+05:30*
 
 ---
@@ -136,7 +136,7 @@ Across the complete test suite:
 - Created `backend/app/guideline_health.py` and `rule_suggestions` table.
 - `GET /api/governance/guideline-health` outputs telemetry per rule: affected draft count, accepted/dismissed breakdown, multi-reviewer disagreement detection, and `data_confidence` (`SUFFICIENT` vs `INSUFFICIENT`).
 - `POST /api/governance/rule-suggestions/{rule_id}` allows brand admins to review, accept, defer, or reject rule clarification recommendations.
-- `POST /api/governance/rule-suggestions/{rule_id}/activate` enables explicit publishing of accepted proposals with optimistic locking against the active rule version and candidate requirement text validation.
+- `POST /api/governance/rule-suggestions/{suggestion_id}/activate` enables explicit publishing of accepted proposals with optimistic locking against the active rule version and candidate requirement text validation.
 
 ---
 
@@ -155,7 +155,7 @@ Across the complete test suite:
 ---
 
 ## 7. Automated Verification Results
-- **Backend Tests:** Full backend suite executed per-file: **125 passed, 1 skipped** (`test_gemini_analysis_live` requires a live Gemini API key). Per-file execution: test_production_auth (12), test_round3_claim_ledger (7), test_defect_repairs_round3 (11), test_api (11), test_qa_comprehensive (24), test_qa_phase2_regression (23), disposition/color/visual/benchmark/guideline (25), ai_adapter/pdf (7), pg_compat (5). Total: 125 passed, 1 skipped. No code defect, fixture stall, or database deadlock observed.
+- **Backend Tests:** Full backend suite executed: **133 passed, 1 skipped** across 18 test files (`test_gemini_analysis_live` requires a live Gemini API key; 126 passed, 1 skipped in baseline regression via `scripts/verify_sqlite_regression.py` + 7 passed across 4 Round 3 acceptance suites). No code defect, fixture stall, or database deadlock observed.
 - **End-to-End Smoke Test:** **27/27 assertions passed**.
 - **TypeScript Typecheck:** **0 errors** (`npx tsc --noEmit`, Exit Code: 0).
 - **Frontend Linter:** **0 errors** (`npm run lint` running `tsc --noEmit`, Exit Code: 0).
@@ -224,9 +224,9 @@ To guarantee zero accidental mutations against production infrastructure, the op
 - **Core Verification Summary:**
   1. **Automated Browser QA:** 32/32 tests passed (QA-01–QA-27 + extended requirements) on Google Chrome 156 against dedicated isolated backend (port 8031) and frontend (port 3001) with disposable SQLite database; dev database `brandtrace.db` left untouched.
   2. **Isolated PostgreSQL 18 Integration:** 35/35 tests passed on disposable port 5438 (schema, idempotency, CRUD, workspace isolation, rollback, and 4 pytest suites). Host service port 5432 untouched.
-  3. **Backend Pytest Suite:** 125 passed, 1 skipped across all 14 test files in incremental execution.
+  3. **Backend Pytest Suite:** 133 passed, 1 skipped across all 18 test files (126 passed, 1 skipped in baseline regression + 7 passed across 4 Round 3 acceptance suites).
   4. **Smoke Test:** 27/27 passed.
-  5. **Route Traceability:** Exactly 38 backend routes mapped into mutually exclusive categories (29 user-facing domain = 26 active core UI + 3 client SDK deferred; 5 internal admin; 2 demo lifecycle; 2 operational diagnostic). All category sums = 38.
+  5. **Route Traceability:** Exactly 39 backend routes mapped into mutually exclusive categories (30 user-facing domain, 5 internal admin, 2 demo lifecycle, and 2 operational diagnostics). All category sums = 39.
   6. **Static Checks & Build:** TypeScript 0 errors; Vite production build & static prerender (50,498 chars) 0 errors; Python compile 0 errors; git whitespace clean.
 - **Why Production Acceptance is NO-GO (Pre-Conditions for Production Cutover):**
   1. **Hosted PostgreSQL Staging Sign-off:** **COMPLETED & VERIFIED (10/10 CHECKS PASSED)** on hosted Neon PostgreSQL.

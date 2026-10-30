@@ -29,7 +29,7 @@ export const GuidelineHealthMeters: React.FC<GuidelineHealthMetersProps> = ({
             Guideline Health Intelligence
           </h3>
           <p className="text-xs text-[#617168] mt-0.5 m-0">
-            Autonomous governance telemetry: aggregates reviewer actions, detects human disagreement, and proposes source-linked clarifications without mutating live rules.
+            Reviewer telemetry & decision support: aggregates reviewer actions, detects human disagreement, and proposes source-linked clarifications without mutating live rules.
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export const GuidelineHealthMeters: React.FC<GuidelineHealthMetersProps> = ({
                   </div>
                 )}
 
-                {/* Autonomous Clarification Suggestion Box */}
+                {/* Reviewer Clarification Proposal Box */}
                 {gh.suggestion && (
                   <div className="bg-white border border-[#A6CDBA] rounded-xl p-4 mt-2 shadow-xs">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-[#0E9F78] uppercase tracking-wider mb-1.5">

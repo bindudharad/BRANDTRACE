@@ -1,10 +1,10 @@
 # BRANDTRACE — Round 3 Acceptance & Defect Repair Verification Matrix
 
-Last Updated: 2026-10-29  
-Repository: `https://github.com/bindudharad/BRANDTRACE`  
-Branch: `main`  
-Python Environment: Python 3.10.11 (`python`; the Windows `py -3.10` launcher is unavailable)  
-Node / Frontend Environment: Node v20 / Vite 6.4.5 / React 19  
+Last Updated: 2026-10-29
+Repository: `https://github.com/bindudharad/BRANDTRACE`
+Branch: `main`
+Python Environment: Python 3.10.11 (`python`; the Windows `py -3.10` launcher is unavailable)
+Node / Frontend Environment: Node v20 / Vite 6.4.5 / React 19
 Verification Summary: Full backend suite: **133 passed, 1 skipped** across 18 test files (126 passed, 1 skipped in baseline regression via `scripts/verify_sqlite_regression.py` + 7 passed across 4 Round 3 security & scenario acceptance suites; pytest, Python 3.10.11). Smoke test: **27/27 passed**. TypeScript: **0 errors** (`npx tsc --noEmit`). Vite build and prerender: **passed** (51,297 chars). Automated Browser QA: **32/32 PASSED** (Playwright + Google Chrome 156 executed against dedicated isolated instances: port 3001 and port 8031 with a disposable temporary database; dev database `brandtrace.db` verified 100% untouched). Isolated Live PostgreSQL 18: **VERIFIED BY AUTOMATED TEST** (35/35 tests passed on disposable cluster port 5438: schema initialization across all 15 tables, idempotency, CRUD/JSON datatypes, workspace isolation, review lifecycle & approval gate, transaction rollback, and 4 pytest suites; host port 5432 untouched). Hosted PostgreSQL Staging Deployment: **VERIFIED ON HOSTED NEON (10/10 CHECKS PASSED)**. Production Release Decision: **NO-GO for Production Acceptance** (CONDITIONAL GO for single-tenant enterprise partition staging only).
 
 Hosted staging closure preflight (2026-10-30): **BLOCKED / NOT RUN.** No required staging configuration variables are set in the authorized process environment. `scripts/verify_hosted_staging.ps1` passed PowerShell parsing and safely aborted at its first missing-variable gate before any remote connection. The runbook now requires explicit TLS (`sslmode=require`), rejects unresolved database placeholders, assigns unique acceptance-test identifiers, and only accepts bootstrap HTTP 409 as the documented already-initialized result.
@@ -259,7 +259,7 @@ Credential (Bearer / X-API-Key)
 4. **Verified Achievements (Ready for Enterprise Staging):**
    - **Isolated PostgreSQL 18 Integration:** 35/35 tests passed on disposable port 5438 (schema, idempotency, CRUD, workspace isolation, rollback, and 4 pytest suites). Host service port 5432 untouched.
    - **Automated Browser QA:** 32/32 tests passed (QA-01–QA-27 + extended requirements) on Google Chrome 156 executed against dedicated isolated instances (backend: port 8031, frontend: port 3001, disposable temporary SQLite database; dev database `brandtrace.db` verified 100% untouched).
-   - **Backend Test Suite:** 125 passed, 1 skipped across all 14 test files executed in incremental batches.
+   - **Backend Test Suite:** 133 passed, 1 skipped across all 18 test files (126 passed, 1 skipped in baseline regression via `scripts/verify_sqlite_regression.py` + 7 passed across 4 Round 3 acceptance suites).
    - **Smoke Test:** 27/27 passed.
    - **Static Analysis & Build:** TypeScript 0 errors; Vite build + static prerender (50,498 chars) 0 errors; Python compilation 0 errors; git whitespace clean.
-   - **Route Coverage:** Exactly 38 backend routes documented and traced: 29 user-facing domain (26 active core UI + 3 client SDK deferred), 5 internal administrative, 2 demo lifecycle, 2 operational diagnostic. All category sums = 38.
+   - **Route Coverage:** Exactly 39 backend routes documented and traced: 30 user-facing domain, 5 internal administrative, 2 demo lifecycle, and 2 operational diagnostics. All category sums = 39.

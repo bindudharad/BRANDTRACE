@@ -34,7 +34,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     description: 'Deterministic rule findings with exact passage spans, citations, and neutral suggestions.',
     targetView: 'Content Review',
     icon: Search,
-    badge: 'Zero Hallucination',
+    badge: 'Source-Validated',
   },
   {
     step: 4,
@@ -47,7 +47,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
   {
     step: 5,
     title: 'Improve Governance',
-    description: 'Rule-Change Impact Map, reviewer disagreement telemetry, and autonomous clarification.',
+    description: 'Rule-Change Impact Map, reviewer disagreement telemetry, and reviewer-guided clarification.',
     targetView: 'Governance Insights',
     icon: BarChart3,
     badge: 'Telemetry',

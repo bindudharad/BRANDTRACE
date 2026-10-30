@@ -56,7 +56,7 @@ export const HonestLimitationsBanner: React.FC = () => {
               <div className="p-3 rounded-xl bg-[#F8FAF9] border border-[#E2EBE5]">
                 <div className="flex items-center gap-1.5 font-bold text-[#123B2D] mb-1">
                   <CheckCircle2 size={14} className="text-[#16A34A]" />
-                  <span>Hosted Staging Verified (10/10 Checks Passed)</span>
+                  <span>Hosted Staging Acceptance Runbook (10/10 Checks Verified on Neon)</span>
                 </div>
                 <p className="text-[11px] text-[#617168] m-0">
                   Full PostgreSQL 18 schema verification, idempotency, review workflows, and lockout prevention verified against remote Neon infrastructure. Production cutover remains formally uncompleted.
