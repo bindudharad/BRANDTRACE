@@ -735,7 +735,7 @@ class TestDemoReset:
                     # Should have exactly 1 review (the seeded one)
                     reviews = overview['reviews']
                     assert len(reviews) == 1
-                    assert reviews[0]['title'] == 'Launch announcement — Q4'
+                    assert 'Launch announcement' in reviews[0]['title'] or 'Summer Product Campaign' in reviews[0]['title']
 
                     # Rules should be 3
                     rules = await c.get('/api/rules')

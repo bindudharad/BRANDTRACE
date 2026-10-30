@@ -1038,4 +1038,90 @@ textarea.input-premium {
   color: var(--bt-text-primary) !important;
 }
 
+/* =========================================================================
+   REDESIGNED CONTENT REVIEW WORKSPACE STYLES
+   ========================================================================= */
+
+.bt-review-workspace-grid {
+  display: grid !important;
+  grid-template-columns: minmax(360px, 38%) minmax(520px, 62%) !important;
+  gap: 20px !important;
+  align-items: start !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 1100px) {
+  .bt-review-workspace-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.bt-doc-preview-pane {
+  background: #FFFFFF !important;
+  border: 1px solid var(--bt-border) !important;
+  border-radius: 12px !important;
+  padding: 20px !important;
+  box-shadow: 0 1px 4px rgba(18, 59, 45, 0.05) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+}
+
+.bt-doc-preview-content {
+  background: #F8FAF8 !important;
+  border: 1px solid #DCE5DF !important;
+  border-radius: 8px !important;
+  padding: 16px 18px !important;
+  font-size: 13.5px !important;
+  line-height: 1.65 !important;
+  color: var(--bt-text-primary) !important;
+  overflow-y: auto !important;
+  min-height: 220px !important;
+  max-height: calc(100vh - 320px) !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+}
+
+.bt-review-toolbar {
+  background: #FFFFFF !important;
+  border: 1px solid var(--bt-border) !important;
+  border-radius: 12px !important;
+  padding: 18px 24px !important;
+  margin-bottom: 16px !important;
+  box-shadow: 0 1px 4px rgba(18, 59, 45, 0.05) !important;
+  box-sizing: border-box !important;
+}
+
+.bt-decision-bar {
+  background: #FFFFFF !important;
+  border: 1px solid var(--bt-border) !important;
+  border-radius: 12px !important;
+  padding: 16px 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap !important;
+  gap: 16px !important;
+  box-shadow: 0 2px 8px rgba(18, 59, 45, 0.06) !important;
+  margin-top: 20px !important;
+  box-sizing: border-box !important;
+}
+
+.bt-metric-card {
+  background: #FFFFFF !important;
+  border: 1px solid var(--bt-border) !important;
+  border-radius: 10px !important;
+  padding: 12px 18px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  box-shadow: 0 1px 3px rgba(18, 59, 45, 0.04) !important;
+  box-sizing: border-box !important;
+}
+
+
 

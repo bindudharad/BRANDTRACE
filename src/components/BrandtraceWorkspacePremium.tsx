@@ -79,7 +79,7 @@ export type View =
   | 'Help & Demo';
 
 const sampleAnnouncement =
-  'Brandtrace is the best cheap governance platform on the market today. It is always available in India with zero risk.';
+  "Discover a more effective way to manage your team's daily workflow. Brandtrace is the best and cheap solution with guaranteed performance for enterprise operations in India.";
 
 const views: View[] = [
   'Overview',
@@ -141,6 +141,79 @@ export function formatMethodLabel(method?: string): string {
   return method.replace(/_/g, ' ');
 }
 
+export function formatFileFormat(format?: string, mime?: string, fileName?: string): string {
+  const testStr = `${format || ''} ${mime || ''} ${fileName || ''}`.toLowerCase();
+  if (testStr.includes('pdf')) return 'PDF Document';
+  if (testStr.includes('png')) return 'PNG Graphic';
+  if (testStr.includes('jpeg') || testStr.includes('jpg')) return 'JPEG Graphic';
+  if (testStr.includes('markdown') || testStr.includes('.md')) return 'Markdown';
+  if (testStr.includes('text') || testStr.includes('.txt')) return 'Plain Text';
+  if (format && !['marketing_copy', 'general_document', 'announcement', 'email', 'social', 'document', 'image'].includes(format.toLowerCase())) {
+    return format.toUpperCase();
+  }
+  return 'PDF Document';
+}
+
+export function formatDocumentCategory(category?: string): string {
+  if (!category) return 'General Document';
+  const c = category.toLowerCase().trim();
+  switch (c) {
+    case 'marketing_copy':
+      return 'Marketing Copy';
+    case 'announcement':
+      return 'Marketing Announcement';
+    case 'social_media':
+    case 'social':
+      return 'Social Media Post';
+    case 'advertisement':
+      return 'Advertisement / Paid Media';
+    case 'resume_cv':
+      return 'Resume / CV (Personal)';
+    case 'academic_assignment':
+      return 'Academic Paper / Assignment';
+    case 'technical_doc':
+      return 'Technical Documentation';
+    case 'policy_doc':
+      return 'Policy / Legal Document';
+    case 'email':
+      return 'Email Campaign';
+    case 'web':
+      return 'Web Copy';
+    case 'document':
+    case 'general_document':
+      return 'General Document';
+    default:
+      return category.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  }
+}
+
+export function formatRuleScope(documentType?: string, contentType?: string): string {
+  const combined = `${documentType || ''} ${contentType || ''}`.toLowerCase();
+  if (combined.includes('resume') || combined.includes('cv')) {
+    return 'Career / Personal Scope (Marketing Rules Excluded)';
+  }
+  if (combined.includes('technical')) {
+    return 'Technical Standards Scope';
+  }
+  if (combined.includes('policy') || combined.includes('legal')) {
+    return 'Policy & Compliance Scope';
+  }
+  if (combined.includes('academic')) {
+    return 'Academic Research Scope';
+  }
+  if (combined.includes('marketing') || combined.includes('social') || combined.includes('advertisement') || combined.includes('announcement')) {
+    return 'Commercial Marketing Scope';
+  }
+  return 'General Standards Scope';
+}
+
+export function formatWorkspaceName(workspaceId?: string): string {
+  if (!workspaceId || workspaceId === 'ws_default') {
+    return 'Judge Demo Workspace';
+  }
+  return workspaceId.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 interface BrandtraceWorkspacePremiumProps {
   onBackToHero?: () => void;
   initialTourOpen?: boolean;
@@ -200,6 +273,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
   const [manualEdit, setManualEdit] = useState('');
   const [editingFindingId, setEditingFindingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copyNotice, setCopyNotice] = useState<boolean>(false);
 
   // Constitution tabs & modals
   const [constTab, setConstTab] = useState<'rules' | 'facts' | 'assets' | 'profile'>('rules');
@@ -1220,7 +1294,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
               }}
             >
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0E9F78' }} />
-              <span>Workspace: <strong>ws_default</strong></span>
+              <span>Workspace: <strong>{formatWorkspaceName('ws_default')}</strong> <span style={{ fontSize: 10, color: '#8A9A91' }}>(ws_default)</span></span>
             </div>
 
             {/* Current Role Badge & Switch Action */}
@@ -1828,78 +1902,53 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
              VIEW C & D: CONTENT SUBMISSION & FINDINGS WORKSPACE
              ========================================================================= */}
           {view === 'Content Review' && (
-            <div className="bt-content-review-container">
-              {/* Header row with Title, Subtitle, and Draft Switcher */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--bt-forest)', letterSpacing: '-0.02em' }}>
-                      Content Review
-                    </h1>
-                    <span style={{ fontSize: 11, background: '#E9F6F0', color: '#0E9F78', fontWeight: 700, padding: '2px 8px', borderRadius: 12, border: '1px solid #A6CDBA' }}>
-                      Evidence Engine
-                    </span>
-                  </div>
-                  <p style={{ margin: '4px 0 0', fontSize: 13, color: '#617168' }}>
-                    Submit documents, inspect evidence and review governance findings.
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  {reviews.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <select
-                        className="input-premium"
-                        value={selected?.id || ''}
-                        onChange={(e) => {
-                          const targetId = e.target.value;
-                          if (!targetId) {
-                            setSelected(null);
-                          } else {
-                            const match = reviews.find((r) => r.id === targetId);
-                            if (match) setSelected(match);
-                          }
-                        }}
-                        style={{ minHeight: 38, fontSize: 13, minWidth: 260 }}
-                      >
-                        <option value="">{selected ? `-- Active: ${selected.title.slice(0, 30)} --` : `-- Select from ${reviews.length} stored drafts --`}</option>
-                        {reviews.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.title} ({r.score} pts · {r.status})
-                          </option>
-                        ))}
-                      </select>
-                      {selected && (
-                        <button
-                          type="button"
-                          className="btn-primary btn-sm"
-                          style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 38 }}
-                          onClick={() => setSelected(null)}
-                        >
-                          <Plus size={14} /> New Document Review
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
+            <div className="bt-content-review-container" style={{ maxWidth: 1600, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
               {!selected ? (
                 /* =========================================================================
                    MODE 1: NEW DOCUMENT REVIEW (Full-Width Upload Canvas)
                    ========================================================================= */
                 <div>
-                  <div className="card-premium bt-upload-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #DCE5DF', paddingBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 13, color: '#617168' }}>
+                        Submit documents, inspect evidence and review governance findings against approved standards.
+                      </p>
+                    </div>
+
+                    {reviews.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 12, color: '#8A9A91', fontWeight: 600 }}>Inspect Stored Draft:</span>
+                        <select
+                          className="input-premium"
+                          value=""
+                          onChange={(e) => {
+                            const match = reviews.find((r) => r.id === e.target.value);
+                            if (match) setSelected(match);
+                          }}
+                          style={{ minHeight: 36, fontSize: 13, minWidth: 260 }}
+                        >
+                          <option value="">-- Select from {reviews.length} stored drafts --</option>
+                          {reviews.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.title} ({r.score} pts · {r.status})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="card-premium bt-upload-card" style={{ maxWidth: 1400, margin: '0 auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid #DCE5DF', paddingBottom: 14, flexWrap: 'wrap', gap: 10 }}>
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#2dd4bf', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                          New Document Review
+                          Document Submission & Triage
                         </div>
                         <h2 style={{ margin: '2px 0 0', fontSize: 18, fontWeight: 800, color: 'var(--bt-forest)' }}>
-                          Submit Document for Evidence Analysis
+                          New Document Review
                         </h2>
                       </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           className={`btn-secondary btn-sm ${submissionTab === 'file' ? 'btn-primary' : ''}`}
@@ -1916,6 +1965,21 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                         >
                           Direct Text / Markdown
                         </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            setSubmissionTab('text');
+                            setTitle('Summer Product Campaign — Q4');
+                            setContent(sampleAnnouncement);
+                            setContentType('marketing_copy');
+                            setDocumentType('marketing_copy');
+                          }}
+                          style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, color: '#0E9F78' }}
+                          title="Prefill judge demonstration campaign draft"
+                        >
+                          <Sparkles size={13} /> Load Curated Demo Draft
+                        </button>
                       </div>
                     </div>
 
@@ -1928,7 +1992,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                             className="input-premium"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="e.g. Q4 Brand Launch Deck, Product Whitepaper, Resume"
+                            placeholder="e.g. Summer Product Campaign — Q4, Product Whitepaper, Resume"
                             style={{ width: '100%', boxSizing: 'border-box' }}
                             required
                           />
@@ -2060,7 +2124,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                                 Drag your file here or Browse Files
                               </p>
                               <p style={{ margin: '6px 0 0', fontSize: 12, color: '#8A9A91' }}>
-                                PDF · PNG · JPG · TXT · Markdown
+                                PDF · PNG · JPG · TXT · Markdown (up to 20MB)
                               </p>
                             </div>
                           )}
@@ -2152,7 +2216,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                             className="input-premium"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="e.g. Q4 Brand Announcement Copy"
+                            placeholder="e.g. Summer Product Campaign — Q4"
                             style={{ width: '100%', boxSizing: 'border-box' }}
                             required
                           />
@@ -2254,13 +2318,18 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                           </div>
                         )}
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, flexWrap: 'wrap', gap: 10 }}>
                           <button
                             type="button"
                             className="btn-secondary btn-sm"
-                            onClick={() => setContent(sampleAnnouncement)}
+                            onClick={() => {
+                              setTitle('Summer Product Campaign — Q4');
+                              setContent(sampleAnnouncement);
+                              setContentType('marketing_copy');
+                              setDocumentType('marketing_copy');
+                            }}
                           >
-                            Prefill Test Sample
+                            Prefill Curated Demo Draft
                           </button>
                           <button className="btn-primary" disabled={busy} style={{ minHeight: 46 }}>
                             {busy ? 'Evaluating Evidence…' : 'Start Evidence Review'}
@@ -2285,101 +2354,264 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                 </div>
               ) : (
                 /* =========================================================================
-                   MODE 2: ACTIVE DRAFT REVIEW WORKSPACE (2-Column Canvas)
+                   MODE 2: ACTIVE DRAFT REVIEW WORKSPACE (Two-Panel Layout)
                    ========================================================================= */
-                <div className="bt-content-review-grid">
-                  {/* Left Column: Active Draft Context */}
-                  <div className="bt-review-left-col">
-                    <div className="card-premium bt-draft-context-sticky">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
-                        <div>
-                          <div style={{ fontSize: 10, color: '#2dd4bf', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                            Draft Context
-                          </div>
-                          <h3 style={{ margin: '4px 0 0', fontSize: 16, fontWeight: 700, color: 'var(--bt-forest)' }}>
-                            {selected.title}
-                          </h3>
+                <div>
+                  {/* Single Authoritative Review Toolbar */}
+                  <div className="bt-review-toolbar">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                      {/* Left: Selectors, Title, Badges */}
+                      <div style={{ flex: 1, minWidth: 280 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                          <select
+                            className="input-premium"
+                            value={selected.id}
+                            onChange={(e) => {
+                              const targetId = e.target.value;
+                              if (!targetId) {
+                                setSelected(null);
+                              } else {
+                                const match = reviews.find((r) => r.id === targetId);
+                                if (match) setSelected(match);
+                              }
+                            }}
+                            style={{ minHeight: 32, fontSize: 12, padding: '4px 10px', maxWidth: 300 }}
+                          >
+                            {reviews.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.title} ({r.score} pts · {r.status})
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() => setSelected(null)}
+                            style={{ fontSize: 11, padding: '4px 10px', minHeight: 32 }}
+                          >
+                            <Plus size={12} /> New Review
+                          </button>
+
+                          {/* Single Review Status Badge */}
+                          <StatusBadge value={selected.status} />
+
+                          {(selected.id === 'rev_launch_q4' || /summer|campaign/i.test(selected.title)) && (
+                            <span style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                              Fictional Demo Content
+                            </span>
+                          )}
                         </div>
-                        <StatusBadge value={selected.status} />
+
+                        {/* Document Title (Never clipped) */}
+                        <h2 style={{ margin: '4px 0 0', fontSize: 20, fontWeight: 800, color: 'var(--bt-forest)', wordBreak: 'break-word', lineHeight: 1.35 }}>
+                          {selected.title}
+                        </h2>
+
+                        {/* Unified Authoritative Metadata Row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap', fontSize: 12, color: '#617168' }}>
+                          <span>
+                            <strong style={{ color: '#8A9A91', fontWeight: 600 }}>Format: </strong>
+                            <span style={{ color: 'var(--bt-forest)', fontWeight: 600 }}>{formatFileFormat(selected.file_format, selected.file_mime, selected.file_name)}</span>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            <strong style={{ color: '#8A9A91', fontWeight: 600 }}>Category: </strong>
+                            <span style={{ color: 'var(--bt-forest)', fontWeight: 600 }}>{formatDocumentCategory(selected.document_type || selected.content_type)}</span>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            <strong style={{ color: '#8A9A91', fontWeight: 600 }}>Scope: </strong>
+                            <span style={{ color: 'var(--bt-forest)', fontWeight: 600 }}>{formatRuleScope(selected.document_type, selected.content_type)}</span>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            <strong style={{ color: '#8A9A91', fontWeight: 600 }}>Analysis: </strong>
+                            <span style={{ color: '#0E9F78', fontWeight: 600 }}>{formatMethodLabel(selected.analysis_method)}</span>
+                          </span>
+                          {selected.created_at && (
+                            <>
+                              <span>•</span>
+                              <span style={{ color: '#8A9A91' }}>
+                                Submitted: {new Date(selected.created_at).toLocaleDateString()} {new Date(selected.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '10px 12px', background: '#F8FAF8', borderRadius: 8, border: '1px solid #DCE5DF', marginBottom: 14, fontSize: 12 }}>
-                        <div>
-                          <span style={{ color: '#8A9A91' }}>Scope: </span>
-                          <strong style={{ color: 'var(--bt-text-secondary)' }}>{selected.document_type || selected.content_type}</strong>
-                        </div>
-                        <div>
-                          <span style={{ color: '#8A9A91' }}>Format: </span>
-                          <strong style={{ color: 'var(--bt-text-secondary)' }}>{selected.file_format || selected.content_type}</strong>
-                        </div>
-                        <div>
-                          <span style={{ color: '#8A9A91' }}>Score: </span>
-                          <strong style={{ color: selected.score >= 80 ? '#2dd4bf' : selected.score >= 60 ? '#fbbf24' : '#f87171' }}>
+                      {/* Right: Governance Health Score */}
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 150 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                          <strong style={{ fontSize: 32, fontWeight: 800, color: selected.score >= 80 ? '#2dd4bf' : selected.score >= 60 ? '#fbbf24' : '#f87171', lineHeight: 1 }}>
                             {selected.score}/100
                           </strong>
                         </div>
-                        <div>
-                          <span style={{ color: '#8A9A91' }}>OCR / Intel: </span>
-                          <span style={{ color: selected.ocr_applied ? '#6D28D9' : '#617168', fontWeight: selected.ocr_applied ? 700 : 400 }}>
-                            {selected.ocr_applied ? 'AI-assisted OCR' : 'Digital extraction'}
+                        <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          Health Score
+                          <span
+                            title="Base 100 governance engine. Deductions for unresolved findings: Critical (-30), High (-18), Medium (-10), Low (-4). Resolved findings restore full points."
+                            style={{ cursor: 'help', color: '#2dd4bf', display: 'inline-flex' }}
+                          >
+                            <Info size={12} />
                           </span>
                         </div>
-                      </div>
-
-                      <div style={{ marginBottom: 14 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span className="label-sm" style={{ margin: 0 }}>Working Draft Copy</span>
-                          <span style={{ fontSize: 11, color: '#8A9A91' }}>
-                            {selected.content.length} characters
-                          </span>
+                        <div style={{ fontSize: 11, color: '#617168', marginTop: 3 }}>
+                          {selected.findings.filter((f) => Boolean(f.disposition)).length}/{selected.findings.length} findings resolved
                         </div>
-                        <div
-                          style={{
-                            background: '#F8FAF8',
-                            border: '1px solid #DCE5DF',
-                            borderRadius: 8,
-                            padding: '14px 16px',
-                            color: 'var(--bt-text-primary)',
-                            fontSize: 13,
-                            lineHeight: 1.65,
-                            whiteSpace: 'pre-wrap',
-                            maxHeight: 'calc(100vh - 360px)',
-                            minHeight: 180,
-                            overflowY: 'auto',
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          {selected.content}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          className="btn-secondary btn-sm"
-                          style={{ width: '100%', justifyContent: 'center' }}
-                          onClick={() => setSelected(null)}
-                        >
-                          <Plus size={14} /> Submit Another Document
-                        </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Column: Findings & Correction Workspace Panel */}
-                  <ReviewPanel
-                    review={selected}
-                    onFindingAction={handleFindingAction}
-                    reason={reason}
-                    setReason={setReason}
-                    manualEdit={manualEdit}
-                    setManualEdit={setManualEdit}
-                    editingFindingId={editingFindingId}
-                    setEditingFindingId={setEditingFindingId}
-                    onApproval={handleApproval}
-                    onRestoreVersion={handleRestoreVersion}
-                    currentRole={role}
-                  />
+                  {/* Review Summary Metrics Bar */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: 12,
+                      marginBottom: 20,
+                    }}
+                  >
+                    <div className="bt-metric-card">
+                      <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F1F5F9', color: '#475569', display: 'grid', placeContent: 'center', flexShrink: 0 }}>
+                        <FileText size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: '#8A9A91', textTransform: 'uppercase', fontWeight: 600 }}>Total Findings</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--bt-forest)' }}>{selected.findings.length}</div>
+                      </div>
+                    </div>
+
+                    <div className="bt-metric-card">
+                      {(() => {
+                        const openHigh = selected.findings.filter((f) => !f.disposition && ['HIGH', 'CRITICAL'].includes(f.severity)).length;
+                        const totalHigh = selected.findings.filter((f) => ['HIGH', 'CRITICAL'].includes(f.severity)).length;
+                        return (
+                          <>
+                            <div style={{ width: 36, height: 36, borderRadius: 8, background: openHigh > 0 ? '#FEF2F2' : '#F0FDF4', color: openHigh > 0 ? '#DC2626' : '#16A34A', display: 'grid', placeContent: 'center', flexShrink: 0 }}>
+                              <AlertTriangle size={18} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: openHigh > 0 ? '#DC2626' : '#8A9A91', textTransform: 'uppercase', fontWeight: 600 }}>High / Critical Open</div>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: openHigh > 0 ? '#DC2626' : '#16A34A' }}>
+                                {openHigh} <span style={{ fontSize: 12, fontWeight: 500, color: '#8A9A91' }}>({totalHigh} total)</span>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="bt-metric-card">
+                      {(() => {
+                        const needsRev = selected.findings.filter((f) => !f.disposition && (f.status === 'NEEDS_REVIEW' || f.status === 'CONTRADICTED')).length;
+                        return (
+                          <>
+                            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFFBEB', color: '#D97706', display: 'grid', placeContent: 'center', flexShrink: 0 }}>
+                              <Clock size={18} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#D97706', textTransform: 'uppercase', fontWeight: 600 }}>Needs Review</div>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: '#D97706' }}>{needsRev}</div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="bt-metric-card">
+                      {(() => {
+                        const resolvedCount = selected.findings.filter((f) => Boolean(f.disposition)).length;
+                        return (
+                          <>
+                            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F0FDF4', color: '#16A34A', display: 'grid', placeContent: 'center', flexShrink: 0 }}>
+                              <CheckCircle size={18} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#16A34A', textTransform: 'uppercase', fontWeight: 600 }}>Resolved Findings</div>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: '#16A34A' }}>{resolvedCount}</div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Main Two-Panel Workspace Grid (~38% Left / ~62% Right) */}
+                  <div className="bt-review-workspace-grid">
+                    {/* Left Column: Document Preview */}
+                    <div className="bt-doc-preview-pane bt-draft-context-sticky">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #DCE5DF', paddingBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <FileText size={16} style={{ color: '#0E9F78' }} />
+                          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--bt-forest)' }}>
+                            Document Preview
+                          </h3>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#8A9A91' }}>
+                          {selected.content.length} chars · {selected.content.split(/\s+/).filter(Boolean).length} words
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: 12, color: '#617168', display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAF8', padding: '6px 10px', borderRadius: 6, border: '1px solid #E5E7EB' }}>
+                        <Info size={13} style={{ color: '#0E9F78', flexShrink: 0 }} />
+                        <span>
+                          {selected.ocr_applied
+                            ? `Extracted via AI-assisted OCR (${formatMethodLabel(selected.ocr_method)})`
+                            : selected.file_format === 'pdf'
+                            ? 'Extracted via pypdf digital text engine'
+                            : 'Direct draft text copy'}
+                        </span>
+                      </div>
+
+                      {/* Readable Document Text Box */}
+                      <div className="bt-doc-preview-content">
+                        {selected.content}
+                      </div>
+
+                      {/* Document Actions */}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid #DCE5DF' }}>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(selected.content);
+                            setCopyNotice(true);
+                            setTimeout(() => setCopyNotice(false), 2000);
+                          }}
+                          style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
+                        >
+                          {copyNotice ? <><Check size={13} /> Copied to Clipboard!</> : <><Copy size={13} /> Copy Document Text</>}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => setSelected(null)}
+                          style={{ fontSize: 12 }}
+                          title="Submit another draft or document"
+                        >
+                          <Plus size={13} /> New Submission
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Evidence & Compliance Findings Workspace */}
+                    <div style={{ minWidth: 0 }}>
+                      <ReviewPanel
+                        review={selected}
+                        onFindingAction={handleFindingAction}
+                        reason={reason}
+                        setReason={setReason}
+                        manualEdit={manualEdit}
+                        setManualEdit={setManualEdit}
+                        editingFindingId={editingFindingId}
+                        setEditingFindingId={setEditingFindingId}
+                        onApproval={handleApproval}
+                        onRestoreVersion={handleRestoreVersion}
+                        currentRole={role}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -3136,9 +3368,9 @@ function ReviewPanel({
   onRestoreVersion: (versionId: string) => void;
   currentRole?: UserRole;
 }) {
-  const [activeTab, setActiveTab] = useState<'findings' | 'preview' | 'ai_summary' | 'versions'>('findings');
+  const [activeTab, setActiveTab] = useState<'findings' | 'ai_summary' | 'versions'>('findings');
   const [filter, setFilter] = useState<'all' | 'high_critical' | 'needs_review' | 'resolved'>('all');
-  const [copyNotice, setCopyNotice] = useState(false);
+  const [expandedChains, setExpandedChains] = useState<Record<string, boolean>>({});
   const [dismissPromptId, setDismissPromptId] = useState<string | null>(null);
   const [inlineDismissReason, setInlineDismissReason] = useState('');
   const [dismissError, setDismissError] = useState('');
@@ -3182,56 +3414,21 @@ function ReviewPanel({
     return true;
   });
 
-  const scoreColor = review.score >= 80 ? '#2dd4bf' : review.score >= 60 ? '#fbbf24' : '#f87171';
-
   return (
     <div className="card-premium">
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 20 }}>
+      {/* Evidence Findings Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: '#8A9A91', fontWeight: 700 }}>ID: {review.id}</span>
-            <StatusBadge value={review.status} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{review.title}</h2>
-          <div style={{ fontSize: 12, color: '#617168', marginTop: 4 }}>
-            Submitted by {review.author} · Method: <span style={{ color: '#2dd4bf', fontWeight: 600 }}>{formatMethodLabel(review.analysis_method)}</span>
-          </div>
-
-          {/* Document Intelligence Metadata Badges */}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-            <span style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-              SCOPE: {(review.document_type || review.content_type || 'general_document').toUpperCase()}
-            </span>
-            <span style={{ background: '#F1F5F9', color: '#475569', border: '1px solid #CBD5E1', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-              FORMAT: {(review.file_format || 'text').toUpperCase()}
-            </span>
-            {review.ocr_applied && (
-              <span style={{ background: '#EDE9FE', color: '#6D28D9', border: '1px solid #DDD6FE', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-                ⚡ AI-ASSISTED TEXT EXTRACTION
-              </span>
-            )}
-            {review.ai_analysis_applied && (
-              <span style={{ background: '#E0F2FE', color: '#0369A1', border: '1px solid #BAE6FD', borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-                ✨ OPTIONAL AI INSIGHTS
-              </span>
-            )}
-          </div>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--bt-forest)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Scale size={16} style={{ color: '#0E9F78' }} /> Evidence Findings & Governance Decisions
+          </h3>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#617168' }}>
+            Deterministic rule violations, evidence citations, and approved remediation actions.
+          </p>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 32, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{review.score}</div>
-          <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-            Health Score
-            <span
-              title="Base 100 score engine. Deductions for unresolved findings: Critical (-30), High (-18), Medium (-10), Low (-4). Resolved findings restore full points."
-              style={{ cursor: 'help', color: '#2dd4bf', display: 'inline-flex' }}
-            >
-              <Info size={12} />
-            </span>
-          </div>
-          <div style={{ fontSize: 11, color: '#4d6880', marginTop: 2 }}>
-            {resolvedFindings.length}/{totalFindings} resolved
-          </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#8A9A91', fontWeight: 600 }}>Review ID:</span>
+          <code style={{ fontSize: 11, background: '#F1F5F9', padding: '2px 6px', borderRadius: 4, color: '#475569' }}>{review.id}</code>
         </div>
       </div>
 
@@ -3243,13 +3440,6 @@ function ReviewPanel({
           onClick={() => setActiveTab('findings')}
         >
           Compliance Findings ({totalFindings})
-        </button>
-        <button
-          type="button"
-          className={`btn-secondary btn-sm ${activeTab === 'preview' ? 'btn-primary' : ''}`}
-          onClick={() => setActiveTab('preview')}
-        >
-          Extracted Document Text
         </button>
         {(review.document_summary || review.ai_analysis_applied) && (
           <button
@@ -3296,39 +3486,6 @@ function ReviewPanel({
             </div>
           )}
 
-          {/* Findings Summary Stats Bar */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 10,
-              background: '#F8FAF8',
-              border: '1px solid #DCE5DF',
-              borderRadius: 8,
-              padding: '10px 14px',
-              marginBottom: 16,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 10, color: '#8A9A91', textTransform: 'uppercase', fontWeight: 600 }}>Total Findings</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--bt-forest)' }}>{totalFindings}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#f87171', textTransform: 'uppercase', fontWeight: 600 }}>High / Critical</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: unresolvedHigh.length > 0 ? '#f87171' : '#86efac' }}>
-                {unresolvedHigh.length} <span style={{ fontSize: 11, fontWeight: 500, color: '#8A9A91' }}>open ({highCriticalFindings.length})</span>
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#fbbf24', textTransform: 'uppercase', fontWeight: 600 }}>Needs Review</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#fbbf24' }}>{needsReviewFindings.length}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#4ade80', textTransform: 'uppercase', fontWeight: 600 }}>Resolved</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#4ade80' }}>{resolvedFindings.length}</div>
-            </div>
-          </div>
-
           {/* Filter Bar */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontSize: 11, color: '#8A9A91', fontWeight: 700, textTransform: 'uppercase', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -3366,14 +3523,6 @@ function ReviewPanel({
             >
               Resolved ({resolvedFindings.length})
             </button>
-          </div>
-
-          {/* Draft text excerpt */}
-          <div style={{ background: '#F8FAF8', borderRadius: 8, padding: '14px 18px', border: '1px solid #DCE5DF', marginBottom: 18 }}>
-            <div className="label-sm">Current Working Draft Content</div>
-            <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--bt-text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              {review.content}
-            </p>
           </div>
 
           {/* Global recorded reason input */}
@@ -3509,8 +3658,23 @@ function ReviewPanel({
                             </div>
                           )}
 
-                          {/* Explainable Decision Chain Visualization */}
-                          <EvidenceDecisionChain finding={f} />
+                          {/* Explainable Decision Chain Visualization (Collapsible) */}
+                          <div style={{ marginTop: 10 }}>
+                            <button
+                              type="button"
+                              className="btn-secondary btn-sm"
+                              onClick={() => setExpandedChains((prev) => ({ ...prev, [f.id]: !prev[f.id] }))}
+                              style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <Scale size={12} />
+                              {expandedChains[f.id] ? 'Hide Decision Chain' : 'Inspect Decision Chain'}
+                            </button>
+                            {expandedChains[f.id] && (
+                              <div style={{ marginTop: 8 }}>
+                                <EvidenceDecisionChain finding={f} />
+                              </div>
+                            )}
+                          </div>
 
                           {/* Intent-Preserving Suggested Correction or Missing Term Placement */}
                           {isMissingTerm ? (
@@ -3976,361 +4140,7 @@ function ReviewPanel({
               })}
             </div>
           )}
-
-          {/* Approval Action Controls */}
-          <footer
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-              borderTop: '1px solid #DCE5DF',
-              paddingTop: 20,
-              marginTop: 24,
-            }}
-          >
-            {/* Request Changes Section (when active) */}
-            {isRequestChangesOpen && (
-              <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#92400E' }}>
-                    Request Changes from Content Creator
-                  </h4>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    onClick={() => {
-                      setIsRequestChangesOpen(false);
-                      setRequestChangesNotes('');
-                      setRequestChangesError('');
-                    }}
-                    style={{ minHeight: 26, padding: '2px 8px' }}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: '#78350F' }}>
-                  Provide clear remediation notes and required adjustments before this draft can be approved.
-                </p>
-                <textarea
-                  className="input-premium"
-                  rows={3}
-                  value={requestChangesNotes}
-                  onChange={(e) => {
-                    setRequestChangesNotes(e.target.value);
-                    setRequestChangesError('');
-                  }}
-                  placeholder="e.g. Please replace superlative 'best' with evidence-backed claims and ensure required brand disclaimers are present."
-                  style={{ width: '100%', fontSize: 13 }}
-                />
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                  <span style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>Quick notes:</span>
-                  {[
-                    'Remove unverified superlatives and replace with verified evidence citations.',
-                    'Include required brand name and approved legal disclaimer.',
-                    'Contrast ratio does not meet WCAG AA requirements; adjust color palette.',
-                  ].map((sample) => (
-                    <button
-                      key={sample}
-                      type="button"
-                      className="btn-secondary btn-sm"
-                      style={{ fontSize: 11, padding: '2px 8px', minHeight: 24, background: '#FFF' }}
-                      onClick={() => {
-                        setRequestChangesNotes(sample);
-                        setRequestChangesError('');
-                      }}
-                    >
-                      {sample}
-                    </button>
-                  ))}
-                </div>
-                {requestChangesError && (
-                  <div style={{ color: '#DC2626', fontSize: 12, marginTop: 6, fontWeight: 500 }}>
-                    {requestChangesError}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    disabled={approvalBusy}
-                    onClick={async () => {
-                      const notes = requestChangesNotes.trim();
-                      if (!notes) {
-                        setRequestChangesError('Please provide explanation or remediation notes for the creator.');
-                        return;
-                      }
-                      setApprovalBusy(true);
-                      setRequestChangesError('');
-                      try {
-                        const success = await onApproval('request_changes', notes);
-                        if (success) {
-                          setIsRequestChangesOpen(false);
-                          setRequestChangesNotes('');
-                        }
-                      } finally {
-                        setApprovalBusy(false);
-                      }
-                    }}
-                    style={{ fontWeight: 600 }}
-                  >
-                    {approvalBusy ? 'Submitting…' : 'Submit Changes Request'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-outline btn-sm"
-                    disabled={approvalBusy}
-                    onClick={() => {
-                      setIsRequestChangesOpen(false);
-                      setRequestChangesNotes('');
-                      setRequestChangesError('');
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Waive with Reason Section (when active) */}
-            {isWaiveDialogOpen && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#991B1B' }}>
-                    Governance Policy Waiver Sign-off
-                  </h4>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    onClick={() => {
-                      setIsWaiveDialogOpen(false);
-                      setWaiveReasonText('');
-                      setWaiveError('');
-                    }}
-                    style={{ minHeight: 26, padding: '2px 8px' }}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-                {unresolvedHigh.length > 0 ? (
-                  <div style={{ background: '#FFF', border: '1px solid #FCA5A5', borderRadius: 6, padding: '10px 12px', marginBottom: 10, fontSize: 12, color: '#991B1B' }}>
-                    <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: 4, color: '#DC2626' }} />
-                    <strong>Waiver Blocked:</strong> Approval policy requires that {unresolvedHigh.length} high-risk finding{unresolvedHigh.length > 1 ? 's' : ''} have individual exceptions documented before review-level waiver can be granted.
-                  </div>
-                ) : (
-                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#7F1D1D' }}>
-                    A governance waiver signs off this draft despite open warnings and records an immutable audit log entry.
-                  </p>
-                )}
-                <label className="label-sm" style={{ color: '#991B1B' }}>
-                  Document Justification / Executive Exemption Authority (Required)
-                </label>
-                <textarea
-                  className="input-premium"
-                  rows={3}
-                  value={waiveReasonText}
-                  onChange={(e) => {
-                    setWaiveReasonText(e.target.value);
-                    setWaiveError('');
-                  }}
-                  placeholder="e.g. Executive exemption granted by VP Brand Marketing under quarterly partnership agreement."
-                  style={{ width: '100%', fontSize: 13, marginTop: 4 }}
-                />
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                  <span style={{ fontSize: 11, color: '#991B1B', fontWeight: 600 }}>Standard waiver authorities:</span>
-                  {[
-                    'Executive exception authorized by VP of Brand Marketing',
-                    'Time-critical regulatory filing under approved compliance exemption',
-                    'Partner co-branding contract overrides standard phraseology rules',
-                  ].map((sample) => (
-                    <button
-                      key={sample}
-                      type="button"
-                      className="btn-secondary btn-sm"
-                      style={{ fontSize: 11, padding: '2px 8px', minHeight: 24, background: '#FFF' }}
-                      onClick={() => {
-                        setWaiveReasonText(sample);
-                        setWaiveError('');
-                      }}
-                    >
-                      {sample}
-                    </button>
-                  ))}
-                </div>
-                {waiveError && (
-                  <div style={{ color: '#DC2626', fontSize: 12, marginTop: 6, fontWeight: 500 }}>
-                    {waiveError}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button
-                    type="button"
-                    className="btn-danger btn-sm"
-                    disabled={approvalBusy || unresolvedHigh.length > 0}
-                    onClick={async () => {
-                      const reasonText = waiveReasonText.trim();
-                      if (!reasonText) {
-                        setWaiveError('A documented reason is required for a governance waiver.');
-                        return;
-                      }
-                      setApprovalBusy(true);
-                      setWaiveError('');
-                      try {
-                        const success = await onApproval('waive', reasonText);
-                        if (success) {
-                          setIsWaiveDialogOpen(false);
-                          setWaiveReasonText('');
-                        }
-                      } finally {
-                        setApprovalBusy(false);
-                      }
-                    }}
-                  >
-                    {approvalBusy ? 'Submitting Waiver…' : 'Confirm Governance Waiver'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    disabled={approvalBusy}
-                    onClick={() => {
-                      setIsWaiveDialogOpen(false);
-                      setWaiveReasonText('');
-                      setWaiveError('');
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              {unresolvedHigh.length > 0 ? (
-                <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled
-                    style={{
-                      minHeight: 48,
-                      opacity: 0.65,
-                      cursor: 'not-allowed',
-                      backgroundColor: '#F3F4F6',
-                      borderColor: '#D1D5DB',
-                      color: '#6B7280',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      fontWeight: 600,
-                    }}
-                    title="Resolve all required HIGH and CRITICAL findings before approval."
-                  >
-                    <Lock size={16} style={{ color: '#DC2626' }} />
-                    <span>Approval blocked &mdash; Resolve {unresolvedHigh.length} high-risk finding{unresolvedHigh.length > 1 ? 's' : ''}</span>
-                  </button>
-                  <span style={{ fontSize: 11, color: '#991B1B', fontWeight: 500 }}>
-                    Resolve all required HIGH and CRITICAL findings before approval.
-                  </span>
-                </div>
-              ) : currentRole !== 'reviewer' && currentRole !== 'brand_admin' ? (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled
-                  style={{ minHeight: 48, opacity: 0.65, cursor: 'not-allowed' }}
-                  title="Reviewer or Brand Admin role required for approval decisions."
-                >
-                  <Lock size={16} /> Approval requires Reviewer / Admin
-                </button>
-              ) : review.status === 'APPROVED' ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled
-                  style={{ minHeight: 48, background: '#0E9F78', borderColor: '#0E9F78', opacity: 0.9 }}
-                >
-                  <CheckCircle size={16} /> Approved for Publication
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={async () => {
-                    setApprovalBusy(true);
-                    try {
-                      await onApproval('approve');
-                    } finally {
-                      setApprovalBusy(false);
-                    }
-                  }}
-                  disabled={approvalBusy}
-                  style={{ minHeight: 48 }}
-                  title="Approve draft for publication hand-off"
-                >
-                  {approvalBusy ? 'Approving…' : <><CheckCircle size={16} /> Approve Review</>}
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setIsRequestChangesOpen(true);
-                  setIsWaiveDialogOpen(false);
-                }}
-                disabled={approvalBusy || (currentRole !== 'reviewer' && currentRole !== 'brand_admin')}
-                style={{ minHeight: 48 }}
-              >
-                Request Changes
-              </button>
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={() => {
-                  setIsWaiveDialogOpen(true);
-                  setIsRequestChangesOpen(false);
-                }}
-                disabled={approvalBusy || (currentRole !== 'reviewer' && currentRole !== 'brand_admin')}
-                style={{ minHeight: 48 }}
-              >
-                Waive with Reason
-              </button>
-            </div>
-          </footer>
         </>
-      )}
-
-      {/* Segment: Extracted Document Text Preview */}
-      {activeTab === 'preview' && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAF8', padding: '12px 16px', borderRadius: 8, border: '1px solid #DCE5DF', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#8A9A91', textTransform: 'uppercase' }}>Extraction Provenance</div>
-              <div style={{ fontSize: 13, color: 'var(--bt-forest)', marginTop: 2, fontWeight: 600 }}>
-                {review.ocr_applied
-                  ? `Processed via AI-assisted OCR (${formatMethodLabel(review.ocr_method)})`
-                  : review.file_format === 'pdf'
-                  ? 'Extracted via direct digital text engine'
-                  : 'Ingested via direct draft editor'}
-                {' · '}{review.content.length} characters ({review.content.split(/\s+/).filter(Boolean).length} words)
-              </div>
-            </div>
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              onClick={() => {
-                navigator.clipboard.writeText(review.content);
-                setCopyNotice(true);
-                setTimeout(() => setCopyNotice(false), 2000);
-              }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              {copyNotice ? <><Check size={14} /> Copied to Clipboard!</> : <><Copy size={14} /> Copy Document Text</>}
-            </button>
-          </div>
-
-          <div className="bt-extracted-text-box">
-            {review.content}
-          </div>
-        </div>
       )}
 
       {/* Segment: Additional AI insights */}
@@ -4389,6 +4199,337 @@ function ReviewPanel({
           ))}
         </div>
       )}
+
+      {/* Review Decision Bar (Persistent across all tabs) */}
+      <footer className="bt-decision-bar">
+        {/* Request Changes Section (when active) */}
+        {isRequestChangesOpen && (
+          <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: 16, width: '100%', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#92400E' }}>
+                Request Changes from Content Creator
+              </h4>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => {
+                  setIsRequestChangesOpen(false);
+                  setRequestChangesNotes('');
+                  setRequestChangesError('');
+                }}
+                style={{ minHeight: 26, padding: '2px 8px' }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <p style={{ margin: '0 0 8px', fontSize: 12, color: '#78350F' }}>
+              Provide clear remediation notes and required adjustments before this draft can be approved.
+            </p>
+            <textarea
+              className="input-premium"
+              rows={3}
+              value={requestChangesNotes}
+              onChange={(e) => {
+                setRequestChangesNotes(e.target.value);
+                setRequestChangesError('');
+              }}
+              placeholder="e.g. Please replace superlative 'best' with evidence-backed claims and ensure required brand disclaimers are present."
+              style={{ width: '100%', fontSize: 13 }}
+            />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+              <span style={{ fontSize: 11, color: '#92400E', fontWeight: 600 }}>Quick notes:</span>
+              {[
+                'Remove unverified superlatives and replace with verified evidence citations.',
+                'Include required brand name and approved legal disclaimer.',
+                'Contrast ratio does not meet WCAG AA requirements; adjust color palette.',
+              ].map((sample) => (
+                <button
+                  key={sample}
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: '2px 8px', minHeight: 24, background: '#FFF' }}
+                  onClick={() => {
+                    setRequestChangesNotes(sample);
+                    setRequestChangesError('');
+                  }}
+                >
+                  {sample}
+                </button>
+              ))}
+            </div>
+            {requestChangesError && (
+              <div style={{ color: '#DC2626', fontSize: 12, marginTop: 6, fontWeight: 500 }}>
+                {requestChangesError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                disabled={approvalBusy}
+                onClick={async () => {
+                  const notes = requestChangesNotes.trim();
+                  if (!notes) {
+                    setRequestChangesError('Please provide explanation or remediation notes for the creator.');
+                    return;
+                  }
+                  setApprovalBusy(true);
+                  setRequestChangesError('');
+                  try {
+                    const success = await onApproval('request_changes', notes);
+                    if (success) {
+                      setIsRequestChangesOpen(false);
+                      setRequestChangesNotes('');
+                    }
+                  } finally {
+                    setApprovalBusy(false);
+                  }
+                }}
+                style={{ fontWeight: 600 }}
+              >
+                {approvalBusy ? 'Submitting…' : 'Submit Changes Request'}
+              </button>
+              <button
+                type="button"
+                className="btn-outline btn-sm"
+                disabled={approvalBusy}
+                onClick={() => {
+                  setIsRequestChangesOpen(false);
+                  setRequestChangesNotes('');
+                  setRequestChangesError('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Waive with Reason Section (when active) */}
+        {isWaiveDialogOpen && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: 16, width: '100%', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#991B1B' }}>
+                Governance Policy Waiver Sign-off
+              </h4>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => {
+                  setIsWaiveDialogOpen(false);
+                  setWaiveReasonText('');
+                  setWaiveError('');
+                }}
+                style={{ minHeight: 26, padding: '2px 8px' }}
+              >
+                <X size={13} />
+              </button>
+            </div>
+            {unresolvedHigh.length > 0 ? (
+              <div style={{ background: '#FFF', border: '1px solid #FCA5A5', borderRadius: 6, padding: '10px 12px', marginBottom: 10, fontSize: 12, color: '#991B1B' }}>
+                <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: 4, color: '#DC2626' }} />
+                <strong>Waiver Blocked:</strong> Approval policy requires that {unresolvedHigh.length} high-risk finding{unresolvedHigh.length > 1 ? 's' : ''} have individual exceptions documented before review-level waiver can be granted.
+              </div>
+            ) : (
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#7F1D1D' }}>
+                A governance waiver signs off this draft despite open warnings and records an immutable audit log entry.
+              </p>
+            )}
+            <label className="label-sm" style={{ color: '#991B1B' }}>
+              Document Justification / Executive Exemption Authority (Required)
+            </label>
+            <textarea
+              className="input-premium"
+              rows={3}
+              value={waiveReasonText}
+              onChange={(e) => {
+                setWaiveReasonText(e.target.value);
+                setWaiveError('');
+              }}
+              placeholder="e.g. Executive exemption granted by VP Brand Marketing under quarterly partnership agreement."
+              style={{ width: '100%', fontSize: 13, marginTop: 4 }}
+            />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+              <span style={{ fontSize: 11, color: '#991B1B', fontWeight: 600 }}>Standard waiver authorities:</span>
+              {[
+                'Executive exception authorized by VP of Brand Marketing',
+                'Time-critical regulatory filing under approved compliance exemption',
+                'Partner co-branding contract overrides standard phraseology rules',
+              ].map((sample) => (
+                <button
+                  key={sample}
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  style={{ fontSize: 11, padding: '2px 8px', minHeight: 24, background: '#FFF' }}
+                  onClick={() => {
+                    setWaiveReasonText(sample);
+                    setWaiveError('');
+                  }}
+                >
+                  {sample}
+                </button>
+              ))}
+            </div>
+            {waiveError && (
+              <div style={{ color: '#DC2626', fontSize: 12, marginTop: 6, fontWeight: 500 }}>
+                {waiveError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn-danger btn-sm"
+                disabled={approvalBusy || unresolvedHigh.length > 0}
+                onClick={async () => {
+                  const reasonText = waiveReasonText.trim();
+                  if (!reasonText) {
+                    setWaiveError('A documented reason is required for a governance waiver.');
+                    return;
+                  }
+                  setApprovalBusy(true);
+                  setWaiveError('');
+                  try {
+                    const success = await onApproval('waive', reasonText);
+                    if (success) {
+                      setIsWaiveDialogOpen(false);
+                      setWaiveReasonText('');
+                    }
+                  } finally {
+                    setApprovalBusy(false);
+                  }
+                }}
+              >
+                {approvalBusy ? 'Submitting Waiver…' : 'Confirm Governance Waiver'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                disabled={approvalBusy}
+                onClick={() => {
+                  setIsWaiveDialogOpen(false);
+                  setWaiveReasonText('');
+                  setWaiveError('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: 12 }}>
+          {/* Status summary note */}
+          <div>
+            {unresolvedHigh.length > 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#991B1B', fontSize: 13, fontWeight: 600 }}>
+                <AlertTriangle size={16} style={{ color: '#DC2626' }} />
+                <span>Approval Gate Locked &mdash; {unresolvedHigh.length} high-risk finding{unresolvedHigh.length > 1 ? 's' : ''} open</span>
+              </div>
+            ) : review.status === 'APPROVED' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#0E9F78', fontSize: 13, fontWeight: 600 }}>
+                <CheckCircle size={16} />
+                <span>Approved for Publication Hand-off</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#2dd4bf', fontSize: 13, fontWeight: 600 }}>
+                <CheckCircle size={16} />
+                <span>Ready for Governance Sign-off</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            {unresolvedHigh.length > 0 ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled
+                style={{
+                  minHeight: 44,
+                  opacity: 0.65,
+                  cursor: 'not-allowed',
+                  backgroundColor: '#F3F4F6',
+                  borderColor: '#D1D5DB',
+                  color: '#6B7280',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+                title="Resolve all required HIGH and CRITICAL findings before approval."
+              >
+                <Lock size={15} style={{ color: '#DC2626' }} />
+                <span>Approval blocked &mdash; Resolve {unresolvedHigh.length} high-risk finding{unresolvedHigh.length > 1 ? 's' : ''}</span>
+              </button>
+            ) : currentRole !== 'reviewer' && currentRole !== 'brand_admin' ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled
+                style={{ minHeight: 44, opacity: 0.65, cursor: 'not-allowed', fontSize: 13 }}
+                title="Reviewer or Brand Admin role required for approval decisions."
+              >
+                <Lock size={15} /> Approval requires Reviewer / Admin
+              </button>
+            ) : review.status === 'APPROVED' ? (
+              <button
+                type="button"
+                className="btn-primary"
+                disabled
+                style={{ minHeight: 44, background: '#0E9F78', borderColor: '#0E9F78', opacity: 0.9, fontSize: 13 }}
+              >
+                <CheckCircle size={15} /> Approved for Publication
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={async () => {
+                  setApprovalBusy(true);
+                  try {
+                    await onApproval('approve');
+                  } finally {
+                    setApprovalBusy(false);
+                  }
+                }}
+                disabled={approvalBusy}
+                style={{ minHeight: 44, fontSize: 13 }}
+                title="Approve draft for publication hand-off"
+              >
+                {approvalBusy ? 'Approving…' : <><CheckCircle size={15} /> Approve Review</>}
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setIsRequestChangesOpen(true);
+                setIsWaiveDialogOpen(false);
+              }}
+              disabled={approvalBusy || (currentRole !== 'reviewer' && currentRole !== 'brand_admin')}
+              style={{ minHeight: 44, fontSize: 13 }}
+            >
+              Request Changes
+            </button>
+
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => {
+                setIsWaiveDialogOpen(true);
+                setIsRequestChangesOpen(false);
+              }}
+              disabled={approvalBusy || (currentRole !== 'reviewer' && currentRole !== 'brand_admin')}
+              style={{ minHeight: 44, fontSize: 13 }}
+            >
+              Waive with Reason
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

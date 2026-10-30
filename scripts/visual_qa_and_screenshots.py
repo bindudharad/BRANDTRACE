@@ -103,6 +103,22 @@ def run_visual_audit():
         page.screenshot(path=ws_review_1080)
         print(f"Captured: {ws_review_1080}")
 
+        # Multi-viewport responsive captures for Content Review
+        for w, h in [(1600, 900), (1366, 768), (1024, 768), (768, 1024), (390, 844), (360, 800)]:
+            page.set_viewport_size({"width": w, "height": h})
+            page.wait_for_timeout(500)
+            vp_path = os.path.join(OUTPUT_DIR, f"workspace_content_review_{w}x{h}.png")
+            page.screenshot(path=vp_path)
+            print(f"Captured: {vp_path}")
+            has_overflow = page.evaluate("() => document.documentElement.scrollWidth > window.innerWidth")
+            if has_overflow:
+                print(f"  [WARN] Horizontal scrollbar detected at {w}x{h}")
+            else:
+                print(f"  [PASS] Clean layout with zero horizontal overflow at {w}x{h}")
+
+        page.set_viewport_size({"width": 1920, "height": 1080})
+        page.wait_for_timeout(400)
+
         # Blocked Approval state screenshot
         blocked_btn = page.locator("button").filter(has_text="Approval blocked").first
         if blocked_btn.is_visible():

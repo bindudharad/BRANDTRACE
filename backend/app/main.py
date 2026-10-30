@@ -711,22 +711,27 @@ async def demo_reset(
             ),
         )
 
-    # Seed 1 sample initial review with findings
+    # Seed 1 sample initial review with findings (Curated Judge Demo Review)
     sample_id = "rev_launch_q4"
-    sample_content = "Brandtrace is the best and cheap way to verify marketing claims in India."
+    sample_content = (
+        "Discover a more effective way to manage your team's daily workflow. "
+        "Brandtrace is the best and cheap solution with guaranteed performance for enterprise operations in India."
+    )
     sample_review = {
         "id": sample_id,
         "workspace_id": "ws_default",
-        "title": "Launch announcement — Q4",
+        "title": "Summer Product Campaign — Q4 (Launch announcement)",
         "content": sample_content,
-        "content_type": "announcement",
+        "content_type": "marketing_copy",
+        "document_type": "marketing_copy",
+        "file_format": "pdf",
         "status": "IN_REVIEW",
         "score": 100,
         "author": "creator@demo.com",
         "reviewer": None,
-        "file_name": None,
-        "file_mime": None,
-        "file_size": None,
+        "file_name": "summer_product_campaign_q4.pdf",
+        "file_mime": "application/pdf",
+        "file_size": 24576,
         "analysis_method": "DETERMINISTIC_FIRST",
         "rule_versions": json.dumps({"R-VOICE-01": "1.2", "R-TERM-02": "1.0", "R-TERM-03": "1.0"}),
         "created_at": now(),
@@ -736,13 +741,13 @@ async def demo_reset(
         conn.execute(
             """
             INSERT INTO reviews (
-                id, workspace_id, title, content, content_type, status,
-                score, author, reviewer, file_name, file_mime, file_size,
-                analysis_method, rule_versions, created_at, updated_at
+                id, workspace_id, title, content, content_type, document_type,
+                file_format, status, score, author, reviewer, file_name, file_mime,
+                file_size, analysis_method, rule_versions, created_at, updated_at
             ) VALUES (
-                :id, :workspace_id, :title, :content, :content_type, :status,
-                :score, :author, :reviewer, :file_name, :file_mime, :file_size,
-                :analysis_method, :rule_versions, :created_at, :updated_at
+                :id, :workspace_id, :title, :content, :content_type, :document_type,
+                :file_format, :status, :score, :author, :reviewer, :file_name, :file_mime,
+                :file_size, :analysis_method, :rule_versions, :created_at, :updated_at
             )
             """,
             sample_review,

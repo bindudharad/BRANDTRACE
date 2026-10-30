@@ -202,7 +202,7 @@ def run_suite():
                     page.wait_for_timeout(1000)
             page.locator("aside nav button").filter(has_text="Content Review").first.click()
             page.wait_for_timeout(500)
-            expect(page.locator("option").filter(has_text="Launch announcement").or_(page.locator("text=Launch announcement")).first).to_be_attached()
+            expect(page.locator("option").filter(has_text="Summer Product Campaign").or_(page.locator("option").filter(has_text="Launch announcement")).or_(page.locator("text=Summer Product Campaign")).or_(page.locator("text=Launch announcement")).first).to_be_attached()
             record("QA-04", "Demo Reset / Setup", "PASS", "Demo data reset; baseline draft rev_launch_q4 loaded with baseline rules and facts")
         except Exception as e:
             record("QA-04", "Demo Reset / Setup", "FAIL", str(e))
@@ -256,7 +256,7 @@ def run_suite():
             draft_area.fill("Brandtrace: Our tool helps teams verify claims.")
             page.locator("button").filter(has_text="Start Evidence Review").first.click()
             page.wait_for_timeout(1500)
-            expect(page.locator("strong").filter(has_text="100/100").or_(page.locator("text=100 Health Score")).first).to_be_visible(timeout=8000)
+            expect(page.locator("strong").filter(has_text="100/100").or_(page.locator("text=100/100")).or_(page.locator("text=100 Health Score")).first).to_be_visible(timeout=8000)
             record("QA-08", "Dynamic Term Re-evaluation", "PASS", "Draft with required term restored clearance score to 100/100")
         except Exception as e:
             record("QA-08", "Dynamic Term Re-evaluation", "FAIL", str(e))
