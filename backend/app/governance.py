@@ -67,6 +67,48 @@ def is_expired(item: Dict[str, Any]) -> bool:
     val = item.get("expires_at")
     return bool(val and val < now())
 
+NON_MARKETING_DOC_TYPES = {
+    "resume_cv", "resume", "cv", "academic_assignment", "academic", "technical_doc", "policy_doc"
+}
+
+def is_rule_applicable(rule: Dict[str, Any], review: Any) -> bool:
+    """
+    Evaluate whether a governance rule applies to the given review's document type and content type.
+    Prevents marketing-specific requirements (e.g. brand name insertion) from incorrectly flagging
+    resumes, academic assignments, or technical documents.
+    """
+    if isinstance(review, str):
+        doc_type = review.lower().strip()
+        content_type = ""
+    elif isinstance(review, dict):
+        doc_type = (review.get("document_type") or review.get("content_type") or "general_document").lower().strip()
+        content_type = (review.get("content_type") or "").lower().strip()
+    else:
+        doc_type = "general_document"
+        content_type = ""
+
+    # Check explicit applicable_document_types if set
+    app_types_str = (rule.get("applicable_document_types") or "").strip().lower()
+    if app_types_str and app_types_str not in ("all", "*"):
+        allowed = {t.strip() for t in app_types_str.split(",") if t.strip()}
+        if doc_type not in allowed and content_type not in allowed:
+            return False
+
+    # Mandatory product/platform terminology rules (required_phrase, approved_term)
+    # only apply to brand communication / marketing / public copy, not to personal resumes or academic assignments
+    rule_kind = rule.get("kind", "")
+    rule_id = rule.get("id", "")
+    if rule_kind in ("required_phrase", "approved_term") or rule_id == "R-TERM-02":
+        if doc_type in NON_MARKETING_DOC_TYPES:
+            return False
+
+    # Commercial promotional superlative rule (R-VOICE-01 "best") applies to customer/product communications,
+    # not personal academic performance or credential statements on resumes/CVs
+    if doc_type in ("resume_cv", "resume", "cv") and rule_id == "R-VOICE-01":
+        return False
+
+    return True
+
 async def run_governance_analysis(review: Dict[str, Any], additional_visual_findings: Optional[List[Dict[str, Any]]] = None):
     """
     Execute full governance analysis on a review draft.
@@ -93,6 +135,9 @@ async def run_governance_analysis(review: Dict[str, Any], additional_visual_find
     for rule in active_rules:
         # Require source citation on the rule
         if not (rule.get("source_title") and rule.get("source_excerpt")):
+            continue
+
+        if not is_rule_applicable(rule, review):
             continue
 
         pattern = rule.get("pattern", "")
@@ -281,7 +326,22 @@ async def run_governance_analysis(review: Dict[str, Any], additional_visual_find
                 "uncertainty": vf.get("uncertainty", "Deterministic visual measurements."),
             })
 
-    # 5. Persist Findings & Compute Health Score
+    # 5. Deduplicate redundant findings and Persist Findings & Compute Health Score
+    deduped_findings: List[Dict[str, Any]] = []
+    seen_finding_keys = set()
+    for item in findings_to_insert:
+        key = (
+            item.get("category", ""),
+            item.get("source_id", ""),
+            item.get("passage", "").lower().strip(),
+            item.get("type", ""),
+        )
+        if key in seen_finding_keys:
+            continue
+        seen_finding_keys.add(key)
+        deduped_findings.append(item)
+    findings_to_insert = deduped_findings
+
     fact_source_ids = {fact["id"] for fact in active_facts}
     with db() as conn:
         conn.execute("DELETE FROM findings WHERE review_id=?", (review["id"],))

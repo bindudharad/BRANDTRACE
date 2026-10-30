@@ -40,6 +40,7 @@ class RuleIn(BaseModel):
     owner: str = Field("Brand Admin", max_length=120)
     effective_at: Optional[str] = None
     expires_at: Optional[str] = None
+    applicable_document_types: Optional[str] = "all"
 
 class RuleUpdateIn(BaseModel):
     expected_version: Optional[str] = None
@@ -72,6 +73,7 @@ class RuleOut(BaseModel):
     source_excerpt: str
     effective_at: Optional[str] = None
     expires_at: Optional[str] = None
+    applicable_document_types: Optional[str] = "all"
 
 class FactIn(BaseModel):
     claim: str = Field(..., min_length=2, max_length=200)
@@ -119,7 +121,10 @@ class FactOut(BaseModel):
 class ReviewIn(BaseModel):
     title: str = Field(..., min_length=2, max_length=160)
     content: str = Field(..., min_length=1, max_length=MAX_CONTENT_CHARS)
-    content_type: Literal["marketing_copy", "email", "social", "web", "document", "image"] = "marketing_copy"
+    content_type: str = "marketing_copy"
+    document_type: Optional[str] = "general_document"
+    consent_ocr: Optional[bool] = False
+    consent_ai: Optional[bool] = False
 
 class FindingAction(BaseModel):
     action: Literal["accept", "edit", "dismiss", "escalate"]
@@ -172,6 +177,13 @@ class ReviewOut(BaseModel):
     file_name: Optional[str] = None
     file_mime: Optional[str] = None
     file_size: Optional[int] = None
+    document_type: Optional[str] = "general_document"
+    file_format: Optional[str] = "text"
+    ocr_applied: Optional[bool] = False
+    ocr_method: Optional[str] = "NONE"
+    ai_consent_granted: Optional[bool] = False
+    ai_analysis_applied: Optional[bool] = False
+    document_summary: Optional[str] = None
     analysis_method: str = "DETERMINISTIC_FIRST"
     rule_versions: str
     created_at: str

@@ -24,8 +24,15 @@ import socket
 
 REPO_DIR = r"C:\Projects\BRANDTRACE\BRANDTRACE"
 DEV_DB_PATH = os.path.join(REPO_DIR, "brandtrace.db")
-BACKEND_PORT = 8031
-FRONTEND_PORT = 3001
+BACKEND_PORT = 8050
+FRONTEND_PORT = 3050
+
+def find_free_port(preferred=None):
+    if preferred and not is_port_in_use(preferred):
+        return preferred
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -48,13 +55,10 @@ def main():
     print("BRANDTRACE ISOLATED BROWSER QA PROTOCOL")
     print("=" * 80)
 
-    # 1. Verify ports 8031 and 3001 are free
-    if is_port_in_use(BACKEND_PORT):
-        print(f"ERROR: Port {BACKEND_PORT} is already in use. Aborting.")
-        sys.exit(1)
-    if is_port_in_use(FRONTEND_PORT):
-        print(f"ERROR: Port {FRONTEND_PORT} is already in use. Aborting.")
-        sys.exit(1)
+    global BACKEND_PORT, FRONTEND_PORT
+    BACKEND_PORT = find_free_port(8050)
+    FRONTEND_PORT = find_free_port(3050)
+    print(f"Allocated dedicated free ports: Backend={BACKEND_PORT}, Frontend={FRONTEND_PORT}")
 
     # 2. Record dev database metadata to verify it remains untouched
     dev_db_initial_stat = None
@@ -83,6 +87,7 @@ def main():
         backend_env["ALLOW_DEMO_AUTH"] = "True"
         backend_env["ALLOW_DEMO_RESET"] = "true"
         backend_env["DEMO_RESET_SECRET"] = "isolated-qa-secret"
+        backend_env["ENVIRONMENT"] = "local"
 
         # Initialize schema in isolated DB
         print("Initializing isolated schema in temporary database...")
@@ -214,8 +219,15 @@ def main():
         suite_proc = subprocess.run(suite_cmd, env=qa_env, cwd=REPO_DIR, capture_output=False)
         suite_exit_code = suite_proc.returncode
 
+        # Execute Visual QA, screenshots & contrast measurement
         print("\n" + "=" * 80)
-        print(f"SUITE COMPLETED WITH EXIT CODE: {suite_exit_code}")
+        print("EXECUTING VISUAL QA, SCREENSHOTS & WCAG CONTRAST VERIFICATION")
+        print("=" * 80)
+        vis_cmd = [sys.executable, os.path.join(REPO_DIR, "scripts", "visual_qa_and_screenshots.py")]
+        vis_proc = subprocess.run(vis_cmd, env=qa_env, cwd=REPO_DIR, capture_output=False)
+
+        print("\n" + "=" * 80)
+        print(f"SUITE COMPLETED WITH EXIT CODE: {suite_exit_code} (Visual QA exit: {vis_proc.returncode})")
         print("=" * 80)
 
     finally:

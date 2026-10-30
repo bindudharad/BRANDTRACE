@@ -191,7 +191,7 @@ export function BrandtraceWorkspace() {
     setError('');
     try {
       let rep: string | undefined = customReplacement;
-      let recReason: string | undefined = reason || undefined;
+      let recReason: string | undefined = reason?.trim() || undefined;
       let actionToSend = a;
 
       const isMissingTerm = f.type === 'required_phrase' || f.type === 'approved_term';
@@ -205,7 +205,13 @@ export function BrandtraceWorkspace() {
             recReason = recReason || `Inserted mandatory required term '${f.passage}'.`;
             actionToSend = 'accept';
           } else if (f.suggested_correction) {
+            if (!selected.content.includes(f.passage)) {
+              setError(`Cannot accept replacement: original passage "${f.passage}" was not found in the current working copy.`);
+              return;
+            }
             rep = selected.content.replace(f.passage, f.suggested_correction);
+            recReason = recReason || `Accepted suggested replacement "${f.suggested_correction}" for "${f.passage}".`;
+            actionToSend = 'accept';
           }
         }
       } else if (a === 'edit') {
@@ -213,30 +219,18 @@ export function BrandtraceWorkspace() {
           setError('Please provide replacement or updated wording in the edit input.');
           return;
         }
-        if (!reason.trim()) {
-          setError('A documented reason is required when editing a finding.');
-          return;
-        }
-        if (isMissingTerm) {
-          if (manualEdit.includes(f.passage)) {
-            rep = manualEdit.trim();
-          } else {
-            const trimmed = selected.content.trim();
-            const sep = trimmed.endsWith('.') ? ' ' : '. ';
-            rep = `${trimmed}${sep}${manualEdit.trim()}`;
-          }
-        } else {
-          if (selected.content.includes(f.passage)) {
-            rep = selected.content.replace(f.passage, manualEdit);
-          } else {
-            rep = manualEdit;
-          }
-        }
+        recReason = recReason || `Manual edit to address finding on '${f.passage}'.`;
+        rep = manualEdit.trim();
+        actionToSend = 'edit';
       } else if (a === 'dismiss') {
-        if (!reason.trim()) {
+        if (!recReason) {
           setError('A documented reason is required to dismiss a compliance finding.');
           return;
         }
+        actionToSend = 'dismiss';
+      } else if (a === 'escalate') {
+        actionToSend = 'escalate';
+        recReason = recReason || 'Escalated to brand leadership for compliance review.';
       }
 
       const r = await api.findingAction(selected.id, f.id, actionToSend, recReason, rep);
@@ -256,6 +250,17 @@ export function BrandtraceWorkspace() {
   const handleApproval = async (a: 'approve' | 'request_changes' | 'waive') => {
     if (!selected) return;
     setError('');
+    const unresolvedHigh = selected.findings.filter(
+      (f) => !f.disposition && ['HIGH', 'CRITICAL'].includes(f.severity)
+    );
+    if ((a === 'approve' || a === 'waive') && unresolvedHigh.length > 0) {
+      setError(`Approval blocked — ${unresolvedHigh.length} high-risk finding${unresolvedHigh.length > 1 ? 's' : ''} must be resolved before sign-off.`);
+      return;
+    }
+    if (a === 'waive' && !reason.trim()) {
+      setError('A documented reason is required for a governance waiver.');
+      return;
+    }
     try {
       const r = await api.approval(selected.id, a, a === 'approve' ? undefined : reason || undefined);
       setSelected(r);
@@ -398,7 +403,7 @@ export function BrandtraceWorkspace() {
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <div className="bt-role-bar" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>Simulated Role:</span>
+                <span>Active Role:</span>
                 <select value={role} onChange={(e) => handleRoleChange(e.target.value as UserRole)}>
                   <option value="reviewer">Reviewer (Approval & Actions)</option>
                   <option value="creator">Creator (Draft Submissions)</option>
@@ -1209,10 +1214,10 @@ function ReviewPanel({
                       )}
                     </label>
                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                      <button className="bt-primary" onClick={() => onFindingAction(f, 'edit')}>
+                      <button type="button" className="bt-primary" onClick={() => onFindingAction(f, 'edit')}>
                         Apply Edit
                       </button>
-                      <button className="bt-outline" onClick={() => setEditingFindingId(null)}>
+                      <button type="button" className="bt-outline" onClick={() => { setEditingFindingId(null); setManualEdit(''); }}>
                         Cancel
                       </button>
                     </div>
@@ -1223,10 +1228,11 @@ function ReviewPanel({
                   <div className="bt-actions">
                     {isMissingTerm ? (
                       <>
-                        <button className="bt-primary" onClick={() => onFindingAction(f, 'insert')}>
+                        <button type="button" className="bt-primary" onClick={() => onFindingAction(f, 'insert')}>
                           Insert Term
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
                             setEditingFindingId(f.id);
                             setManualEdit(review.content);
@@ -1238,20 +1244,21 @@ function ReviewPanel({
                     ) : (
                       <>
                         {f.suggested_correction && (
-                          <button onClick={() => onFindingAction(f, 'accept')}>Accept Replacement</button>
+                          <button type="button" onClick={() => onFindingAction(f, 'accept')}>Accept Replacement</button>
                         )}
                         <button
+                          type="button"
                           onClick={() => {
                             setEditingFindingId(f.id);
-                            setManualEdit(f.suggested_correction || f.passage);
+                            setManualEdit(review.content);
                           }}
                         >
                           Edit Manually
                         </button>
                       </>
                     )}
-                    <button onClick={() => onFindingAction(f, 'dismiss')}>Dismiss with Reason</button>
-                    <button onClick={() => onFindingAction(f, 'escalate')}>Escalate</button>
+                    <button type="button" onClick={() => onFindingAction(f, 'dismiss')}>Dismiss with Reason</button>
+                    <button type="button" onClick={() => onFindingAction(f, 'escalate')}>Escalate</button>
                   </div>
                 )}
               </article>
@@ -1262,7 +1269,9 @@ function ReviewPanel({
           {/* Approval Controls */}
           <footer className="bt-approval">
             <button
+              type="button"
               className="bt-primary"
+              disabled={unresolvedHigh.length > 0}
               onClick={() => onApproval('approve')}
               title={
                 unresolvedHigh.length > 0
@@ -1270,12 +1279,12 @@ function ReviewPanel({
                   : 'Approve draft for publication hand-off'
               }
             >
-              Approve Review {unresolvedHigh.length > 0 && `(${unresolvedHigh.length} High Risk Blocked)`}
+              {unresolvedHigh.length > 0 ? `Approval blocked (${unresolvedHigh.length} High Risk)` : 'Approve Review'}
             </button>
-            <button className="bt-outline" onClick={() => onApproval('request_changes')}>
+            <button type="button" className="bt-outline" onClick={() => onApproval('request_changes')}>
               Request Changes
             </button>
-            <button className="bt-link danger" onClick={() => onApproval('waive')}>
+            <button type="button" className="bt-link danger" disabled={unresolvedHigh.length > 0} onClick={() => onApproval('waive')}>
               Waive with Reason
             </button>
           </footer>

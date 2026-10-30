@@ -331,6 +331,15 @@ def init_db():
         _safe_add_column(conn, "reviews", "file_mime", "TEXT")
         _safe_add_column(conn, "reviews", "file_size", "INTEGER")
         _safe_add_column(conn, "reviews", "analysis_method", "TEXT NOT NULL DEFAULT 'DETERMINISTIC_FIRST'")
+        _safe_add_column(conn, "reviews", "document_type", "TEXT NOT NULL DEFAULT 'general_document'")
+        _safe_add_column(conn, "reviews", "file_format", "TEXT NOT NULL DEFAULT 'text'")
+        _safe_add_column(conn, "reviews", "ocr_applied", "BOOLEAN NOT NULL DEFAULT 0")
+        _safe_add_column(conn, "reviews", "ocr_method", "TEXT NOT NULL DEFAULT 'NONE'")
+        _safe_add_column(conn, "reviews", "ai_consent_granted", "BOOLEAN NOT NULL DEFAULT 0")
+        _safe_add_column(conn, "reviews", "ai_analysis_applied", "BOOLEAN NOT NULL DEFAULT 0")
+        _safe_add_column(conn, "reviews", "document_summary", "TEXT")
+
+        _safe_add_column(conn, "rules", "applicable_document_types", "TEXT NOT NULL DEFAULT 'all'")
 
         _safe_add_column(conn, "review_versions", "created_by", "TEXT NOT NULL DEFAULT 'demo.user'")
 

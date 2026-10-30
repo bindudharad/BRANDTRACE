@@ -7,31 +7,55 @@
    ========================================================================= */
 
 :root {
-  /* Page & Surfaces */
-  --bt-bg-page: #F6F8F6;
-  --bt-bg-card: #FFFFFF;
+  /* =========================================================================
+     SCOPED DESIGN TOKENS (PHASE 2 - WCAG AA ACCESSIBLE CONTRAST)
+     ========================================================================= */
+  /* Dark Landing Page Tokens */
+  --dark-bg: #070B12;
+  --dark-surface: #0C1420;
+  --dark-card: #111D2A;
+  --dark-text-primary: #F4F8FC;
+  --dark-text-secondary: #C1CDDA;
+  --dark-text-muted: #A0AFBF;
+  --dark-accent: #00E6A0;
+  --dark-accent-secondary: #00C8F0;
+  --dark-border: rgba(255, 255, 255, 0.12);
+
+  /* Light Workspace Tokens */
+  --light-bg: #F5F8F7;
+  --light-surface: #FFFFFF;
+  --light-card: #FFFFFF;
+  --light-text-primary: #14251F;
+  --light-text-secondary: #455A54;
+  --light-text-muted: #586E67;
+  --light-accent: #078B68;
+  --light-border: #DCE7E2;
+
+  /* Legacy & Workspace Tokens */
+  --bt-bg-page: var(--light-bg);
+  --bt-bg-card: var(--light-card);
   --bt-bg-surface-subtle: #F0F4F1;
   --bt-bg-forest: #123B2D;
   --bt-bg-forest-dark: #0A241B;
   --bt-bg-forest-light: #1A4E3D;
   --bt-bg-emerald-soft: #E9F6F0;
   
-  /* Brand Accents */
+  /* Brand Accents (WCAG AA Compliant >= 4.5:1 on White) */
   --bt-forest: #123B2D;
-  --bt-emerald: #0E9F78;
-  --bt-emerald-hover: #0B8262;
-  --bt-emerald-active: #08664D;
-  --bt-emerald-border: #A6CDBA;
+  --bt-emerald: #0A7352;
+  --bt-emerald-hover: #086145;
+  --bt-emerald-active: #064E37;
+  --bt-emerald-border: #0A7352;
   
   /* Text & Typography */
-  --bt-text-primary: #15251E;
-  --bt-text-secondary: #617168;
-  --bt-text-muted: #8A9A91;
+  --bt-text-primary: var(--light-text-primary);
+  --bt-text-secondary: var(--light-text-secondary);
+  --bt-text-muted: var(--light-text-muted);
   --bt-text-inverse: #FFFFFF;
   --bt-text-inverse-muted: #B3C7BD;
   
   /* Borders & Dividers */
-  --bt-border: #DCE5DF;
+  --bt-border: var(--light-border);
   --bt-border-light: #EBF0EC;
   --bt-border-dark: #275242;
   
@@ -77,13 +101,58 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Scoped base heading styles inside @layer base so Tailwind utilities override cleanly */
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
 }
 
-/* Typography Scale */
-h1, h2, h3, h4, h5, h6 {
-  color: var(--bt-text-primary);
-  letter-spacing: -0.025em;
-  font-weight: 700;
+/* =========================================================================
+   SCOPED THEME CONTAINER RULES (PREVENTS THEME LEAKAGE)
+   ========================================================================= */
+
+/* Dark Landing Page Scoping */
+.landing-dark {
+  background-color: var(--dark-bg);
+  color: var(--dark-text-secondary);
+}
+
+.landing-dark h1,
+.landing-dark h2,
+.landing-dark h3,
+.landing-dark h4,
+.landing-dark h5,
+.landing-dark h6,
+.landing-dark .section-title,
+.landing-dark .feature-card-title {
+  color: var(--dark-text-primary);
+}
+
+.landing-dark .section-subtitle,
+.landing-dark p {
+  color: var(--dark-text-secondary);
+}
+
+.landing-dark .text-muted {
+  color: var(--dark-text-muted);
+}
+
+/* Workspace Light Scoping */
+.workspace-light {
+  background-color: var(--light-bg);
+  color: var(--light-text-primary);
+}
+
+.workspace-light h1,
+.workspace-light h2,
+.workspace-light h3,
+.workspace-light h4,
+.workspace-light h5,
+.workspace-light h6,
+.workspace-light .section-title {
+  color: var(--light-text-primary);
 }
 
 /* =========================================================================
@@ -790,3 +859,183 @@ textarea.input-premium {
     transform: translateY(0);
   }
 }
+
+/* =========================================================================
+   HELP & DEMO WALKTHROUGH STEP STYLING (PHASE 9)
+   ========================================================================= */
+
+.bt-walkthrough-step {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 16px !important;
+  background: #FFFFFF !important;
+  border: 1px solid #DCE5DF !important;
+  border-radius: 14px !important;
+  padding: 20px !important;
+  box-shadow: 0 1px 3px rgba(18, 59, 45, 0.04) !important;
+  transition: all 180ms ease !important;
+}
+
+.bt-walkthrough-step:hover {
+  border-color: #A6CDBA !important;
+  box-shadow: 0 4px 12px rgba(18, 59, 45, 0.06) !important;
+}
+
+.bt-step-num {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  background: #0A7352 !important;
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 2px 6px rgba(10, 115, 82, 0.25) !important;
+}
+
+/* =========================================================================
+   RESPONSIVE CONTENT REVIEW & DOCUMENT INTELLIGENCE WORKSPACE (PHASE 9)
+   ========================================================================= */
+
+.bt-content-review-grid {
+  display: grid !important;
+  grid-template-columns: 380px minmax(0, 1fr) !important;
+  gap: 24px !important;
+  align-items: start !important;
+  width: 100% !important;
+}
+
+@media (max-width: 1140px) {
+  .bt-content-review-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.bt-review-left-col {
+  min-width: 0 !important;
+}
+
+.bt-draft-context-sticky {
+  position: sticky !important;
+  top: 80px !important;
+}
+
+.bt-extracted-text-box {
+  background: #1E293B !important;
+  color: #E2E8F0 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  white-space: pre-wrap !important;
+  max-height: 520px !important;
+  overflow-y: auto !important;
+}
+
+.bt-advisory-box {
+  background: #F0FDF4 !important;
+  border: 1px solid #BBF7D0 !important;
+  border-radius: 8px !important;
+  padding: 18px !important;
+  color: #166534 !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+
+/* =========================================================================
+   PREMIUM ENTERPRISE CONTENT REVIEW & UPLOAD LAYOUT (OBJECTIVE 1 & 5)
+   ========================================================================= */
+
+.bt-content-review-container {
+  width: 100% !important;
+  max-width: 1360px !important;
+  margin: 0 auto !important;
+  min-width: 0 !important;
+}
+
+.bt-content-review-container *,
+.bt-content-review-container *::before,
+.bt-content-review-container *::after {
+  box-sizing: border-box !important;
+}
+
+.bt-upload-card {
+  background: #FFFFFF !important;
+  border: 1px solid var(--bt-border) !important;
+  border-radius: 16px !important;
+  padding: 32px 36px !important;
+  box-shadow: 0 4px 20px rgba(18, 59, 45, 0.05) !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin-bottom: 24px !important;
+}
+
+@media (max-width: 768px) {
+  .bt-upload-card {
+    padding: 20px 16px !important;
+  }
+}
+
+.bt-dropzone {
+  border: 2px dashed #CBD5E1 !important;
+  border-radius: 12px !important;
+  padding: 42px 24px !important;
+  text-align: center !important;
+  background: #F8FAF8 !important;
+  cursor: pointer !important;
+  transition: all 180ms ease !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  outline: none !important;
+}
+
+.bt-dropzone:hover {
+  border-color: #0E9F78 !important;
+  background: #F0FDF4 !important;
+}
+
+.bt-dropzone:focus-visible {
+  border-color: #0E9F78 !important;
+  box-shadow: 0 0 0 3px rgba(14, 159, 120, 0.2) !important;
+}
+
+.bt-dropzone.active {
+  border-color: #0E9F78 !important;
+  background: #E9F6F0 !important;
+  box-shadow: 0 0 0 4px rgba(14, 159, 120, 0.15) !important;
+}
+
+.bt-file-preview-card {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  background: #F0FDF4 !important;
+  border: 1px solid #BBF7D0 !important;
+  border-radius: 10px !important;
+  padding: 14px 18px !important;
+  width: 100% !important;
+  max-width: 600px !important;
+}
+
+.bt-terms-modal-card {
+  background: #FFFFFF !important;
+  border: 1px solid var(--bt-border) !important;
+  border-radius: 16px !important;
+  max-width: 620px !important;
+  width: 92% !important;
+  padding: 28px !important;
+  box-shadow: 0 24px 48px rgba(18, 59, 45, 0.2) !important;
+  max-height: 85vh !important;
+  overflow-y: auto !important;
+  color: var(--bt-text-primary) !important;
+}
+
+

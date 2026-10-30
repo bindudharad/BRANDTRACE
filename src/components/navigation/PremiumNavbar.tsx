@@ -77,10 +77,10 @@ export const PremiumNavbar: React.FC<PremiumNavbarProps> = ({
             type="button"
             onClick={onOpenJudgeAccess}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#111D2A] hover:bg-[#1A2C3F] border border-white/10 text-xs font-bold text-[#F4F8FC] transition-all cursor-pointer"
-            aria-label="Open Judge Access and Credentials Panel"
+            aria-label="Open Judge Access and Role Selection"
           >
             <UserCheck size={14} className="text-[#00C8F0]" />
-            <span>Judge Mode</span>
+            <span>Judge Access</span>
           </button>
 
           {/* Judge Tour Button */}
@@ -166,7 +166,7 @@ export const PremiumNavbar: React.FC<PremiumNavbarProps> = ({
               className="py-2.5 px-3 rounded-xl bg-[#111D2A] text-xs font-bold text-white flex items-center justify-center gap-1.5 border border-white/10"
             >
               <UserCheck size={14} className="text-[#00C8F0]" />
-              <span>Judge Mode</span>
+              <span>Judge Access</span>
             </button>
             <button
               type="button"

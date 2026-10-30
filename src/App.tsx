@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import { KeyProvider, useKeyContext } from './context/KeyContext';
 import { BrandtraceHero } from './components/BrandtraceHero';
 import { BrandtraceWorkspacePremium } from './components/BrandtraceWorkspacePremium';
-import { BrandtraceWorkspace } from './components/BrandtraceWorkspace';
 
 function getInitialWorkspaceState(): boolean {
   if (typeof window === 'undefined') return false;

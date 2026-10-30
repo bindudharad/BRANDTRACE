@@ -62,7 +62,7 @@ export const EvidenceStatusBarChart: React.FC<EvidenceStatusBarChartProps> = ({
           </div>
 
           {/* Cards for each status */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2">
             {items.map((item) => {
               const Icon = item.icon;
               const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
@@ -70,15 +70,15 @@ export const EvidenceStatusBarChart: React.FC<EvidenceStatusBarChartProps> = ({
               return (
                 <div
                   key={item.key}
-                  className="p-2.5 rounded-xl border border-[#E2EBE5] bg-[#FAFBF9] flex flex-col justify-between"
+                  className="p-3 rounded-xl border border-[#E2EBE5] bg-[#FAFBF9] flex flex-col justify-between min-w-0"
                 >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Icon size={13} style={{ color: item.color }} />
-                    <span className="text-[11px] font-bold text-[#15251E] truncate">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Icon size={14} style={{ color: item.color }} className="shrink-0" />
+                    <span className="text-[11px] font-bold text-[#15251E] leading-snug break-words">
                       {item.label}
                     </span>
                   </div>
-                  <div className="flex items-baseline justify-between">
+                  <div className="flex items-baseline justify-between mt-auto">
                     <span className="text-base font-extrabold text-[#123B2D]">
                       {item.count}
                     </span>

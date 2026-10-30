@@ -150,10 +150,11 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-interface JudgeTourModalProps {
+export interface JudgeTourModalProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigateToView?: (viewName: string) => void;
+  onNavigate?: (viewName: string) => void;
   onEnterWorkspace?: () => void;
 }
 
@@ -161,6 +162,7 @@ export const JudgeTourModal: React.FC<JudgeTourModalProps> = ({
   isOpen,
   onClose,
   onNavigateToView,
+  onNavigate,
   onEnterWorkspace,
 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
@@ -174,6 +176,8 @@ export const JudgeTourModal: React.FC<JudgeTourModalProps> = ({
   const handleLaunchModule = () => {
     if (onNavigateToView) {
       onNavigateToView(step.targetView);
+    } else if (onNavigate) {
+      onNavigate(step.targetView);
     } else if (onEnterWorkspace) {
       onEnterWorkspace();
     }

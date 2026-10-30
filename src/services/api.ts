@@ -44,6 +44,8 @@ export interface Review {
   title: string;
   content: string;
   content_type: string;
+  document_type?: string;
+  file_format?: string;
   status: 'IN_REVIEW' | 'CHANGES_REQUESTED' | 'APPROVED' | 'WAIVED';
   score: number;
   author: string;
@@ -51,6 +53,11 @@ export interface Review {
   file_name?: string;
   file_mime?: string;
   file_size?: number;
+  ocr_applied?: boolean;
+  ocr_method?: string;
+  ai_consent_granted?: boolean;
+  ai_analysis_applied?: boolean;
+  document_summary?: string;
   analysis_method: string;
   rule_versions: string;
   created_at: string;
@@ -125,6 +132,13 @@ export interface ReadyStatus {
   status: string;
   database: string;
   elapsed_ms?: number;
+  environment?: string;
+  groq_configured?: boolean;
+  groq_vision_model?: string;
+  groq_text_model?: string;
+  ocr_available?: boolean;
+  digital_pdf_available?: boolean;
+  image_analysis_available?: boolean;
 }
 
 export interface BrandProfile {
@@ -280,14 +294,36 @@ async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(`${base}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${base}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (err: any) {
+    const isNetworkErr = err?.name === 'TypeError' || String(err?.message || '').toLowerCase().includes('fetch');
+    if (isNetworkErr) {
+      const target = base || (typeof window !== 'undefined' ? window.location.origin : 'API server');
+      throw new Error(
+        `Backend service is currently unavailable or unreachable at ${target}. Please verify that the API server is running and CORS is permitted.`
+      );
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || error.message || `Request failed with status ${response.status}`);
+    let errorMsg = '';
+    if (typeof error.detail === 'string') {
+      errorMsg = error.detail;
+    } else if (Array.isArray(error.detail)) {
+      errorMsg = error.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join('; ');
+    } else if (error.detail && typeof error.detail === 'object') {
+      errorMsg = JSON.stringify(error.detail);
+    } else {
+      errorMsg = error.message || `Request failed with status ${response.status}`;
+    }
+    throw new Error(errorMsg);
   }
   if (response.status === 204 || response.headers.get('content-length') === '0') {
     return {} as T;
@@ -318,7 +354,13 @@ export const api = {
     call<Fact>('/api/facts', { method: 'POST', body: JSON.stringify(body) }),
   updateFact: (id: string, body: Partial<Fact>) =>
     call<Fact>(`/api/facts/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-  createReview: (body: { title: string; content: string; content_type: string }) =>
+  createReview: (body: {
+    title: string;
+    content: string;
+    content_type: string;
+    document_type?: string;
+    consent_ai?: boolean;
+  }) =>
     call<Review>('/api/reviews', { method: 'POST', body: JSON.stringify(body) }),
   uploadReview: (formData: FormData) =>
     call<Review>('/api/reviews/upload', { method: 'POST', body: formData }),

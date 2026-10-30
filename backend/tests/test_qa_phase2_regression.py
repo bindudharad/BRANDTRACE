@@ -804,4 +804,66 @@ def test_approval_blocked_on_unresolved_high_risk_leaves_status_unchanged():
             assert audit_r.status_code == 200
             events = audit_r.json()
             assert not any(e.get('action') == 'APPROVED' for e in events)
+
+            # Now explicitly create a CRITICAL rule to verify CRITICAL severity blocks approval
+            r_crit_rule = await c.post(
+                '/api/rules',
+                json={
+                    'title': 'Critical Regulatory Term Gate',
+                    'category': 'REGULATORY',
+                    'kind': 'forbidden_term',
+                    'pattern': 'critical-unauthorized-claim',
+                    'source_title': 'Statutory Brand Mandate',
+                    'source_excerpt': 'critical-unauthorized-claim constitutes critical violation',
+                    'requirement': 'Strictly avoid critical-unauthorized-claim',
+                    'severity': 'CRITICAL',
+                },
+                headers=ADMIN,
+            )
+            assert r_crit_rule.status_code in (200, 201)
+
+            # Create review with the CRITICAL violation
+            r_crit_review = await c.post(
+                '/api/reviews',
+                json={
+                    'title': 'Critical risk approval gate test',
+                    'content': 'This announcement features a critical-unauthorized-claim in the text.',
+                    'content_type': 'marketing_copy',
+                },
+                headers=REV,
+            )
+            assert r_crit_review.status_code == 200
+            crit_rev = r_crit_review.json()
+            crit_rid = crit_rev['id']
+            crit_findings = [
+                f for f in crit_rev['findings']
+                if not f.get('disposition') and f.get('severity') == 'CRITICAL'
+            ]
+            assert len(crit_findings) >= 1, "Expected at least one CRITICAL severity finding"
+
+            # Attempt approval on CRITICAL finding -> strictly blocked with HTTP 409
+            r_crit_app = await c.post(
+                f'/api/reviews/{crit_rid}/approval',
+                json={'action': 'approve'},
+                headers=REV,
+            )
+            assert r_crit_app.status_code == 409
+            assert "High-risk findings" in r_crit_app.json()['detail']
+
+            # Resolve the CRITICAL finding with documented dismissal
+            r_dismiss = await c.post(
+                f'/api/reviews/{crit_rid}/findings/{crit_findings[0]["id"]}/actions',
+                json={'action': 'dismiss', 'reason': 'Audited regulatory waiver with legal counsel'},
+                headers=REV,
+            )
+            assert r_dismiss.status_code == 200
+
+            # After resolving all CRITICAL findings, approval succeeds
+            r_crit_app_ok = await c.post(
+                f'/api/reviews/{crit_rid}/approval',
+                json={'action': 'approve'},
+                headers=REV,
+            )
+            assert r_crit_app_ok.status_code == 200
+            assert r_crit_app_ok.json()['status'] == 'APPROVED'
     asyncio.run(scenario())

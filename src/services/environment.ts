@@ -22,6 +22,10 @@ export interface SystemStatusData {
   lastCheckedAt: string | null;
   configurationMismatch: boolean;
   mismatchReason: string | null;
+  groqConfigured: boolean;
+  groqVisionModel: string | null;
+  ocrAvailable: boolean;
+  digitalPdfAvailable: boolean;
 }
 
 export const ENVIRONMENT_LABELS: Record<AppEnvironment, string> = {
@@ -31,6 +35,22 @@ export const ENVIRONMENT_LABELS: Record<AppEnvironment, string> = {
   production: 'Production',
   unknown: 'Environment Unverified',
 };
+
+/**
+ * Return concise, user-facing badge labels suitable for headers and top bars.
+ */
+export function getDisplayEnvironmentBadge(status: SystemStatusData): { text: string; color: string; dotColor: string } {
+  if (status.environment === 'staging') {
+    return { text: 'HOSTED JUDGE DEMO', color: '#00E6A0', dotColor: '#00E6A0' };
+  }
+  if (status.environment === 'production') {
+    return { text: 'BRANDTRACE PRODUCTION', color: '#00E6A0', dotColor: '#00E6A0' };
+  }
+  if (status.environment === 'local' || status.environment === 'demo') {
+    return { text: 'LOCAL DEMO', color: '#00C8F0', dotColor: '#00C8F0' };
+  }
+  return { text: 'JUDGE DEMO · ENVIRONMENT UNVERIFIED', color: '#FCD34D', dotColor: '#F59E0B' };
+}
 
 /**
  * Read and validate the configured environment from import.meta.env.VITE_APP_ENV.
@@ -65,6 +85,10 @@ export function evaluateSystemStatus(
       lastCheckedAt: probeError ? new Date().toISOString() : null,
       configurationMismatch: false,
       mismatchReason: null,
+      groqConfigured: false,
+      groqVisionModel: null,
+      ocrAvailable: false,
+      digitalPdfAvailable: true,
     };
   }
 
@@ -100,6 +124,10 @@ export function evaluateSystemStatus(
     lastCheckedAt: new Date().toISOString(),
     configurationMismatch,
     mismatchReason,
+    groqConfigured: Boolean(readyRes.groq_configured),
+    groqVisionModel: readyRes.groq_vision_model || null,
+    ocrAvailable: Boolean(readyRes.ocr_available),
+    digitalPdfAvailable: readyRes.digital_pdf_available !== false,
   };
 }
 
@@ -114,6 +142,10 @@ let cachedStatus: SystemStatusData = {
   lastCheckedAt: null,
   configurationMismatch: false,
   mismatchReason: null,
+  groqConfigured: false,
+  groqVisionModel: null,
+  ocrAvailable: false,
+  digitalPdfAvailable: true,
 };
 
 let activeProbePromise: Promise<SystemStatusData> | null = null;

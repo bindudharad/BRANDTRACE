@@ -32,6 +32,15 @@ AI_PROVIDER_API_KEY = os.getenv("AI_PROVIDER_API_KEY") or os.getenv("GEMINI_API_
 AI_MODEL_NAME = os.getenv("AI_MODEL_NAME", "gemini-2.5-flash")
 AI_TIMEOUT_SECONDS = float(os.getenv("AI_TIMEOUT_SECONDS", "8.0"))
 
+# Groq Vision OCR & Content Intelligence Configuration
+GROQ_ENABLED = os.getenv("GROQ_ENABLED", "false").lower() in ("true", "1", "yes")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "llama-3.2-11b-vision-preview").strip()
+GROQ_TEXT_MODEL = os.getenv("GROQ_TEXT_MODEL", "llama-3.3-70b-versatile").strip()
+GROQ_TIMEOUT_SECONDS = float(os.getenv("GROQ_TIMEOUT_SECONDS", "15.0"))
+GROQ_MAX_PDF_PAGES = int(os.getenv("GROQ_MAX_PDF_PAGES", "10"))
+GROQ_MAX_IMAGES_PER_REQUEST = int(os.getenv("GROQ_MAX_IMAGES_PER_REQUEST", "3"))
+
 # Authentication & Trust Boundary Configuration
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower().strip()
 AUTH_MODE = os.getenv("AUTH_MODE", "demo" if ENVIRONMENT != "production" else "production").lower().strip()

@@ -6,32 +6,35 @@
 
 Evidence-Aware Brand Governance and Content Review Platform
 
-[![Backend Tests](https://img.shields.io/badge/backend%20tests-133%20passed%2C%201%20skipped-brightgreen?style=flat-square)](#testing)
+[![Live Website](https://img.shields.io/badge/live%20site-brandtrace--woad.vercel.app-blue?style=flat-square)](https://brandtrace-woad.vercel.app)
+[![Backend Tests](https://img.shields.io/badge/backend%20tests-144%20passed%2C%201%20skipped-brightgreen?style=flat-square)](#testing)
 [![Browser QA](https://img.shields.io/badge/browser%20QA-32%2F32%20passed-brightgreen?style=flat-square)](#testing)
 [![Smoke Test](https://img.shields.io/badge/smoke%20test-27%2F27%20passed-brightgreen?style=flat-square)](#testing)
 [![Build](https://img.shields.io/badge/frontend%20build-passing-brightgreen?style=flat-square)](#11-windows-local-setup)
-[![Design](https://img.shields.io/badge/design-enterprise%20light%20system-forestgreen?style=flat-square)](#enterprise-design-redesign)
+[![Design](https://img.shields.io/badge/design-dark%20obsidian%203D%20system-forestgreen?style=flat-square)](#enterprise-design-redesign)
+[![Documentation](https://img.shields.io/badge/documentation-45%20handbook%20docs-purple?style=flat-square)](./docs/handbook/README.md)
 [![Demo Mode](https://img.shields.io/badge/demo-no%20API%20key%20needed-teal?style=flat-square)](#6-product-walkthrough)
 
 </div>
 
 ---
 
-## ? Quick Navigation for Judges & Evaluators
+## 🧭 Quick Navigation for Judges & Evaluators
 
 | Guide | Description |
 | :--- | :--- |
-| ?? **[Judge's Guide](./docs/JUDGE_GUIDE.md)** | **Start here.** 5-minute walkthrough, core problem, presentation-claim-to-code matrix. |
-| ?? **[Quick Start](./docs/QUICK_START.md)** | Step-by-step PowerShell setup for backend and frontend. |
-| ??? **[User Manual](./docs/USER_GUIDE.md)** | Operator manual covering all 9 workspace panels. |
-| ??? **[Architecture](./docs/ARCHITECTURE.md)** | Complete system architecture, component boundaries, and sequence diagrams. |
-| ?? **[End-to-End Workflow](./docs/WORKFLOW_AND_STATE_MACHINE.md)** | State machine: submission, exact-span edit, approval gate, and audit logging. |
-| ?? **[API Reference](./docs/API_REFERENCE.md)** | All implemented endpoints, request schemas, and HTTP status codes. |
-| ?? **[Testing Guide](./docs/TESTING_AND_QA.md)** | Automated test suites (133 backend tests passed, 1 skipped; 32 browser QA tests; 27 smoke tests) and verification proof. |
-| ?? **[Known Limitations](./docs/SECURITY_AND_LIMITATIONS.md)** | Full transparency on simulated authentication, OCR requirements, and visual bounds. |
-| ?? **[Round 2 Summary](./docs/ROUND2_SUMMARY.md)** | Complete executive summary of Round 2 deliverables and architectural evolution. |
-| ??? **[Round 3 Roadmap](./docs/ROUND3_ROADMAP.md)** | Three major planned additions with measurable acceptance criteria. |
-| ?? **[Full Documentation Directory](./docs/INDEX.md)** | Browse all 50+ project-specific Markdown specifications and manuals. |
+| 📖 **[Comprehensive Technical Handbook (45 Docs)](./docs/handbook/README.md)** | **Primary Knowledge Base.** Complete 45-document engineering library and curated reading paths. |
+| 🏆 **[Judge's Guide](./docs/JUDGE_GUIDE.md)** | **Start here.** 5-minute walkthrough, core problem, presentation-claim-to-code matrix. |
+| 🚀 **[Quick Start](./docs/QUICK_START.md)** | Step-by-step PowerShell setup for backend and frontend. |
+| 📘 **[User Manual](./docs/USER_GUIDE.md)** | Operator manual covering all 9 workspace panels. |
+| 📐 **[Architecture](./docs/ARCHITECTURE.md)** | Complete system architecture, component boundaries, and sequence diagrams. |
+| 🔄 **[End-to-End Workflow](./docs/WORKFLOW_AND_STATE_MACHINE.md)** | State machine: submission, exact-span edit, approval gate, and audit logging. |
+| 📡 **[API Reference](./docs/API_REFERENCE.md)** | All implemented endpoints, request schemas, and HTTP status codes. |
+| 🧪 **[Testing Guide](./docs/TESTING_AND_QA.md)** | Automated test suites (144 backend tests passed, 1 skipped; 32 browser QA tests; 27 smoke tests) and verification proof. |
+| ⚠️ **[Known Limitations](./docs/SECURITY_AND_LIMITATIONS.md)** | Full transparency on simulated authentication, OCR requirements, and visual bounds. |
+| 📊 **[Round 2 Summary](./docs/ROUND2_SUMMARY.md)** | Complete executive summary of Round 2 deliverables and architectural evolution. |
+| 🎯 **[Round 3 Acceptance Matrix](./docs/33_ROUND3_ACCEPTANCE_MATRIX.md)** | Complete verification of all Round 3 engineering commitments. |
+| 🗂️ **[Full Documentation Directory](./docs/INDEX.md)** | Browse all project-specific Markdown specifications and manuals. |
 
 ---
 
@@ -146,11 +149,11 @@ Key design choices:
 | **Image palette analysis** | Colour palette, WCAG contrast ratios, Delta-E compliance | ✅ Implemented | `backend/app/color_science.py` |
 | **Role simulation** | `contributor`, `reviewer`, `brand_manager`, `brand_admin` — enforced server-side | ✅ Implemented | `X-Demo-Role` header, role checks in routes |
 | **Health score** | Review clearance score based on unresolved findings; labelled as review completion, not compliance | ✅ Implemented | `calculate_health_score()` |
-| **OCR (image→text)** | Requires Tesseract on PATH | ⚠️ Partial | Reported unavailable if Tesseract absent |
-| **Logo placement detection** | Bounding-box-level logo position | ❌ Not implemented | Planned for Round 3 |
-| **Font identification** | Typeface detection from rendered text | ❌ Not implemented | Planned for Round 3 |
-| **Automated re-review worker** | Background job on rule/fact expiry | ❌ Not implemented | Planned for Round 3 |
-| **AI rule refinement** | Suggests rule clarifications from waiver patterns | ❌ Not implemented | Planned for Round 3 |
+| **OCR (image→text)** | Raster image OCR and scanned-PDF OCR are not supported in the current release. Digital PDF text-layer extraction is supported through the existing PDF parser | ❌ Not implemented — Deferred | `docs/handbook/42_FEATURE_LIMITATIONS_AND_DEFERRED_ROADMAP.md` |
+| **Logo placement detection** | Binary SHA-256 hash matching and aspect ratio checks are implemented; perceptual logo bounding-box detection is deferred | ❌ Not implemented — Deferred | `docs/handbook/21_BRAND_ASSET_REGISTRY.md` |
+| **Font identification** | Typeface detection from rendered raster images is not supported | ❌ Not implemented — Deferred | `docs/handbook/42_FEATURE_LIMITATIONS_AND_DEFERRED_ROADMAP.md` |
+| **Automated re-review worker** | Targeted user-triggered re-review is implemented (`POST /api/governance/re-review-impact`); automated background cron worker is deferred | ⚠️ Targeted Implemented / Cron Deferred | `docs/handbook/19_CLAIM_IMPACT_MAP.md` |
+| **AI rule refinement** | Reviewer feedback, rule suggestions, human triage, and authorized activation are implemented; autonomous AI policy mutation is NOT implemented | ✅ Implemented (Human-Gated) | `docs/handbook/27_RULE_SUGGESTIONS_AND_VERSIONING.md` |
 
 ---
 
@@ -546,33 +549,28 @@ See [`SECURITY.md`](./SECURITY.md) and [`docs/24_SECURITY_AND_PRIVACY.md`](./doc
 
 | Limitation | Detail |
 |-----------|--------|
-| **Demo authentication** | Role enforcement uses a header, not real auth tokens or sessions |
-| **OCR** | Requires Tesseract on PATH; reported as unavailable if absent |
-| **Logo detection** | Not implemented; planned for Round 3 |
-| **Font identification** | Not implemented; planned for Round 3 |
-| **Automated re-review** | No background worker for rule/fact expiry events |
-| **AI rule refinement** | Pattern analysis for rule improvement is planned, not delivered |
-| **Production hardening** | No rate limiting, no row-level security, no encryption at rest |
-| **PostgreSQL SSL** | SSL configuration not yet documented |
+| **Demo authentication** | Role simulation uses header inspection in demo mode; production mode enforces strict API keys/bearer authentication |
+| **Raster OCR** | Raster image OCR and scanned-PDF OCR are not supported in current release; digital PDF text extraction is supported |
+| **Logo detection** | Exact SHA-256 binary hash matching is implemented; perceptual logo bounding-box detection is deferred |
+| **Font identification** | Not implemented; deferred |
+| **Automated re-review** | Targeted user-triggered re-review is implemented; background automated cron worker is deferred |
+| **Autonomous AI policy mutation** | Excluded by design; rule suggestions are triaged and activated strictly through authorized human action |
 | **Browser verification** | Automated via Playwright (32/32 tests passed); manual visual inspection recommended for responsive layout QA |
 
-Full limitations list: [`docs/33_KNOWN_LIMITATIONS.md`](./docs/33_KNOWN_LIMITATIONS.md)
+Full limitations list: [`docs/handbook/42_FEATURE_LIMITATIONS_AND_DEFERRED_ROADMAP.md`](./docs/handbook/42_FEATURE_LIMITATIONS_AND_DEFERRED_ROADMAP.md)
 
 ---
 
 ## 17. Deployment
 
-BRANDTRACE has not been deployed to a public URL. The repository is prepared for local-only demonstration.
+BRANDTRACE is deployed live on the Vercel edge network with continuous integration:
+- **Production URL**: [https://brandtrace-woad.vercel.app](https://brandtrace-woad.vercel.app)
+- **Deployment Platform**: Vercel (Edge CDN)
+- **Backend Architecture**: FastAPI with connection-pooled serverless PostgreSQL (Neon) and local SQLite fallback
 
-Production deployment would require:
-- A persistent PostgreSQL database (`DATABASE_URL` set to a PostgreSQL connection string)
-- A server-side `GEMINI_API_KEY` if AI analysis is required
-- CORS configuration (`CORS_ORIGINS`) set to the frontend domain
-- A process manager (e.g. gunicorn + uvicorn workers) for the FastAPI backend
-- A static file host or CDN for the Vite-built frontend
-- HTTPS termination at the load balancer or reverse proxy
-
-See [`docs/29_DEPLOYMENT_GUIDE.md`](./docs/29_DEPLOYMENT_GUIDE.md).
+Production deployment runbooks:
+- Frontend: [`docs/handbook/39_DEPLOYMENT_AND_VERCEL_RUNBOOK.md`](./docs/handbook/39_DEPLOYMENT_AND_VERCEL_RUNBOOK.md)
+- Backend: [`docs/handbook/40_BACKEND_DEPLOYMENT_RUNBOOK.md`](./docs/handbook/40_BACKEND_DEPLOYMENT_RUNBOOK.md)
 
 ---
 

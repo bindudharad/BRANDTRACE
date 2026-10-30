@@ -9,7 +9,6 @@ import {
   Layers,
   Sparkles,
   ExternalLink,
-  ChevronRight,
   Database,
   Cpu,
   Eye,
@@ -21,7 +20,6 @@ import {
   Activity,
   GitBranch,
   UserCheck,
-  Copy,
 } from 'lucide-react';
 
 import {
@@ -51,7 +49,6 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({
   const [systemStatus, setSystemStatus] = useState<SystemStatusData>(getCachedSystemStatus);
   const [judgeAccessOpen, setJudgeAccessOpen] = useState(false);
   const [judgeTourOpen, setJudgeTourOpen] = useState(false);
-  const [copiedRole, setCopiedRole] = useState<string | null>(null);
 
   // Connected System Nodes (SVG Diagram)
   const systemNodes = [
@@ -147,14 +144,8 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({
     onEnterWorkspace();
   };
 
-  const handleCopyHeader = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedRole(id);
-    setTimeout(() => setCopiedRole(null), 2000);
-  };
-
   return (
-    <div className="min-h-screen bg-[#070B12] text-[#F4F8FC] font-sans selection:bg-[#00E6A0]/20 selection:text-[#00E6A0] relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#070B12] text-[#F4F8FC] font-sans selection:bg-[#00E6A0]/20 selection:text-[#00E6A0] relative overflow-x-hidden landing-dark">
       {/* 1. TOP ANNOUNCEMENT & SYSTEM STATUS STRIP */}
       <div className="bg-[#0C1420] text-white text-xs py-2 px-4 border-b border-white/10">
         <div className="max-w-[1340px] mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -319,79 +310,8 @@ export const BrandtraceHero: React.FC<BrandtraceHeroProps> = ({
         </div>
       </section>
 
-      {/* 4. PROMINENT JUDGE ACCESS BANNER (Addresses Organizer Request) */}
-      <section className="py-8 bg-[#0C1420] border-y border-white/10 relative overflow-hidden">
-        <div className="max-w-[1340px] mx-auto px-4 sm:px-6">
-          <div className="p-6 rounded-2xl bg-[#070B12] border border-[#00E6A0]/30 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6">
-            <div className="space-y-1.5 text-left">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#00E6A0] shadow-[0_0_10px_rgba(0,230,160,0.8)]" />
-                <span className="text-xs font-mono font-black uppercase tracking-wider text-[#00E6A0]">
-                  HACKATHON JUDGE EVALUATION ACCESS
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] bg-white/10 text-white font-mono">
-                  No Password Required
-                </span>
-              </div>
-              <h3 className="text-lg sm:text-xl font-bold text-white">
-                Explore BRANDTRACE under four authenticated governance personas
-              </h3>
-              <p className="text-xs sm:text-sm text-[#9AAABD] max-w-2xl">
-                Roles simulate server-enforced RBAC via client headers. Select any role below to launch the workspace with verified privileges.
-              </p>
-            </div>
-
-            {/* Quick-Select Role Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleEnterWithRole('brand_admin', 'admin@brandtrace.internal')}
-                className="px-3.5 py-2.5 rounded-xl bg-[#111D2A] hover:bg-[#1A2C3F] border border-[#00E6A0]/40 text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00E6A0]" />
-                <span>Brand Admin</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleEnterWithRole('reviewer', 'reviewer@brandtrace.internal')}
-                className="px-3.5 py-2.5 rounded-xl bg-[#00C8F0]/15 hover:bg-[#00C8F0]/25 border border-[#00C8F0]/50 text-xs font-bold text-[#00C8F0] flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00C8F0]" />
-                <span>Reviewer (Primary)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleEnterWithRole('creator', 'creator@brandtrace.internal')}
-                className="px-3.5 py-2.5 rounded-xl bg-[#111D2A] hover:bg-[#1A2C3F] border border-white/10 text-xs font-bold text-[#9AAABD] flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <span>Creator</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleEnterWithRole('auditor', 'auditor@brandtrace.internal')}
-                className="px-3.5 py-2.5 rounded-xl bg-[#111D2A] hover:bg-[#1A2C3F] border border-[#8467FF]/40 text-xs font-bold text-[#8467FF] flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <span>Auditor</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setJudgeAccessOpen(true)}
-                className="px-3.5 py-2.5 rounded-xl bg-[#00E6A0] text-[#070B12] text-xs font-bold flex items-center gap-1 shadow-md hover:bg-[#00c88a] transition-all cursor-pointer"
-              >
-                <span>Details</span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. PRODUCT PRINCIPLES STRIP */}
-      <section className="py-12 bg-[#070B12] border-b border-white/10">
+      {/* 4. PRODUCT PRINCIPLES STRIP */}
+      <section className="py-12 bg-[#070B12] border-y border-white/10">
         <div className="max-w-[1340px] mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 text-left">
             <div className="p-5 rounded-2xl bg-[#0C1420] border border-white/10 hover:border-[#00E6A0]/40 transition-all">

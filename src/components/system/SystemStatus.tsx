@@ -49,6 +49,12 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({
     return 'bg-red-400';
   };
 
+  const getApiLabel = () => {
+    if (status.health === 'checking' || status.readiness === 'checking') return 'Probing /api/ready...';
+    if (status.health === 'ok' || status.databaseConnected) return 'FastAPI Online (HTTP 200)';
+    return 'API Unavailable';
+  };
+
   const getDatabaseLabel = () => {
     if (!status.databaseConnected) return 'Database Unavailable';
     if (status.databaseDialect === 'sqlite') return 'SQLite · Connected';
@@ -61,14 +67,10 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({
       <div className={`inline-flex items-center gap-2 text-xs text-[#617168] ${className}`}>
         <span className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
         <span className="font-semibold text-[#123B2D]">
-          {status.readiness === 'checking'
-            ? 'Checking status...'
-            : status.readiness === 'ready'
-            ? `API: Online · ${status.environmentLabel}`
-            : status.readiness === 'mismatch'
-            ? `Environment: ${status.environmentLabel} (Mismatch)`
-            : 'API: Unavailable'}
+          {getApiLabel()}
         </span>
+        <span className="text-[#A6CDBA]">•</span>
+        <span className="font-medium text-[#123B2D]">{status.environmentLabel}</span>
         <span className="text-[#A6CDBA]">•</span>
         <span>{getDatabaseLabel()}</span>
         {showRefresh && (
@@ -107,32 +109,30 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+          {/* 1. Frontend Environment */}
           <div className="p-2.5 rounded-xl bg-[#F6F8F6] border border-[#E2EBE5]">
             <span className="text-[10px] text-[#617168] font-semibold uppercase block mb-1">
-              Environment Classification
+              Frontend Environment
             </span>
             <div className="flex items-center gap-1.5 font-bold text-[#123B2D]">
-              <span className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
+              <span className={`w-2 h-2 rounded-full ${status.environment === 'unknown' ? 'bg-amber-400' : 'bg-[#0E9F78]'}`} />
               <span>{status.environmentLabel}</span>
             </div>
           </div>
 
+          {/* 2. Backend API Readiness */}
           <div className="p-2.5 rounded-xl bg-[#F6F8F6] border border-[#E2EBE5]">
             <span className="text-[10px] text-[#617168] font-semibold uppercase block mb-1">
-              Backend API Readiness
+              Backend API
             </span>
-            <div className="font-bold text-[#123B2D]">
-              {status.readiness === 'checking'
-                ? 'Probing /api/ready...'
-                : status.readiness === 'ready'
-                ? 'FastAPI Online (HTTP 200)'
-                : status.readiness === 'mismatch'
-                ? 'Online (Configuration Mismatch)'
-                : 'Service Unavailable'}
+            <div className="flex items-center gap-1.5 font-bold text-[#123B2D]">
+              <span className={`w-2 h-2 rounded-full ${status.databaseConnected || status.health === 'ok' ? 'bg-[#0E9F78]' : 'bg-red-400'}`} />
+              <span>{getApiLabel()}</span>
             </div>
           </div>
 
+          {/* 3. Database Persistence */}
           <div className="p-2.5 rounded-xl bg-[#F6F8F6] border border-[#E2EBE5]">
             <span className="text-[10px] text-[#617168] font-semibold uppercase block mb-1">
               Database Persistence
@@ -140,6 +140,17 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({
             <div className="flex items-center gap-1.5 font-bold text-[#123B2D]">
               <Database size={13} className="text-[#0E9F78]" />
               <span>{getDatabaseLabel()}</span>
+            </div>
+          </div>
+
+          {/* 4. Configuration Consistency */}
+          <div className="p-2.5 rounded-xl bg-[#F6F8F6] border border-[#E2EBE5]">
+            <span className="text-[10px] text-[#617168] font-semibold uppercase block mb-1">
+              Configuration Consistency
+            </span>
+            <div className="flex items-center gap-1.5 font-bold text-[#123B2D]">
+              <span className={`w-2 h-2 rounded-full ${status.configurationMismatch ? 'bg-amber-500' : 'bg-[#0E9F78]'}`} />
+              <span>{status.configurationMismatch ? 'Config Warning' : 'Verified Consistent'}</span>
             </div>
           </div>
         </div>
