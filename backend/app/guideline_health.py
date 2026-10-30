@@ -36,8 +36,9 @@ def _generate_suggestion(
     if disagreement_detected:
         return {
             "observed_issue": (
-                f"Rule '{rule_title}' has produced conflicting dispositions: the same finding "
-                f"was accepted by one reviewer and dismissed by another. "
+                f"Rule '{rule_title}' has produced conflicting dispositions across reviewers: "
+                f"findings triggered by this rule were accepted by one reviewer and dismissed by another "
+                f"(rule-level reviewer disposition divergence). "
                 f"This signals ambiguity in the rule scope or wording."
             ),
             "proposed_clarification": (
@@ -45,7 +46,7 @@ def _generate_suggestion(
                 f"to disambiguate edge cases. Consider adding an exceptions list."
             ),
             "ambiguity_addressed": (
-                "Stakeholder disagreement on whether this pattern is always a violation "
+                "Reviewer disposition divergence on whether this rule pattern is always a violation "
                 "or context-dependent."
             ),
         }

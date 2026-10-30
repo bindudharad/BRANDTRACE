@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.main import app
 from app.models import db, rows, row
+from app import config
 
 ADMIN = {"X-Demo-Role": "brand_admin"}
 REV = {"X-Demo-Role": "reviewer"}
@@ -708,34 +709,42 @@ class TestDemoReset:
 
     def test_reset_restores_pristine_state(self):
         async def scenario():
-            transport = httpx.ASGITransport(app=app)
-            async with httpx.AsyncClient(transport=transport, base_url='http://test') as c:
-                await c.post('/api/demo/setup')
+            orig_allow_reset = config.ALLOW_DEMO_RESET
+            orig_secret = config.DEMO_RESET_SECRET
+            config.ALLOW_DEMO_RESET = True
+            config.DEMO_RESET_SECRET = "qa-reset-secret"
+            try:
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(transport=transport, base_url='http://test') as c:
+                    await c.post('/api/demo/setup')
 
-                # Create extra review
-                await c.post(
-                    '/api/reviews',
-                    json={'title': 'Extra', 'content': 'noise', 'content_type': 'email'},
-                    headers=REV,
-                )
+                    # Create extra review
+                    await c.post(
+                        '/api/reviews',
+                        json={'title': 'Extra', 'content': 'noise', 'content_type': 'email'},
+                        headers=REV,
+                    )
 
-                # Reset
-                r = await c.post('/api/demo/reset')
-                assert r.status_code == 200
+                    # Reset with authorized brand_admin and secret
+                    r = await c.post('/api/demo/reset', headers={**ADMIN, 'X-Reset-Secret': 'qa-reset-secret'})
+                    assert r.status_code == 200
 
-                overview = r.json()
-                assert overview['workspace']['id'] == 'ws_default'
+                    overview = r.json()
+                    assert overview['workspace']['id'] == 'ws_default'
 
-                # Should have exactly 1 review (the seeded one)
-                reviews = overview['reviews']
-                assert len(reviews) == 1
-                assert reviews[0]['title'] == 'Launch announcement — Q4'
+                    # Should have exactly 1 review (the seeded one)
+                    reviews = overview['reviews']
+                    assert len(reviews) == 1
+                    assert reviews[0]['title'] == 'Launch announcement — Q4'
 
-                # Rules should be 3
-                rules = await c.get('/api/rules')
-                assert len(rules.json()) == 3
+                    # Rules should be 3
+                    rules = await c.get('/api/rules')
+                    assert len(rules.json()) == 3
 
-                # Facts should be 1
-                facts = await c.get('/api/facts')
-                assert len(facts.json()) == 1
+                    # Facts should be 1
+                    facts = await c.get('/api/facts')
+                    assert len(facts.json()) == 1
+            finally:
+                config.ALLOW_DEMO_RESET = orig_allow_reset
+                config.DEMO_RESET_SECRET = orig_secret
         asyncio.run(scenario())

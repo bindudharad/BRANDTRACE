@@ -418,7 +418,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
       setSelected(r);
       await refresh();
       setReason('');
-      setSuccess(`Review transitioned to ${r.status}. Immutable audit record created.`);
+      setSuccess(`Review transitioned to ${r.status}. Append-only audit record created during workspace lifecycle.`);
       setTimeout(() => setSuccess(''), 5000);
     } catch (e) {
       setError((e as Error).message);
@@ -3288,7 +3288,7 @@ function AuditView({
         <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Reconstructable Decision History</h2>
         {!selected ? (
           <p style={{ color: '#8A9A91', fontSize: 13 }}>
-            Select a review record from the left to inspect its immutable audit timeline.
+            Select a review record from the left to inspect its append-only audit timeline during retained workspace lifecycle.
           </p>
         ) : loading ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: '#617168' }}>
@@ -3307,7 +3307,7 @@ function AuditView({
         ) : (
           <div>
             <div className="section-eyebrow" style={{ marginBottom: 12 }}>
-              IMMUTABLE AUDIT TRAIL FOR {selected.id}
+              APPEND-ONLY AUDIT TRAIL FOR {selected.id}
             </div>
             <div style={{ display: 'grid', gap: 0, position: 'relative' }}>
               {events.map((e, index) => (

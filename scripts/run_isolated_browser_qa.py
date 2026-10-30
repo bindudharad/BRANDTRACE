@@ -81,6 +81,8 @@ def main():
         backend_env["DATABASE_URL"] = temp_db_url
         backend_env["PYTHONPATH"] = os.path.join(REPO_DIR, "backend")
         backend_env["ALLOW_DEMO_AUTH"] = "True"
+        backend_env["ALLOW_DEMO_RESET"] = "true"
+        backend_env["DEMO_RESET_SECRET"] = "isolated-qa-secret"
 
         # Initialize schema in isolated DB
         print("Initializing isolated schema in temporary database...")
@@ -145,7 +147,13 @@ def main():
         seed_req = urllib.request.Request(
             f"http://127.0.0.1:{BACKEND_PORT}/api/demo/reset",
             data=b"{}",
-            headers={"Content-Type": "application/json", "X-Demo-Role": "brand_admin", "X-Demo-Actor": "demo.brand_admin", "X-Workspace-Id": "ws_default"}
+            headers={
+                "Content-Type": "application/json",
+                "X-Demo-Role": "brand_admin",
+                "X-Demo-Actor": "demo.brand_admin",
+                "X-Workspace-Id": "ws_default",
+                "X-Reset-Secret": "isolated-qa-secret",
+            }
         )
         with urllib.request.urlopen(seed_req, timeout=5) as seed_resp:
             print(f"Initial demo data seeded into isolated database via demo/reset (HTTP {seed_resp.status})")

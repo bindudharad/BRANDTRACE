@@ -10,21 +10,21 @@
 
 ## 1. Executive Summary & Route Accounting
 
-The FastAPI application in `backend/app/main.py` registers exactly **39 API routes** (excluding framework auto-generated OpenAPI endpoints `/docs`, `/docs/oauth2-redirect`, `/openapi.json`, and `/redoc`).
+The FastAPI application in `backend/app/main.py` registers exactly **40 API routes** (excluding framework auto-generated OpenAPI endpoints `/docs`, `/docs/oauth2-redirect`, `/openapi.json`, and `/redoc`).
 
 Every route appears exactly once across four mutually exclusive categories:
-- **User-Facing Capabilities (30 routes total):**
-  - **30 Active Core UI Routes:** Directly connected to interactive components, edit modals, version drawers, and workflow controls in `src/components/BrandtraceWorkspacePremium.tsx` and consumed via client functions in `src/services/api.ts`. Includes Edit Rule and Edit Fact modal forms with optimistic concurrency checks (`expected_version`), `GET /api/facts/{fact_id}/versions` immutable fact history viewer, and review re-hydration (`GET /api/reviews/{review_id}`). All core workflows verified through automated browser test execution (Playwright + Chrome 156: 32/32 PASSED).
+- **User-Facing Capabilities (31 routes total):**
+  - **31 Active Core UI Routes:** Directly connected to interactive components, edit modals, version drawers, and workflow controls in `src/components/BrandtraceWorkspacePremium.tsx` and consumed via client functions in `src/services/api.ts`. Includes Brand Asset Registry CRUD (`GET/POST/PUT/DELETE /api/brand-assets`), Edit Rule and Edit Fact modal forms with optimistic concurrency checks (`expected_version`), `GET /api/facts/{fact_id}/versions` immutable fact history viewer, and review re-hydration (`GET /api/reviews/{review_id}`). All core workflows verified through automated browser test execution (Playwright + Chrome 156: 32/32 PASSED).
 - **Internal / Administrative Capabilities (5 routes):**
   - System Bootstrap (`POST /api/bootstrap`): Durable one-way initial system initialization; hidden from end-user UI.
   - Workspace Provisioning (`POST /api/workspaces`): Administrative workspace creation; auto-provisions creator as `brand_admin`.
   - Membership Management (`GET/POST/DELETE /api/workspaces/{workspace_id}/members`): Admin-only team provisioning with self-removal lockout prevention.
 - **Demo Lifecycle Endpoints (2 routes):**
-  - Demo Reset / Setup (`POST /api/demo/setup`, `POST /api/demo/reset`): Fictional demo environment setup and full 13-table reset; triggered via the "Help & Demo" UI card; strictly forbidden in production mode (`ALLOW_DEMO_AUTH=False`).
+  - Demo Reset / Setup (`POST /api/demo/setup`, `POST /api/demo/reset`): Fictional demo environment setup and full 13-table reset; protected by server-side authorization (`ALLOW_DEMO_RESET=true` fail-closed gate and authentic `ADMIN_API_KEY` or `DEMO_RESET_SECRET`); strictly forbidden in production mode (`ALLOW_DEMO_RESET=False`).
 - **Operational / Diagnostic Endpoints (2 routes):**
   - Health & Readiness (`GET /api/health`, `GET /api/ready`): Container orchestration, uptime monitoring, and database dialect probe.
 
-**Category Total Sum:** 30 (User-Facing) + 5 (Internal Admin) + 2 (Demo Lifecycle) + 2 (Operational Diagnostics) = **39 Routes**.
+**Category Total Sum:** 31 (User-Facing) + 5 (Internal Admin) + 2 (Demo Lifecycle) + 2 (Operational Diagnostics) = **40 Routes**.
 
 ---
 
@@ -50,7 +50,7 @@ Every route appears exactly once across four mutually exclusive categories:
 
 ---
 
-## 3. Exhaustive 39-Route Technical Reference Matrix
+## 3. Exhaustive 40-Route Technical Reference Matrix
 
 The following table documents every registered route in `backend/app/main.py`:
 
@@ -64,7 +64,7 @@ The following table documents every registered route in `backend/app/main.py`:
 | **6** | `POST` | `/api/workspaces/{workspace_id}/members` | `brand_admin` + member | Target Workspace | Admin provisioning CLI / script | Internal Administrative | Adds member; rejects synthetic actors in production; audit log | `test_production_auth.py` |
 | **7** | `DELETE` | `/api/workspaces/{workspace_id}/members/{actor_id}` | `brand_admin` + member | Target Workspace | Admin provisioning CLI / script | Internal Administrative | Self-removal blocked (HTTP 422 lockout prevention); audit log | `test_production_auth.py` |
 | **8** | `POST` | `/api/demo/setup` | Demo auth only (`ALLOW_DEMO_AUTH=True`) | Scoped to active workspace | Header "Reset Demo Data" / `api.setup` | Demo Lifecycle | Seeds initial rules, facts, profiles; disabled in production | `test_defect_repairs_round3.py` |
-| **9** | `POST` | `/api/demo/reset` | Demo auth only (`brand_admin`, `reviewer`) | Scoped to active workspace | Header "Reset Demo Data" / `api.reset` | Demo Lifecycle | Resets all 13 tables; restores baseline snapshots | `test_defect_repairs_round3.py` |
+| **9** | `POST` | `/api/demo/reset` | `brand_admin` + (`ADMIN_API_KEY` or `X-Reset-Secret`), `ALLOW_DEMO_RESET=True` | Scoped to `ws_default` | Header "Reset Demo Data" / `api.reset` | Demo Lifecycle | Resets tables; fail-closed in production; restores baseline | `test_defect_repairs_round3.py`, `test_round3_comprehensive_security.py` |
 | **10** | `GET` | `/api/overview` | Any valid role (`contributor`, `reviewer`, `brand_admin`) | Scoped (`get_workspace_id`) | Overview Tab / `api.overview` | User-Facing Overview | Computes health distribution, active rules, pending reviews | `browser_qa_suite.py` (QA-03) |
 | **11** | `GET` | `/api/rules` | Any valid role in workspace | Scoped (`get_workspace_id`) | Constitution > Approved Rules / `api.rules` | User-Facing Rules | Reads active rules for current workspace | `browser_qa_suite.py` (QA-04) |
 | **12** | `POST` | `/api/rules` | `brand_admin` | Scoped (`get_workspace_id`) | Constitution > Add Rule Form / `api.createRule` | User-Facing Rules | Inserts rule, creates initial `rule_versions` record | `smoke_test.py`, `test_round3_claim_ledger.py` |
@@ -93,14 +93,15 @@ The following table documents every registered route in `backend/app/main.py`:
 | **35** | `POST` | `/api/governance/rule-suggestions/{suggestion_id}/activate` | `brand_admin` | Scoped (`get_workspace_id`) | Suggestion card "Activate" / `api.activateRuleSuggestion` | User-Facing Guideline Health | Creates new rule version from approved candidate suggestion | `test_round3_guideline_health.py` |
 | **36** | `GET` | `/api/brand-assets` | Any valid role in workspace | Scoped (`get_workspace_id`) | Constitution > Asset Registry / `api.brandAssets` | User-Facing Brand Assets | Lists registered logos and assets with SHA-256 hashes | `browser_qa_suite.py` (QA-23) |
 | **37** | `POST` | `/api/brand-assets` | `brand_admin` | Scoped (`get_workspace_id`) | Asset Registry > Register Asset / `api.registerAsset` | User-Facing Brand Assets | Computes SHA-256 hash, registers asset with status and license | `browser_qa_suite.py` (QA-23) |
-| **38** | `DELETE` | `/api/brand-assets/{asset_id}` | `brand_admin` | Scoped (`get_workspace_id`) | Asset Card > Delete Button / `api.deleteAsset` | User-Facing Brand Assets | Deletes registered asset record (HTTP 204 response) | `test_defect_repairs_round3.py` |
-| **39** | `GET` | `/api/facts/{fact_id}/versions` | Any valid role in workspace | Scoped (`fact.workspace_id`) | Constitution > Claim Ledger > "Version history" / `api.factVersions` | User-Facing Facts | Returns immutable snapshot history for approved facts | `test_round3_claim_ledger.py` |
+| **38** | `PUT` | `/api/brand-assets/{asset_id}` | `brand_admin` | Scoped (`get_workspace_id`) | Client SDK contract / `api.updateAsset` | User-Facing Brand Assets | Updates registered asset metadata (name, license, status) | `test_round3_comprehensive_security.py` |
+| **39** | `DELETE` | `/api/brand-assets/{asset_id}` | `brand_admin` | Scoped (`get_workspace_id`) | Asset Card > Delete Button / `api.deleteAsset` | User-Facing Brand Assets | Deletes registered asset record (HTTP 204 response) | `test_defect_repairs_round3.py`, `test_round3_comprehensive_security.py` |
+| **40** | `GET` | `/api/facts/{fact_id}/versions` | Any valid role in workspace | Scoped (`fact.workspace_id`) | Constitution > Claim Ledger > "Version history" / `api.factVersions` | User-Facing Facts | Returns immutable snapshot history for approved facts | `test_round3_claim_ledger.py` |
 
 ---
 
 ## 4. Architectural Verification & Conclusion
 
-1. **Exact Accounting:** All 39 backend routes in `backend/app/main.py` are mapped. No unregistered or unverified endpoints exist.
+1. **Exact Accounting:** All 40 backend routes in `backend/app/main.py` are mapped. No unregistered or unverified endpoints exist.
 2. **Security & Workspace Scoping:** Every data-bearing endpoint derives tenant scope from authenticated workspace context (`get_workspace_id` or `review.workspace_id`). No cross-workspace data leakage is possible.
-3. **Frontend Integration:** All 30 user-facing domain routes are supported (27 primary UI workflow routes directly bound to interactive controls in `BrandtraceWorkspacePremium.tsx` plus 3 SDK granular update methods `PUT /api/rules/{rule_id}`, `PUT /api/facts/{fact_id}`, `GET /api/reviews/{review_id}`) and validated through live browser tests (`scripts/browser_qa_suite.py`).
+3. **Frontend Integration:** All 31 user-facing domain routes are supported (27 primary UI workflow routes directly bound to interactive controls in `BrandtraceWorkspacePremium.tsx` plus 4 SDK granular update methods `PUT /api/rules/{rule_id}`, `PUT /api/facts/{fact_id}`, `PUT /api/brand-assets/{asset_id}`, `GET /api/reviews/{review_id}`) and validated through live browser tests (`scripts/browser_qa_suite.py`).
 4. **Internal Admin Endpoints:** The 5 administrative endpoints (`POST /api/bootstrap`, `POST /api/workspaces`, `GET/POST/DELETE /api/workspaces/{workspace_id}/members`) have fully tested backend implementations and CLI/runbook integrations, isolated from public unauthenticated forms.

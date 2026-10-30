@@ -494,17 +494,48 @@ async def demo_setup(
 
 @app.post("/api/demo/reset")
 async def demo_reset(
-    role: str = Depends(get_demo_role),
-    actor: str = Depends(get_demo_actor),
-    workspace_id: str = Depends(get_workspace_id),
+    ctx: Dict[str, str] = Depends(get_auth_context),
+    x_reset_secret: Optional[str] = Header(None, alias="X-Reset-Secret"),
 ):
-    """Completely wipe and restore pristine Northstar demo data across all tables."""
-    if not config.ALLOW_DEMO_AUTH:
-        raise HTTPException(403, "Demo reset is disabled in production mode.")
-    if role not in ("reviewer", "brand_admin"):
-        raise HTTPException(403, "Reviewer or Brand Admin role required to reset demo data.")
+    """Completely wipe and restore pristine Northstar demo data across all tables.
+
+    Defensive security controls:
+    1. Disabled by default via ALLOW_DEMO_RESET (fail-closed on hosted/shared environments).
+    2. Simulated demo role headers (e.g. X-Demo-Role: brand_admin) ALONE never grant reset privileges.
+    3. Requires valid server-side reset secret (X-Reset-Secret matching DEMO_RESET_SECRET)
+       OR genuine server ADMIN_API_KEY bearer token.
+    4. Constrained strictly to ws_default workspace.
+    """
+    if not config.ALLOW_DEMO_RESET:
+        raise HTTPException(403, "Demo reset is disabled on this server (disabled in production mode).")
+
+    workspace_id = ctx.get("workspace_id", "ws_default")
     if workspace_id != "ws_default":
         raise HTTPException(403, "Demo reset is only permitted on the default workspace.")
+
+    role = ctx.get("role", "")
+    auth_type = ctx.get("auth_type", "")
+
+    # Role check: creators, reviewers, and auditors cannot reset even with a secret
+    if role not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to reset demo data.")
+
+    # Server authorization check:
+    # Simulated demo headers alone must NOT authorize destructive reset.
+    # Must have either genuine api_key auth as brand_admin OR a valid DEMO_RESET_SECRET.
+    is_authorized = False
+    if auth_type == "api_key" and role == "brand_admin":
+        is_authorized = True
+    elif config.DEMO_RESET_SECRET:
+        if x_reset_secret and hmac.compare_digest(x_reset_secret.strip(), config.DEMO_RESET_SECRET.strip()):
+            is_authorized = True
+
+    if not is_authorized:
+        raise HTTPException(
+            403,
+            "Demo reset requires server-side administrative authorization or valid reset secret. "
+            "Simulated demo roles cannot reset shared data without server credentials."
+        )
 
     init_db()
     with db() as conn:
@@ -1211,6 +1242,7 @@ async def upload_and_review(
                 approved_palette=approved_palette,
                 min_contrast=min_contrast,
                 expected_logo_aspect=expected_aspect,
+                workspace_id=workspace_id,
             )
             visual_findings = analysis["visual_findings"]
             extracted_text = (
@@ -1607,6 +1639,47 @@ def register_brand_asset(
     return data
 
 
+@app.put("/api/brand-assets/{asset_id}")
+def update_brand_asset(
+    asset_id: str,
+    payload: BrandAssetIn,
+    role: str = Depends(get_demo_role),
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """Update a brand asset. Requires brand_admin role and strictly scoped to caller workspace."""
+    if role not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to update brand assets.")
+
+    existing = row("SELECT id, workspace_id FROM brand_assets WHERE id=?", (asset_id,))
+    if not existing:
+        raise HTTPException(404, "Brand asset not found.")
+    if existing.get("workspace_id") and existing["workspace_id"] != workspace_id:
+        raise HTTPException(403, "Access to brand assets outside caller workspace is forbidden.")
+
+    data = payload.model_dump()
+    data["id"] = asset_id
+    data["workspace_id"] = workspace_id
+    data["updated_at"] = now()
+
+    with db() as conn:
+        conn.execute(
+            """
+            UPDATE brand_assets SET
+                name = :name,
+                asset_type = :asset_type,
+                content_hash = :content_hash,
+                source = :source,
+                license_status = :license_status,
+                license_notes = :license_notes,
+                approval_status = :approval_status,
+                updated_at = :updated_at
+            WHERE id = :id AND workspace_id = :workspace_id
+            """,
+            data,
+        )
+    return row("SELECT * FROM brand_assets WHERE id=? AND workspace_id=?", (asset_id, workspace_id))
+
+
 @app.delete("/api/brand-assets/{asset_id}", status_code=204)
 def delete_brand_asset(
     asset_id: str,
@@ -1624,7 +1697,7 @@ def delete_brand_asset(
         raise HTTPException(403, "Access to brand assets outside caller workspace is forbidden.")
 
     with db() as conn:
-        conn.execute("DELETE FROM brand_assets WHERE id=?", (asset_id,))
+        conn.execute("DELETE FROM brand_assets WHERE id=? AND workspace_id=?", (asset_id, workspace_id))
 
     return None
 

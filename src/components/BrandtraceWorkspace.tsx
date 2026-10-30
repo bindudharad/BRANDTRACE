@@ -261,7 +261,7 @@ export function BrandtraceWorkspace() {
       setSelected(r);
       await refresh();
       setReason('');
-      setSuccess(`Review transitioned to ${r.status}. Immutable audit record created.`);
+      setSuccess(`Review transitioned to ${r.status}. Append-only audit record created during workspace lifecycle.`);
       setTimeout(() => setSuccess(''), 5000);
     } catch (e) {
       setError((e as Error).message);
@@ -1334,7 +1334,7 @@ function AuditView({
       </Card>
       <Card title="Reconstructable Decision History">
         {!selected ? (
-          <p className="bt-muted">Select a review record from the left to inspect its immutable audit timeline.</p>
+          <p className="bt-muted">Select a review record from the left to inspect its append-only audit timeline during retained workspace lifecycle.</p>
         ) : (
           <div className="bt-timeline">
             <p className="eyebrow" style={{ marginBottom: '10px' }}>

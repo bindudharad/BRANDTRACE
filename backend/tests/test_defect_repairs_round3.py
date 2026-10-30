@@ -99,9 +99,17 @@ def test_demo_reset_all_thirteen_tables_and_initial_snapshots():
             assert len(rows("SELECT * FROM rule_suggestions")) > 0
             assert len(rows("SELECT * FROM evidence_dependencies WHERE review_id='rev_sample'")) > 0
 
-            # 3. Perform demo reset as admin
-            r = await client.post('/api/demo/reset', headers=ADMIN_HDR)
-            assert r.status_code == 200
+            # 3. Perform demo reset as admin with server-side authorized secret
+            orig_allow_reset = config.ALLOW_DEMO_RESET
+            orig_secret = config.DEMO_RESET_SECRET
+            config.ALLOW_DEMO_RESET = True
+            config.DEMO_RESET_SECRET = 'test-repair-secret'
+            try:
+                r = await client.post('/api/demo/reset', headers={**ADMIN_HDR, 'X-Reset-Secret': 'test-repair-secret'})
+                assert r.status_code == 200
+            finally:
+                config.ALLOW_DEMO_RESET = orig_allow_reset
+                config.DEMO_RESET_SECRET = orig_secret
 
             # 4. Verify 13 tables are clean or properly reset (ws_default reset)
             assert len(rows("SELECT * FROM brand_assets WHERE workspace_id='ws_default' OR workspace_id IS NULL")) == 0

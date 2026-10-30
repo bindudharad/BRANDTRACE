@@ -29,7 +29,7 @@ export const GuidelineHealthMeters: React.FC<GuidelineHealthMetersProps> = ({
             Guideline Health Intelligence
           </h3>
           <p className="text-xs text-[#617168] mt-0.5 m-0">
-            Reviewer telemetry & decision support: aggregates reviewer actions, detects human disagreement, and proposes source-linked clarifications without mutating live rules.
+            Reviewer telemetry & decision support: aggregates reviewer actions across reviews, detects rule-level reviewer disposition divergence, and proposes source-linked clarifications without mutating live rules.
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export const GuidelineHealthMeters: React.FC<GuidelineHealthMetersProps> = ({
                   {gh.disagreement_detected && (
                     <div className="inline-flex items-center gap-1 text-[11px] font-bold text-[#DC2626] bg-[#FEF2F2] border border-[#FCA5A5] px-2.5 py-0.5 rounded-full">
                       <AlertTriangle size={12} />
-                      <span>Reviewer Disagreement Detected</span>
+                      <span>Rule-Level Reviewer Disagreement Detected (Disposition Divergence)</span>
                     </div>
                   )}
                 </div>

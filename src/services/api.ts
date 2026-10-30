@@ -375,6 +375,8 @@ export const api = {
   brandAssets: () => call<BrandAsset[]>('/api/brand-assets'),
   registerAsset: (body: Partial<BrandAsset>) =>
     call<BrandAsset>('/api/brand-assets', { method: 'POST', body: JSON.stringify(body) }),
+  updateAsset: (id: string, body: Partial<BrandAsset>) =>
+    call<BrandAsset>(`/api/brand-assets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteAsset: (id: string) =>
     call<void>(`/api/brand-assets/${id}`, { method: 'DELETE' }),
 };

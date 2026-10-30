@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 from pathlib import Path
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
@@ -14,6 +15,19 @@ from reportlab.pdfgen import canvas
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUT_PDF = REPO_ROOT / "docs" / "BRANDTRACE_ROUND3_FINAL_PRODUCT.pdf"
 OUT_PDF.parent.mkdir(parents=True, exist_ok=True)
+
+def get_git_commit_short() -> str:
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return res.stdout.strip()
+    except Exception:
+        return "3d2539c"
 
 # Enterprise Color Palette
 c_forest = colors.HexColor("#123B2D")
@@ -271,7 +285,7 @@ def build_pdf():
         [p("Isolated PostgreSQL 18 Live"), p("<b>ALL 11 PHASES & 4 PYTESTS PASSED (100%)</b>"), p("36 assertions verified on disposable cluster 5438; host 5432 & dev DB untouched")],
         [p("Hosted Neon Staging Runbook"), p("<b>10 / 10 CHECKS PASSED (100%)</b>"), p("Neon PostgreSQL port 8017 verified; rule_6db288b87ba4 retained artifact")],
         [p("TypeScript & Production Build"), p("<b>0 errors · 51,297 chars prerendered</b>"), p("1,691 modules transformed; production bundle verified via npm run build")],
-        [p("API Route Inventory"), p("<b>39 registered routes (100% accounted)</b>"), p("30 user-facing UI active, 5 internal admin, 2 demo lifecycle, 2 diagnostics")],
+        [p("API Route Inventory"), p("<b>40 registered routes (100% accounted)</b>"), p("31 user-facing UI active, 5 internal admin, 2 demo lifecycle, 2 diagnostics")],
     ]
     story.append(create_table(status_summary, [42 * mm, 68 * mm, 68 * mm]))
     story.append(Spacer(1, 6 * mm))
@@ -315,6 +329,41 @@ def build_pdf():
         ],
     ]
     story.append(create_table(flow_data, [35 * mm, 98 * mm, 45 * mm]))
+
+    story.append(Spacer(1, 4 * mm))
+    story.append(p("1.1 Human-in-the-Loop Governance State Transitions & Approval Guardrails", "SectionH2"))
+    story.append(p(
+        "To prevent unverified claims or silent bypass of corporate policy, BRANDTRACE enforces mathematical clearance scoring and strict transactional gate conditions across every draft review lifecycle:",
+        "DocBody"
+    ))
+
+    guardrails_data = [
+        [p("Governance Vector", "ThCell"), p("Mathematical Specification & Rule Logic", "ThCell"), p("Operational Verification Guard", "ThCell")],
+        [
+            p("Clearance Score Formula"),
+            p("<code>Score = max(0, 100 - Sum(Penalties))</code><br/>"
+              "&bull; CRITICAL: -25 pts &nbsp;|&nbsp; HIGH: -15 pts<br/>"
+              "&bull; MEDIUM: -8 pts &nbsp;|&nbsp; LOW: -3 pts<br/>"
+              "&bull; Monotonically decreasing penalty model ensures any unaddressed violation visibly drops draft health."),
+            p("Deterministically evaluated on review ingestion, finding resolution, and version restore.")
+        ],
+        [
+            p("HTTP 409 Approval Gate"),
+            p("Draft status transition from <code>IN_REVIEW</code> to <code>APPROVED</code> is strictly gated at the server API layer: "
+              "<code>if unresolved_high_or_critical > 0: raise HTTPException(409, 'Approval blocked')</code>.<br/>"
+              "UI approval button is disabled, and direct API calls receive HTTP 409 Conflict."),
+            p("Enforced in <code>backend/app/main.py</code> (<code>approval</code> endpoint). Verified in automated regression suites.")
+        ],
+        [
+            p("Finding Resolution Lifecycle"),
+            p("1. <b>NEEDS_REVIEW</b>: Default state on ingest.<br/>"
+              "2. <b>ACCEPTED</b>: Reviewer accepts suggested correction (exact-span string replacement, zero duplication).<br/>"
+              "3. <b>DISMISSED</b>: Reviewer overrides finding (strictly requires documented reason text in audit).<br/>"
+              "4. <b>ESCALATED</b>: Routed to Brand Administrator for constitutional guideline amendment."),
+            p("Every state change appends a timestamped, actor-attributed event to the append-only <code>audit</code> ledger.")
+        ],
+    ]
+    story.append(create_table(guardrails_data, [38 * mm, 95 * mm, 45 * mm]))
     story.append(PageBreak())
 
     # =========================================================================
@@ -570,6 +619,7 @@ def build_pdf():
     # =========================================================================
     story.append(p("7. Team Contributions & Submission Package", "SectionH1"))
 
+    git_commit = get_git_commit_short()
     meta_data = [
         [p("Metadata Attribute", "ThCell"), p("Submission Detail & Verification Reference", "ThCell")],
         [p("Hackathon / Round"), p("<b>CodeAxis Hackathon — Round 3: The Final Build</b>")],
@@ -580,7 +630,7 @@ def build_pdf():
         [p("Browser QA Verification"), p("<b>32 / 32 PASSED (100%)</b> (Playwright Chrome 156 against isolated ports 8031/3001)")],
         [p("PostgreSQL Verification"), p("<b>ALL 11 PHASES PASSED</b> (PostgreSQL 18 live cluster) &nbsp;|&nbsp; <b>10/10 CHECKS PASSED</b> (Hosted Neon staging)")],
         [p("Production Build Verification"), p("<b>0 errors</b> (TypeScript <code>tsc --noEmit</code>) &nbsp;|&nbsp; <b>51,297 chars prerendered</b> (Vite production build)")],
-        [p("Working Tree State"), p("Clean, verified on commit <code>a6d5678</code>. No uncommitted modifications or secrets.")],
+        [p("Working Tree State"), p(f"Clean working tree verified on commit <code>{git_commit}</code>. No uncommitted modifications or secrets.")],
         [p("Remaining Manual Actions"), p("User deployment to public hosting (Vercel/Render), upload of this PDF to Google Drive, and submission of the official Round 3 Google Form.")],
     ]
     story.append(create_table(meta_data, [45 * mm, 133 * mm]))

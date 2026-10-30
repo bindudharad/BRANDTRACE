@@ -85,15 +85,21 @@ def extract_dominant_colors(image: Image.Image, num_colors: int = 5) -> List[Tup
     return results
 
 
-def check_asset_registry(content_hash: str) -> Optional[Dict[str, Any]]:
+def check_asset_registry(content_hash: str, workspace_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Look up a content hash in the brand_assets table.
+    Strictly scoped to the requesting workspace to prevent cross-workspace asset leakage.
     Returns the asset record dict if found, or None.
     Lazy import to avoid circular dependency at module level.
     """
     try:
         from .models import row
-        return row("SELECT * FROM brand_assets WHERE content_hash=?", (content_hash,))
+        if workspace_id:
+            return row(
+                "SELECT * FROM brand_assets WHERE content_hash=? AND workspace_id=?",
+                (content_hash, workspace_id),
+            )
+        return None
     except Exception:
         return None
 
@@ -120,10 +126,11 @@ def analyze_image_compliance(
     approved_palette: List[str],
     min_contrast: float = 4.5,
     expected_logo_aspect: Optional[float] = None,
+    workspace_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Analyze image compliance against brand guidelines:
-    - SHA-256 hash computed for asset registry lookup
+    - SHA-256 hash computed for asset registry lookup (strictly workspace-scoped)
     - Asset registry check (Commitment 2): APPROVED / RESTRICTED / unknown hash
     - Dominant palette vs approved palette (Delta-E tolerance)
     - WCAG 2.1 contrast ratio of top foreground/background pairs
@@ -152,9 +159,9 @@ def analyze_image_compliance(
 
     visual_findings: List[Dict[str, Any]] = []
 
-    # 0. Asset Registry Check (Round 3 — Commitment 2)
+    # 0. Asset Registry Check (Round 3 — Commitment 2, strictly workspace-isolated)
     content_hash = compute_sha256(data)
-    asset_record = check_asset_registry(content_hash)
+    asset_record = check_asset_registry(content_hash, workspace_id=workspace_id)
 
     if asset_record is not None:
         approval_status = asset_record.get("approval_status", "UNKNOWN")

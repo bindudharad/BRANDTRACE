@@ -38,4 +38,13 @@ AUTH_MODE = os.getenv("AUTH_MODE", "demo" if ENVIRONMENT != "production" else "p
 ALLOW_DEMO_AUTH = os.getenv("ALLOW_DEMO_AUTH", "true" if AUTH_MODE == "demo" else "false").lower() in ("true", "1", "yes")
 
 API_KEY = os.getenv("BRANDTRACE_API_KEY") or os.getenv("API_KEY") or ""
-ADMIN_API_KEY = os.getenv("BRANDTRACE_ADMIN_API_KEY") or os.getenv("ADMIN_API_KEY") or API_KEY
+ADMIN_API_KEY = os.getenv("BRANDTRACE_ADMIN_API_KEY") or os.getenv("ADMIN_API_KEY") or ""
+
+# Demo Reset Security Configuration (Fail-closed by default on hosted/shared environments)
+ALLOW_DEMO_RESET = os.getenv("ALLOW_DEMO_RESET", "true" if ENVIRONMENT == "test" else "false").lower() in ("true", "1", "yes")
+DEMO_RESET_SECRET = os.getenv("DEMO_RESET_SECRET", "")
+
+# Insecure Configuration Check: Reviewer and Admin credentials must remain independent
+if API_KEY and ADMIN_API_KEY and API_KEY.strip() == ADMIN_API_KEY.strip():
+    if ENVIRONMENT == "production":
+        raise RuntimeError("Insecure configuration: API_KEY and ADMIN_API_KEY must not be identical in production mode.")

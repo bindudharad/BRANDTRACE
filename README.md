@@ -593,8 +593,8 @@ See [`docs/29_DEPLOYMENT_GUIDE.md`](./docs/29_DEPLOYMENT_GUIDE.md).
 ### Completed (Round 3 Final Deliverables)
 
 1. **Time-aware Claim Ledger and Rule-Change Impact Map** — Fact validity windows, 30-day proactive expiring-soon alerts, hard expiration detection, bi-directional evidence dependencies, and targeted re-review (`POST /api/governance/re-review-impact`) transitioning affected drafts to `CHANGES_REQUESTED`.
-2. **Multimodal Visual Compliance** — Bounded 64KB chunked streaming upload guard, PDF text layer extraction, WCAG 2.1 relative luminance contrast evaluation on semantic token pairs, CIELAB Delta-E color distance calculations, and Brand Asset Registry with cryptographic SHA-256 byte hashing (`GET/POST/DELETE /api/brand-assets`).
-3. **Guideline-Health Intelligence & Reviewer Feedback** — Telemetry per rule, deterministic multi-reviewer disagreement detection, proposal triage (`POST /api/governance/rule-suggestions/{rule_id}`), and optimistic locking proposal activation (`POST /api/governance/rule-suggestions/{suggestion_id}/activate`).
+2. **Multimodal Visual Compliance** — Bounded 64KB chunked streaming upload guard, PDF text layer extraction, WCAG 2.1 relative luminance contrast evaluation on semantic token pairs, CIELAB Delta-E color distance calculations, and Brand Asset Registry with cryptographic SHA-256 byte hashing (`GET/POST/PUT/DELETE /api/brand-assets`).
+3. **Guideline-Health Intelligence & Reviewer Feedback** — Telemetry per rule, rule-level reviewer disposition divergence detection, proposal triage (`POST /api/governance/rule-suggestions/{rule_id}`), and optimistic locking proposal activation (`POST /api/governance/rule-suggestions/{suggestion_id}/activate`).
 4. **Security & Acceptance Hardening** — Strict production authentication (`ALLOW_DEMO_AUTH=False`), durable one-way bootstrap (`POST /api/bootstrap`), tenant isolation (`get_workspace_id`), 133 backend tests passed (1 skipped), 32/32 browser QA tests, and 10/10 hosted Neon PostgreSQL acceptance checks.
 
 See [`docs/32_ROUND3_IMPROVEMENT_ROADMAP.md`](./docs/32_ROUND3_IMPROVEMENT_ROADMAP.md) for measurable acceptance criteria.
