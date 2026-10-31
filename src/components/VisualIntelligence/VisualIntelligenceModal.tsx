@@ -445,6 +445,7 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
           </div>
           <button
             onClick={onClose}
+            aria-label="Close Visual Intelligence"
             style={{
               background: 'none',
               border: 'none',
@@ -2092,6 +2093,7 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
                   </div>
                   <button
                     onClick={() => setShowReportModal(false)}
+                    aria-label="Close Report Preview"
                     style={{
                       background: 'none',
                       border: 'none',

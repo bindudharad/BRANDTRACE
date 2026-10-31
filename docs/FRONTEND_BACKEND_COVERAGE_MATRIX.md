@@ -1,60 +1,21 @@
-# BRANDTRACE — FRONTEND–BACKEND COVERAGE MATRIX
+# BRANDTRACE — FRONTEND & BACKEND COVERAGE MATRIX
+**Traceability Scope:** UI Interaction &rarr; REST API Route &rarr; Service Function &rarr; Database Entity.
+**Verification Date:** 2026-10-31 14:00:59 UTC
 
-**Audit Date:** 2026-10-31  
-**Auditor:** Principal Software Architect & QA Director  
-**Evaluation Standard:** Zero-Assumption Full-Stack Verification & Real User Journey Audit  
-
----
-
-## Comprehensive Feature Coverage Matrix
-
-| Feature Domain | Backend Route / Service | Database Models | Frontend Location | User Action | Real API Connected | Persistence Tested | Integration Status |
-| :--- | :--- | :--- | :--- | :--- | :---: | :---: | :---: |
-| **A. Brand Rules (CRUD)** | `GET/POST /api/rules` | `rules`, `rule_versions` | Brand Constitution (`constTab === 'rules'`) | Create and view approved brand governance rules | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **A. Rule Versioning & Edit** | `PUT /api/rules/{id}` | `rules`, `rule_versions` | Brand Constitution (Rule Edit Modal) | Edit rule; bumps immutable version with audit record | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **A. Rule History & Diffs** | `GET /api/rules/{id}/versions` | `rule_versions` | Brand Constitution (History Drawer) | Inspect complete revision timeline and author reasons | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **A. Rule Pre-Flight Conflict Check** | `POST /api/rules/check-conflicts` | `rules` | Brand Constitution (Rule Modal pre-flight) | Real-time scan for mutually exclusive or duplicate rules | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **A. Rule Conflict Audit Modal** | `GET /api/governance/rule-conflicts` | `rules` | Brand Constitution (`RuleConflictModal.tsx`) | Audit system-wide hard conflicts and potential overlaps | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **B. Claim Ledger (CRUD)** | `GET/POST /api/facts` | `facts`, `fact_versions` | Brand Constitution (`constTab === 'facts'`) | Create and view corporate factual assertions & claims | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **B. Claim Versioning & Edit** | `PUT /api/facts/{id}` | `facts`, `fact_versions` | Brand Constitution (Fact Edit Modal) | Update claim assertion, validity dates, or source | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **B. Claim History & Expiry** | `GET /api/facts/{id}/versions` | `fact_versions` | Brand Constitution (Fact History Drawer) | Inspect claim revisions, past values, and expiry dates | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **C. Time-Aware Impact Graph** | `GET /api/governance/impact-map` | `evidence_dependencies`, `reviews` | Governance Insights (`InteractiveImpactGraph.tsx`) | Interactive dependency map of reviews affected by changed rules/facts | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **C. Targeted Re-Review** | `POST /api/governance/re-review-impact` | `reviews`, `findings`, `audit` | Governance Insights (Surgical Re-Review) | Surgically re-evaluate only dependent drafts without touching baseline | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **C. Proactive Expiry Alerts** | `GET /api/governance/expiry-alerts` | `governance_alerts` | Governance Insights (Active Alerts List) | View 30-day proactive notifications on approaching expirations | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **C. Acknowledge Alert** | `POST /api/governance/expiry-alerts/{id}/acknowledge` | `governance_alerts`, `audit` | Governance Insights (Alert Action) | Acknowledge alert, record audit trail, and mark resolved | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **C. Immediate Expiry Scan** | `POST /api/governance/expiry-scan` | `facts`, `rules`, `governance_alerts` | Governance Insights (Scan Trigger) | Trigger instantaneous scan across all facts & rules | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **C. Expiry Background Worker** | `POST /api/governance/expiry-worker/trigger` | `governance_jobs`, `governance_alerts` | Governance Insights (Worker Card) | Execute automated background scan cycle | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **C. Expiry Worker Status & Scheduler** | `GET/POST /api/governance/expiry-worker/status` | `system_state`, `governance_jobs` | Governance Insights (Worker Panel) | Inspect recurring scheduler state, interval, and next run | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **D. Content Review Direct Text** | `POST /api/reviews` | `reviews`, `findings`, `audit` | Content Review (`submissionTab === 'text'`) | Submit text/markdown for deterministic compliance check | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **D. Content Review File Upload** | `POST /api/reviews/upload` | `reviews`, `findings`, `audit` | Content Review (`submissionTab === 'file'`) | Upload PDF, image, or text file for extraction & review | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **D. Review Details & Finding Chain**| `GET /api/reviews/{id}` | `reviews`, `findings` | Content Review (Detail Studio) | Inspect findings, exact passages, rules, and source links | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **D. Multi-Format PDF Extraction** | `pdf_parser.py` | None | Content Review / Backend Pipeline | Bounded 64KB streaming parser extracting text by page | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **D. Reviewer Assignment & Priority**| `PATCH /api/reviews/{id}/assignment` | `reviews` | Content Review (`ReviewAssignmentModal.tsx`) | Assign draft to reviewer, configure priority & due date | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **D. Threaded Reviewer Comments** | `GET/POST /api/reviews/{id}/comments` | `review_comments` | Content Review (`ReviewCommentsPanel.tsx`) | Add and review collaborative findings feedback | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **E. CIELAB Delta-E Palette Analysis**| `color_science.py`, `image_analyzer.py` | `brand_profiles` | Content Review & Visual Profile | Measure dominant colors and distance from approved brand palette | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **E. WCAG 2.1 Contrast Evaluation** | `color_science.py` | `brand_profiles` | Content Review & Visual Profile | Calculate relative luminance contrast across all color pairs | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **E. Logo Placement & Clearspace** | `POST /api/brand-assets/placement-check` | `brand_profiles` | Visual Intelligence Studio | Detect logo bounding box, aspect ratio, and margin violations | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **E. Document Typography Analysis** | `POST /api/documents/typography-check` | None | Visual Intelligence Studio | Inspect font families and hierarchy against approved brand fonts | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **E. Standalone Image & PDF OCR** | `POST /api/documents/ocr` | None | Visual Intelligence Studio / OCR Canvas | Standalone OCR extraction with confidence and method telemetry | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **F. Brand Asset Registry (Upload)**| `GET/POST /api/brand-assets` | `brand_assets` | Brand Constitution (`constTab === 'assets'`) | Register official logos/assets with SHA-256 hash | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **F. Brand Asset Delete** | `DELETE /api/brand-assets/{id}` | `brand_assets` | Brand Constitution (Assets Table) | Remove unapproved or obsolete brand asset | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **F. Brand Asset Metadata Edit** | `PUT /api/brand-assets/{id}` | `brand_assets` | Brand Constitution (Asset Edit Modal) | Update license notes, approval status, or description | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **F. Brand Asset Similarity Check** | `GET /api/brand-assets/{id}/similarity`| `brand_assets` | Brand Constitution (Assets Table Compare) | Compare perceptual similarity between two registered assets | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **G. Finding Action: Accept Edit** | `POST .../findings/{id}/actions` | `findings`, `reviews`, `audit` | Content Review (Finding Card) | Apply suggested correction and generate new revision | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **G. Finding Action: Manual Edit** | `POST .../findings/{id}/actions` | `findings`, `reviews`, `audit` | Content Review (Inline Editor) | Edit draft passage manually, re-evaluate, save revision | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **G. Finding Action: Dismiss** | `POST .../findings/{id}/actions` | `findings`, `reviews`, `audit` | Content Review (Dismiss Modal) | Dismiss finding with mandatory policy reason | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **G. Finding Action: Waive** | `POST .../findings/{id}/actions` | `findings`, `reviews`, `audit` | Content Review (Waive Modal) | Brand Admin waiver with justified business rationale | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **G. Finding Action: Escalate** | `POST .../findings/{id}/actions` | `findings`, `reviews`, `audit` | Content Review (Escalate Modal) | Escalate finding for senior brand legal/compliance review | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **H. Human Release Approval Gate** | `POST /api/reviews/{id}/approval` | `reviews`, `audit` | Approval Queue / Review Header | Human release authorization with server-side blocking gate | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **H. Request Changes** | `POST /api/reviews/{id}/approval` | `reviews`, `audit` | Approval Queue / Review Header | Return draft to creator with feedback and required fixes | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **I. Append-Only Audit History** | `GET /api/reviews/{id}/audit` | `audit` | Audit History View | Chronological immutable log of all actions, actors, and reasons | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **I. Draft Version Management** | `GET /api/reviews/{id}/versions` | `review_versions` | Content Review (Versions Drawer) | Inspect working draft snapshots across all revision steps | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **I. Version Rollback & Restore** | `POST .../restore/{version_id}` | `reviews`, `review_versions`, `audit` | Content Review (Versions Drawer) | Restore past draft revision; re-evaluates all findings | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **J. Guideline Health Telemetry** | `GET /api/governance/guideline-health` | `rules`, `findings` | Governance Insights (`GuidelineHealthMeters.tsx`) | Disagreement telemetry, dismissal ratios, and ambiguity | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **J. Rule Clarification Suggestions**| `GET/POST .../rule-suggestions` | `rule_suggestions` | Governance Insights (Suggestions List) | Review telemetry-driven rule clarification proposals | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **J. Suggestion Human Activation** | `POST .../rule-suggestions/{id}/activate` | `rules`, `rule_versions`, `audit` | Governance Insights (Activate Modal) | Brand Admin activation with optimistic concurrency check | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **K. Brand Guideline PDF Importer** | `POST /api/constitution/import-guidelines`| `constitution_imports`, `imported_rule_candidates` | Brand Constitution (`GuidelineImportModal.tsx`) | Upload brand stylebook PDF to extract candidate rules | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **K. Candidate Triage & Approval** | `POST .../candidates/{id}/approve` | `imported_rule_candidates`, `rules` | Brand Constitution (`GuidelineImportModal.tsx`) | Human-gated promotion of extracted candidates to rules | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **K. Evidence Source Vault (CRUD)**| `GET/POST/PUT/DELETE /api/evidence-sources` | `evidence_sources` | Brand Constitution (`EvidenceSourceVault.tsx`) | Independent evidence repository with verification status | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **L. Compliance Evidence Packet** | `GET /api/reviews/{id}/export-evidence` | `reviews`, `findings`, `audit` | Content Review (`ExportEvidenceButton.tsx`) | Download court-ready signed cryptographic evidence PDF | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
-| **L. Optional Advisory AI Analysis**| `ai_adapter.py`, `groq_content_analyzer.py` | None | Content Review (Advisory Mode) | Optional AI advisory findings clearly labeled and segregated | **YES** | **YES** | `IMPLEMENTED_AND_CONNECTED` |
+| UI Action / Feature | Frontend Service Call | Backend API Route | Service Logic | Database Entity | Verification Status |
+| :--- | :--- | :--- | :--- | :--- | :---: |
+| **Add Brand Rule** | `api.createRule()` | `POST /api/rules` | `governance.py` | `rules`, `rule_versions` | **VERIFIED** |
+| **Save Visual Profile** | `api.updateBrandProfile()`| `POST /api/brand-profile` | `models.py` | `brand_profiles` | **VERIFIED** |
+| **Record Fact** | `api.createFact()` | `POST /api/facts` | `models.py` | `facts` | **VERIFIED** |
+| **Import Guidelines** | `api.importGuidelines()` | `POST /api/constitution/import-guidelines`| `guideline_importer.py` | `guideline_candidate_rules` | **VERIFIED** |
+| **Submit Draft** | `api.submitReview()` | `POST /api/reviews` | `governance.py` | `reviews`, `findings` | **VERIFIED** |
+| **Dismiss Finding** | `api.findingAction()` | `POST /api/reviews/{id}/findings/{fid}/actions` | `finding_actions.py` | `findings.disposition` | **VERIFIED** |
+| **Apply Replacement** | `api.applyEdit()` | `POST /api/reviews/{id}/findings/{fid}/actions` | `finding_actions.py` | `reviews.content`, `review_versions` | **VERIFIED** |
+| **Approval Gate (HTTP 409)** | `api.approval()` | `POST /api/reviews/{id}/approval` | `main.py` | Strict Block | **VERIFIED** |
+| **Compliance Approval**| `api.approval()` | `POST /api/reviews/{id}/approval` | `main.py` | `reviews.status = 'APPROVED'` | **VERIFIED** |
+| **OCR Text Extraction** | `api.analyzeOcr()` | `POST /api/ocr/analyze` | `ocr_service.py` | Non-persisted analysis | **VERIFIED** |
+| **Logo Placement** | `api.detectLogo()` | `POST /api/visual/detect-logo` | `logo_detector.py` | Visual compliance findings | **VERIFIED** |
+| **Logo Verification** | `api.verifyDocumentLogo()`| `POST /api/visual/verify-logo` | `logo_intelligence/` | `logo_analyses`, `logo_findings` | **VERIFIED** |
+| **PDF Report Download**| `api.downloadLogoReport()`| `GET /api/reports/{id}/download` | `report_generator.py` | `logo_reports` | **VERIFIED** |
+| **Guideline Health** | `api.guidelineHealth()` | `GET /api/governance/guideline-health` | `guideline_health.py` | Rule telemetry aggregation | **VERIFIED** |
+| **Impact Map** | `api.getImpactMap()` | `GET /api/governance/impact-map` | `expiry_monitor.py` | `evidence_dependencies` | **VERIFIED** |

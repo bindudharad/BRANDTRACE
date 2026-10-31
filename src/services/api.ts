@@ -672,11 +672,30 @@ export function getApiBaseUrl(): string {
 
 async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
   const isFormData = options.body instanceof FormData;
+  const customHeaders = (options.headers as Record<string, string>) || {};
+  let reqWs = activeWorkspace;
+  let reqRole = activeRole;
+  let reqActor = activeActor;
+
+  const extraHeaders: Record<string, string> = {};
+  for (const [k, v] of Object.entries(customHeaders)) {
+    const lk = k.toLowerCase();
+    if (lk === 'x-workspace-id') {
+      reqWs = v;
+    } else if (lk === 'x-demo-role') {
+      reqRole = v as UserRole;
+    } else if (lk === 'x-demo-actor') {
+      reqActor = v;
+    } else {
+      extraHeaders[k] = v;
+    }
+  }
+
   const headers: Record<string, string> = {
-    'X-Demo-Role': activeRole,
-    'X-Demo-Actor': activeActor,
-    'X-Workspace-Id': activeWorkspace,
-    ...(options.headers as Record<string, string> || {}),
+    'X-Demo-Role': reqRole,
+    'X-Demo-Actor': reqActor,
+    'X-Workspace-Id': reqWs,
+    ...extraHeaders,
   };
 
   if (!isFormData && !headers['Content-Type']) {

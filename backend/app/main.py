@@ -192,6 +192,12 @@ def get_auth_context(
         token = x_api_key.strip()
 
     target_workspace = (x_workspace_id or "ws_default").strip()
+    if "," in target_workspace:
+        target_workspace = target_workspace.split(",")[0].strip()
+    if x_demo_role and "," in x_demo_role:
+        x_demo_role = x_demo_role.split(",")[0].strip()
+    if x_demo_actor and "," in x_demo_actor:
+        x_demo_actor = x_demo_actor.split(",")[0].strip()
 
     if token:
         if config.ADMIN_API_KEY and hmac.compare_digest(token, config.ADMIN_API_KEY):
@@ -2376,6 +2382,18 @@ def bootstrap_production_system(
                    ON CONFLICT (workspace_id, actor) DO NOTHING""",
                 (ctx["actor"], now_ts)
             )
+            for demo_act, demo_r in [
+                ("demo.brand_admin", "brand_admin"),
+                ("demo.reviewer", "reviewer"),
+                ("demo.creator", "creator"),
+                ("demo.auditor", "auditor"),
+            ]:
+                conn.execute(
+                    """INSERT INTO workspace_members (workspace_id, actor, role, created_at)
+                       VALUES ('ws_default', ?, ?, ?)
+                       ON CONFLICT (workspace_id, actor) DO NOTHING""",
+                    (demo_act, demo_r, now_ts)
+                )
             if not conn.execute("SELECT 1 FROM brand_profiles WHERE workspace_id='ws_default'").fetchone():
                 conn.execute(
                     """INSERT INTO brand_profiles (
