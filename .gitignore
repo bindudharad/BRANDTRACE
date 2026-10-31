@@ -47,6 +47,7 @@ Thumbs.db
 
 # ── Uploads / temp ────────────────────────────────────────────────────────────
 uploads/
+storage/
 *.tmp
 node_modules/
 .venv/

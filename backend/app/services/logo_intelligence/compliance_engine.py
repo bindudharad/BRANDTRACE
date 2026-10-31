@@ -74,6 +74,7 @@ def analyze_visual_document(
     analysis_id = ident("lana")
     created_at = now()
     file_size = len(file_bytes)
+    input_sha256 = compute_sha256(file_bytes)
 
     # 1. Fetch all approved logo references for this workspace
     approved_refs = list_reference_logos(workspace_id=workspace_id, status_filter="APPROVED")
@@ -84,14 +85,14 @@ def analyze_visual_document(
             conn.execute(
                 """
                 INSERT INTO logo_analyses (
-                    id, workspace_id, source_filename, source_type, file_size,
+                    id, workspace_id, source_filename, source_type, source_file_hash, file_size,
                     page_count, status, overall_verdict, candidates_detected,
                     compliant_candidates, findings_count, reference_versions_used_json,
                     error_summary, created_at, completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    analysis_id, workspace_id, filename, stype, file_size,
+                    analysis_id, workspace_id, filename, stype, input_sha256, file_size,
                     1, "COMPLETED", "REFERENCE_NOT_CONFIGURED", 0,
                     0, 0, "[]",
                     "No approved logo reference registered for this workspace. Register an official logo first.",
@@ -103,6 +104,7 @@ def analyze_visual_document(
             "workspace_id": workspace_id,
             "filename": filename,
             "source_type": stype,
+            "source_file_hash": input_sha256,
             "overall_verdict": "REFERENCE_NOT_CONFIGURED",
             "candidates": [],
             "findings": [],
@@ -256,14 +258,14 @@ def analyze_visual_document(
         conn.execute(
             """
             INSERT INTO logo_analyses (
-                id, workspace_id, source_filename, source_type, file_size,
+                id, workspace_id, source_filename, source_type, source_file_hash, file_size,
                 page_count, status, overall_verdict, candidates_detected,
                 compliant_candidates, findings_count, reference_versions_used_json,
                 error_summary, created_at, completed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                analysis_id, workspace_id, filename, stype, file_size,
+                analysis_id, workspace_id, filename, stype, input_sha256, file_size,
                 page_count, "COMPLETED", overall_verdict, len(all_candidates),
                 compliant_count, len(all_findings), json.dumps(ref_versions_used),
                 None, created_at, completed_at,
@@ -337,6 +339,7 @@ def analyze_visual_document(
         "workspace_id": workspace_id,
         "filename": filename,
         "source_type": stype,
+        "source_file_hash": input_sha256,
         "page_count": page_count,
         "overall_verdict": overall_verdict,
         "candidates": all_candidates,

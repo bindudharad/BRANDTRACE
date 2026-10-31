@@ -21,6 +21,8 @@ import {
   Plus,
   Compass,
   CheckSquare,
+  Download,
+  FileCheck,
 } from 'lucide-react';
 import {
   api,
@@ -28,6 +30,7 @@ import {
   LogoStandardsConfig,
   LogoAnalysisResponse,
   LogoFindingItem,
+  LogoReportItem,
   TypographyComplianceResult,
   OcrResponse,
 } from '../../services/api';
@@ -35,7 +38,7 @@ import {
 interface VisualIntelligenceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultTab?: 'verify' | 'references' | 'standards' | 'typography' | 'ocr';
+  defaultTab?: 'verify' | 'references' | 'standards' | 'reports' | 'typography' | 'ocr';
   workspaceId?: string;
 }
 
@@ -45,7 +48,7 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
   defaultTab = 'verify',
   workspaceId = 'ws_default',
 }) => {
-  const [activeTab, setActiveTab] = useState<'verify' | 'references' | 'standards' | 'typography' | 'ocr'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'verify' | 'references' | 'standards' | 'reports' | 'typography' | 'ocr'>(defaultTab);
 
   // Tab 1: Verify Logo State
   const [verifyFile, setVerifyFile] = useState<File | null>(null);
@@ -88,6 +91,14 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Tab 4: Official Verification Reports State
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportItem, setReportItem] = useState<LogoReportItem | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportCopied, setReportCopied] = useState(false);
+  const [reportsList, setReportsList] = useState<LogoReportItem[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+
   // Fetch references on open or tab change
   const loadReferences = async () => {
     setRefsLoading(true);
@@ -105,9 +116,82 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
     }
   };
 
+  const loadReports = async () => {
+    setReportsLoading(true);
+    try {
+      const data = await api.listLogoReports(workspaceId);
+      setReportsList(data);
+    } catch {
+      // ignore
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const handleDownloadReport = async (analysisId: string) => {
+    try {
+      setReportLoading(true);
+      const rep = await api.generateLogoReport(analysisId, workspaceId);
+      setReportItem(rep);
+      const blob = await api.downloadLogoReportBlob(rep.id, workspaceId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = rep.filename || `BRANDTRACE_Verification_Report_${rep.report_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      await loadReports();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to download logo verification report.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleDownloadReportDirect = async (rep: LogoReportItem) => {
+    try {
+      setReportLoading(true);
+      const blob = await api.downloadLogoReportBlob(rep.id, workspaceId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = rep.filename || `BRANDTRACE_Verification_Report_${rep.report_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to download report PDF.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleViewReport = async (analysisId: string) => {
+    try {
+      setReportLoading(true);
+      const rep = await api.generateLogoReport(analysisId, workspaceId);
+      setReportItem(rep);
+      setShowReportModal(true);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to load logo verification report.');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleCopyReportId = (textToCopy: string) => {
+    navigator.clipboard.writeText(textToCopy);
+    setReportCopied(true);
+    setTimeout(() => setReportCopied(false), 2000);
+  };
+
   useEffect(() => {
     if (isOpen) {
       loadReferences();
+      loadReports();
     }
   }, [isOpen, workspaceId]);
 
@@ -445,6 +529,29 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
           </button>
 
           <button
+            onClick={() => {
+              setActiveTab('reports');
+              loadReports();
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: activeTab === 'reports' ? '#0A7352' : 'transparent',
+              color: activeTab === 'reports' ? '#FFFFFF' : '#64748B',
+            }}
+          >
+            <FileCheck size={16} />
+            <span>Verification Reports ({reportsList.length})</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('typography')}
             style={{
               display: 'flex',
@@ -624,33 +731,82 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
                       </p>
                     </div>
 
-                    {/* PDF Page Selector */}
-                    {verifyResult.page_count > 1 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Page:</span>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {Array.from({ length: verifyResult.page_count }, (_, i) => i + 1).map((pn) => (
-                            <button
-                              key={pn}
-                              onClick={() => setSelectedPage(pn)}
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 6,
-                                border: '1px solid #CBD5E1',
-                                backgroundColor: selectedPage === pn ? '#0A7352' : '#FFFFFF',
-                                color: selectedPage === pn ? '#FFFFFF' : '#1E293B',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {pn}
-                            </button>
-                          ))}
-                        </div>
+                        <button
+                          onClick={() => handleDownloadReport(verifyResult.analysis_id)}
+                          disabled={reportLoading}
+                          title="Download official tamper-evident PDF verification report"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            backgroundColor: '#0A7352',
+                            color: '#FFFFFF',
+                            padding: '8px 16px',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            border: 'none',
+                            cursor: reportLoading ? 'wait' : 'pointer',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                          }}
+                        >
+                          <Download size={15} />
+                          <span>{reportLoading ? 'Generating PDF...' : 'Download Verification Report (PDF)'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleViewReport(verifyResult.analysis_id)}
+                          disabled={reportLoading}
+                          title="View verified compliance matrix and evidence details"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            backgroundColor: '#F8FAFC',
+                            color: '#1E293B',
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            border: '1px solid #CBD5E1',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <FileText size={15} />
+                          <span>View Report</span>
+                        </button>
                       </div>
-                    )}
+
+                      {/* PDF Page Selector */}
+                      {verifyResult.page_count > 1 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Page:</span>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {Array.from({ length: verifyResult.page_count }, (_, i) => i + 1).map((pn) => (
+                              <button
+                                key={pn}
+                                onClick={() => setSelectedPage(pn)}
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  backgroundColor: selectedPage === pn ? '#0A7352' : '#FFFFFF',
+                                  color: selectedPage === pn ? '#FFFFFF' : '#1E293B',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {pn}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Candidates on Selected Page */}
@@ -1719,6 +1875,401 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: OFFICIAL VERIFICATION REPORTS */}
+          {activeTab === 'reports' && (
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                    Official Logo Verification Reports ({reportsList.length})
+                  </h3>
+                  <p style={{ fontSize: 13, color: '#64748B', margin: '4px 0 0 0' }}>
+                    Immutable, cryptographically indexed PDF verification certificates generated from deterministic brand compliance audits.
+                  </p>
+                </div>
+                <button
+                  onClick={loadReports}
+                  disabled={reportsLoading}
+                  className="btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RefreshCw size={14} className={reportsLoading ? 'animate-spin' : ''} />
+                  <span>Refresh Reports</span>
+                </button>
+              </div>
+
+              {reportsLoading ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>
+                  Loading official verification reports...
+                </div>
+              ) : reportsList.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 48,
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 12,
+                    border: '1px dashed #CBD5E1',
+                  }}
+                >
+                  <FileCheck size={40} color="#94A3B8" style={{ margin: '0 auto 12px' }} />
+                  <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1E293B', margin: '0 0 6px 0' }}>
+                    No Verification Reports Generated Yet
+                  </h4>
+                  <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 16px 0', maxWidth: 450, marginInline: 'auto' }}>
+                    Run an analysis on any corporate artwork or PDF in the "Verify Document Logo" tab, then click
+                    "Download Verification Report (PDF)" to issue a tamper-evident audit certificate.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('verify')}
+                    className="btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <Eye size={15} />
+                    <span>Go to Logo Verification</span>
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {reportsList.map((rep) => {
+                    const isCompliant = rep.overall_verdict === 'COMPLIANT' && rep.findings_count === 0;
+                    const isPartial = rep.overall_verdict === 'PARTIALLY_COMPLIANT';
+                    const isReview = rep.overall_verdict === 'NEEDS_REVIEW';
+
+                    const badgeBg = isCompliant ? '#ECFDF5' : isPartial ? '#FEF3C7' : isReview ? '#F3E8FF' : '#FEE2E2';
+                    const badgeColor = isCompliant ? '#065F46' : isPartial ? '#92400E' : isReview ? '#6B21A8' : '#991B1B';
+                    const badgeLabel = isCompliant
+                      ? 'VERIFIED'
+                      : isPartial
+                      ? 'PARTIALLY COMPLIANT'
+                      : isReview
+                      ? 'NEEDS REVIEW'
+                      : rep.overall_verdict.replace(/_/g, ' ');
+
+                    return (
+                      <div
+                        key={rep.id}
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          borderRadius: 10,
+                          padding: 16,
+                          border: '1px solid #E2E8F0',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 16,
+                        }}
+                      >
+                        <div style={{ display: 'grid', gap: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
+                              {rep.report_number}
+                            </span>
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                backgroundColor: badgeBg,
+                                color: badgeColor,
+                              }}
+                            >
+                              {badgeLabel}
+                            </span>
+                            <span style={{ fontSize: 12, color: '#64748B' }}>
+                              Issued: {new Date(rep.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 13, color: '#334155' }}>
+                            Asset: <b>{rep.source_filename}</b> • {rep.findings_count} finding{rep.findings_count !== 1 ? 's' : ''}
+                            {rep.reference_name && <span> • Standard: {rep.reference_name}</span>}
+                          </div>
+
+                          <div style={{ fontSize: 11, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>SHA-256: <code style={{ backgroundColor: '#F1F5F9', padding: '1px 4px', borderRadius: 4 }}>{rep.checksum_sha256.slice(0, 16)}...</code></span>
+                            <button
+                              onClick={() => handleCopyReportId(rep.id)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                fontSize: 11,
+                                color: '#0A7352',
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                              }}
+                            >
+                              {reportCopied ? 'Copied ID!' : 'Copy Report ID'}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            onClick={() => {
+                              setReportItem(rep);
+                              setShowReportModal(true);
+                            }}
+                            className="btn-secondary btn-sm"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <FileText size={14} />
+                            <span>View Details</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDownloadReportDirect(rep)}
+                            disabled={reportLoading}
+                            className="btn-primary btn-sm"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, backgroundColor: '#0A7352' }}
+                          >
+                            <Download size={14} />
+                            <span>Download PDF</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REPORT DETAILS MODAL */}
+          {showReportModal && reportItem && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000,
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 12,
+                  maxWidth: 800,
+                  width: '100%',
+                  maxHeight: '85vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                }}
+              >
+                {/* Modal Header */}
+                <div
+                  style={{
+                    padding: '16px 24px',
+                    borderBottom: '1px solid #E2E8F0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: '#0B192C',
+                    color: '#FFFFFF',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#60A5FA', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      BRANDTRACE AUDIT CERTIFICATE
+                    </span>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 0 0', color: '#FFFFFF' }}>
+                      Official Logo Verification Report: {reportItem.report_number}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowReportModal(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94A3B8',
+                      cursor: 'pointer',
+                      padding: 4,
+                    }}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div style={{ padding: 24, overflowY: 'auto', display: 'grid', gap: 20 }}>
+                  {/* Status Banner */}
+                  <div
+                    style={{
+                      padding: 16,
+                      borderRadius: 8,
+                      backgroundColor:
+                        reportItem.overall_verdict === 'COMPLIANT' && reportItem.findings_count === 0
+                          ? '#ECFDF5'
+                          : reportItem.overall_verdict === 'PARTIALLY_COMPLIANT'
+                          ? '#FEF3C7'
+                          : reportItem.overall_verdict === 'NEEDS_REVIEW'
+                          ? '#F3E8FF'
+                          : '#FEE2E2',
+                      border: '1px solid',
+                      borderColor:
+                        reportItem.overall_verdict === 'COMPLIANT' && reportItem.findings_count === 0
+                          ? '#A7F3D0'
+                          : reportItem.overall_verdict === 'PARTIALLY_COMPLIANT'
+                          ? '#FDE68A'
+                          : reportItem.overall_verdict === 'NEEDS_REVIEW'
+                          ? '#E9D5FF'
+                          : '#FECACA',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color:
+                            reportItem.overall_verdict === 'COMPLIANT' && reportItem.findings_count === 0
+                              ? '#065F46'
+                              : reportItem.overall_verdict === 'PARTIALLY_COMPLIANT'
+                              ? '#92400E'
+                              : reportItem.overall_verdict === 'NEEDS_REVIEW'
+                              ? '#6B21A8'
+                              : '#991B1B',
+                        }}
+                      >
+                        VERDICT:{' '}
+                        {reportItem.overall_verdict === 'COMPLIANT' && reportItem.findings_count === 0
+                          ? 'VERIFIED — ALL CONFIGURED CHECKS PASSED'
+                          : reportItem.overall_verdict.replace(/_/g, ' ')}
+                      </span>
+                      <p style={{ fontSize: 13, color: '#334155', margin: '4px 0 0 0' }}>
+                        Analyzed: <b>{reportItem.source_filename}</b> • Issued on {reportItem.created_at} UTC
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleCopyReportId(reportItem.id)}
+                      className="btn-secondary btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      {reportCopied ? <Check size={14} color="#059669" /> : <Copy size={14} />}
+                      <span>{reportCopied ? 'Copied ID' : 'Copy Report ID'}</span>
+                    </button>
+                  </div>
+
+                  {/* Compliance Checks Matrix Table */}
+                  <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: '0 0 8px 0' }}>
+                      Evaluated Brand Standards Matrix
+                    </h4>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#0B192C', color: '#FFFFFF', textAlign: 'left' }}>
+                          <th style={{ padding: '8px 10px', borderRadius: '6px 0 0 0' }}>Dimension</th>
+                          <th style={{ padding: '8px 10px' }}>Standard Requirement</th>
+                          <th style={{ padding: '8px 10px' }}>Observed Measurement</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'center', borderRadius: '0 6px 0 0' }}>Outcome</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportItem.checks.map((chk, idx) => {
+                          const isPass = chk.outcome === 'PASS';
+                          const isFail = chk.outcome === 'FAIL';
+                          return (
+                            <tr
+                              key={idx}
+                              style={{
+                                borderBottom: '1px solid #E2E8F0',
+                                backgroundColor: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+                              }}
+                            >
+                              <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1E293B' }}>{chk.dimension}</td>
+                              <td style={{ padding: '8px 10px', color: '#475569' }}>{chk.requirement}</td>
+                              <td style={{ padding: '8px 10px', color: '#334155' }}>{chk.observed}</td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                <span
+                                  style={{
+                                    padding: '2px 8px',
+                                    borderRadius: 12,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    backgroundColor: isPass ? '#ECFDF5' : isFail ? '#FEE2E2' : '#F1F5F9',
+                                    color: isPass ? '#065F46' : isFail ? '#991B1B' : '#64748B',
+                                  }}
+                                >
+                                  {chk.outcome}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Cryptographic Proof Details */}
+                  <div
+                    style={{
+                      padding: 12,
+                      borderRadius: 8,
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      fontSize: 12,
+                      display: 'grid',
+                      gap: 4,
+                      color: '#64748B',
+                    }}
+                  >
+                    <div><b>Report Checksum (SHA-256):</b> <code style={{ color: '#0F172A' }}>{reportItem.checksum_sha256}</code></div>
+                    <div><b>Source Asset Checksum:</b> <code style={{ color: '#0F172A' }}>{reportItem.source_file_hash}</code></div>
+                    <div><b>Governance Authority:</b> BRANDTRACE Visual Compliance Engine v2.0-LVE (Deterministic Verification)</div>
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div
+                  style={{
+                    padding: '16px 24px',
+                    borderTop: '1px solid #E2E8F0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: '#F8FAFC',
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: '#64748B' }}>
+                    Tamper-Evident Brand Governance Artifact
+                  </span>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={() => setShowReportModal(false)}
+                      className="btn-secondary btn-sm"
+                    >
+                      Close Preview
+                    </button>
+                    <button
+                      onClick={() => handleDownloadReportDirect(reportItem)}
+                      disabled={reportLoading}
+                      className="btn-primary btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, backgroundColor: '#0A7352' }}
+                    >
+                      <Download size={14} />
+                      <span>Download PDF</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

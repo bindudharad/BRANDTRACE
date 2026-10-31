@@ -34,6 +34,11 @@ from app.services.logo_intelligence import (
     analyze_visual_document,
     seed_demo_logo_references,
     get_all_demo_fixtures,
+    generate_logo_verification_report,
+    get_logo_report,
+    get_logo_report_pdf_bytes,
+    verify_logo_report_authenticity,
+    list_logo_reports,
 )
 
 router = APIRouter(prefix="/api/logo-intelligence", tags=["Logo Intelligence"])
@@ -590,3 +595,116 @@ async def download_fixture_image(fixture_name: str):
         raise HTTPException(404, f"Fixture '{fixture_name}' not found. Available: {list(fixtures.keys())}")
 
     return Response(content=fixtures[fixture_name], media_type="image/png")
+
+
+# -----------------------------------------------------------------------------
+# 6. Official Verification Report & PDF Generation Endpoints
+# -----------------------------------------------------------------------------
+
+@router.post("/analyses/{analysis_id}/report")
+async def generate_report_endpoint(
+    analysis_id: str,
+    force_recreate: bool = Query(False, description="Force recreate report"),
+    ctx: Dict[str, str] = Depends(get_auth_context_dep),
+):
+    """Generate or retrieve persistent, immutable official logo verification report."""
+    try:
+        report = generate_logo_verification_report(
+            analysis_id=analysis_id,
+            workspace_id=ctx["workspace_id"],
+            generated_by=ctx["actor"],
+            force_recreate=force_recreate,
+        )
+        return report
+    except KeyError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to generate report: {exc}")
+
+
+@router.get("/analyses/{analysis_id}/report/download")
+async def download_analysis_report_endpoint(
+    analysis_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context_dep),
+):
+    """Generate and directly stream the official verification report PDF for an analysis."""
+    try:
+        report = generate_logo_verification_report(
+            analysis_id=analysis_id,
+            workspace_id=ctx["workspace_id"],
+            generated_by=ctx["actor"],
+        )
+        pdf_bytes = get_logo_report_pdf_bytes(report["id"], ctx["workspace_id"])
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{report["filename"]}"',
+                "X-Report-Id": report["id"],
+                "X-Report-Checksum": report["checksum_sha256"],
+            },
+        )
+    except KeyError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to download report: {exc}")
+
+
+@router.get("/reports")
+async def list_reports_endpoint(
+    ctx: Dict[str, str] = Depends(get_auth_context_dep),
+):
+    """List all generated verification reports for the active workspace."""
+    return list_logo_reports(workspace_id=ctx["workspace_id"])
+
+
+@router.get("/reports/{report_id}")
+async def get_report_metadata_endpoint(
+    report_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context_dep),
+):
+    """Retrieve metadata and compliance checks snapshot for a specific report."""
+    rep = get_logo_report(report_id=report_id, workspace_id=ctx["workspace_id"])
+    if not rep:
+        raise HTTPException(404, f"Report '{report_id}' not found.")
+    return rep
+
+
+@router.get("/reports/{report_id}/download")
+async def download_report_pdf_endpoint(
+    report_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context_dep),
+):
+    """Download official verification report PDF as an attachment."""
+    rep = get_logo_report(report_id=report_id, workspace_id=ctx["workspace_id"])
+    if not rep:
+        raise HTTPException(404, f"Report '{report_id}' not found.")
+
+    try:
+        pdf_bytes = get_logo_report_pdf_bytes(report_id=report_id, workspace_id=ctx["workspace_id"])
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{rep["filename"]}"',
+                "X-Report-Id": rep["id"],
+                "X-Report-Number": rep["report_number"],
+                "X-Report-Checksum": rep["checksum_sha256"],
+            },
+        )
+    except KeyError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to stream report PDF: {exc}")
+
+
+@router.get("/reports/{report_id}/verify")
+async def verify_report_endpoint(report_id: str):
+    """
+    Public / cryptographic verification endpoint.
+    Verifies authenticity, immutability, and checksum integrity of an issued report.
+    """
+    res = verify_logo_report_authenticity(report_id=report_id)
+    if not res.get("verified") and res.get("status") == "NOT_FOUND":
+        raise HTTPException(404, f"Report '{report_id}' not found in BRANDTRACE ledger.")
+    return res

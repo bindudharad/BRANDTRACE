@@ -474,8 +474,67 @@ export interface LogoAnalysisResponse {
     status: string;
   };
   reference_versions_used: Array<{ id: string; name: string; variant: string; version: string }>;
+  source_file_hash?: string;
   created_at: string;
   completed_at?: string;
+}
+
+export interface LogoReportCheckItem {
+  dimension: string;
+  requirement: string;
+  observed: string;
+  outcome: 'PASS' | 'FAIL' | 'NOT EVALUATED';
+}
+
+export interface LogoReportItem {
+  id: string;
+  analysis_id: string;
+  workspace_id: string;
+  report_number: string;
+  filename: string;
+  source_filename: string;
+  source_file_hash: string;
+  overall_verdict: string;
+  summary: {
+    analysis_id?: string;
+    overall_verdict?: string;
+    candidates_count?: number;
+    compliant_count?: number;
+    findings_count?: number;
+    page_count?: number;
+    reference_id?: string;
+    reference_name?: string;
+  };
+  checks: LogoReportCheckItem[];
+  findings_count: number;
+  reference_id?: string;
+  reference_name?: string;
+  reference_version?: string;
+  standards_version?: string;
+  checksum_sha256: string;
+  status: string;
+  created_at: string;
+  created_by: string;
+  download_url: string;
+  verify_url: string;
+}
+
+export interface LogoReportVerification {
+  verified: boolean;
+  report_id: string;
+  report_number: string;
+  workspace_id?: string;
+  analysis_id?: string;
+  source_filename?: string;
+  source_file_hash?: string;
+  overall_verdict?: string;
+  checksum_sha256?: string;
+  reference_id?: string;
+  reference_name?: string;
+  issued_at?: string;
+  status: string;
+  governance_authority?: string;
+  message?: string;
 }
 
 export interface GovernanceAlert {
@@ -969,4 +1028,35 @@ export const api = {
         headers: { 'x-workspace-id': workspaceId },
       }
     ),
+
+  // Official Logo Verification Reports & Downloadable PDF Generator
+  generateLogoReport: (analysisId: string, workspaceId: string = 'ws_default', forceRecreate: boolean = false) =>
+    call<LogoReportItem>(`/api/logo-intelligence/analyses/${analysisId}/report?force_recreate=${forceRecreate}`, {
+      method: 'POST',
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  getLogoReport: (reportId: string, workspaceId: string = 'ws_default') =>
+    call<LogoReportItem>(`/api/logo-intelligence/reports/${reportId}`, {
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  listLogoReports: (workspaceId: string = 'ws_default') =>
+    call<LogoReportItem[]>('/api/logo-intelligence/reports', {
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  verifyLogoReport: (reportId: string) =>
+    call<LogoReportVerification>(`/api/logo-intelligence/reports/${reportId}/verify`),
+  downloadLogoReportUrl: (reportId: string) =>
+    `${base}/api/logo-intelligence/reports/${reportId}/download`,
+  downloadAnalysisReportUrl: (analysisId: string) =>
+    `${base}/api/logo-intelligence/analyses/${analysisId}/report/download`,
+  downloadLogoReportBlob: async (reportId: string, workspaceId: string = 'ws_default'): Promise<Blob> => {
+    const res = await fetch(`${base}/api/logo-intelligence/reports/${reportId}/download`, {
+      headers: { 'x-workspace-id': workspaceId, 'X-Demo-Role': activeRole },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to download report PDF.' }));
+      throw new Error(err.detail || 'Failed to download official verification report PDF.');
+    }
+    return res.blob();
+  },
 };

@@ -64,6 +64,13 @@ from .sample_fixtures import (
     get_all_demo_fixtures,
     seed_demo_logo_references,
 )
+from .report_generator import (
+    generate_logo_verification_report,
+    get_logo_report,
+    get_logo_report_pdf_bytes,
+    verify_logo_report_authenticity,
+    list_logo_reports,
+)
 
 __all__ = [
     "load_opencv_images",
@@ -101,4 +108,9 @@ __all__ = [
     "generate_synthetic_logo",
     "get_all_demo_fixtures",
     "seed_demo_logo_references",
+    "generate_logo_verification_report",
+    "get_logo_report",
+    "get_logo_report_pdf_bytes",
+    "verify_logo_report_authenticity",
+    "list_logo_reports",
 ]

@@ -30,7 +30,7 @@ REQUIRED_SCHEMA_TABLES = frozenset({
     "constitution_imports", "imported_rule_candidates", "evidence_sources",
     "review_comments", "governance_alerts", "governance_jobs",
     "logo_references", "logo_standards", "logo_analyses",
-    "logo_candidates", "logo_findings",
+    "logo_candidates", "logo_findings", "logo_reports",
 })
 
 def get_engine():
@@ -722,6 +722,7 @@ def init_db():
                 source_asset_id TEXT,
                 source_filename TEXT NOT NULL,
                 source_type TEXT NOT NULL,
+                source_file_hash TEXT,
                 file_size INTEGER NOT NULL,
                 page_count INTEGER NOT NULL DEFAULT 1,
                 status TEXT NOT NULL DEFAULT 'COMPLETED',
@@ -784,3 +785,30 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logo_reports (
+                id TEXT PRIMARY KEY,
+                analysis_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                report_number TEXT NOT NULL UNIQUE,
+                filename TEXT NOT NULL,
+                pdf_storage_path TEXT,
+                source_filename TEXT NOT NULL,
+                source_file_hash TEXT NOT NULL,
+                overall_verdict TEXT NOT NULL,
+                summary_json TEXT NOT NULL DEFAULT '{}',
+                checks_json TEXT NOT NULL DEFAULT '[]',
+                findings_count INTEGER NOT NULL DEFAULT 0,
+                reference_id TEXT,
+                reference_name TEXT,
+                reference_version TEXT,
+                standards_version TEXT,
+                checksum_sha256 TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'GENERATED',
+                created_at TEXT NOT NULL,
+                created_by TEXT NOT NULL DEFAULT 'system'
+            )
+            """
+        )
+        _safe_add_column(conn, "logo_analyses", "source_file_hash", "TEXT")
