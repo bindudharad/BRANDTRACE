@@ -50,12 +50,13 @@
 
 ## 3. Deployment Synchronization & Live Verification Status
 
-- **Live Deployed Commit:** `2292fe6ba00b13ab7303bc75288e568ce166a254` (currently live on Vercel frontend and Render backend).
+- **Published Release Commit (GitHub):** `cc76c0e18d134876247750b2a29cc674b5aba77a` (pushed to `origin/main`; verified public via GitHub API).
+- **Live Cloud Deployed Commit:** `2292fe6ba00b13ab7303bc75288e568ce166a254` (currently active on Vercel frontend and Render backend with PostgreSQL).
 - **Public Frontend:** `https://brandtrace-woad.vercel.app/` (HTTP 200 OK, Edge CDN delivery).
 - **Public Backend Health:** `https://brandtrace-api.onrender.com/api/health` (HTTP 200 OK, `{"status":"ok","version":"0.3.0"}`).
 - **Public Backend DB:** `https://brandtrace-api.onrender.com/api/ready` (HTTP 200 OK, PostgreSQL connected).
 - **Swagger UI:** `https://brandtrace-api.onrender.com/docs` (HTTP 200 OK).
-- **Local Working Tree:** Fully verified with 204 passing backend tests, 32 browser QA scenarios, and 27 smoke tests. Staged and ready for release push.
+- **Evidence Separation:** Local test evidence (204 backend tests, 32 browser scenarios, 27 smoke checks) confirms 100% functionality of release commit `cc76c0e`. Live cloud deployments run the stable `2292fe6` baseline and will reflect the new endpoints upon completion of cloud build cycles.
 
 ---
 

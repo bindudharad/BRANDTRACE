@@ -36,7 +36,7 @@ FRONTEND QUALITY GATES:
   * Production Build & SSR:            SUCCESS in 7.45s (63,908 chars static HTML)
 --------------------------------------------------------------------------------
 DATABASE INTEGRITY (brandtrace.db):   100% UNTOUCHED (221,184 bytes, mtime preserved)
-DEPLOYMENT STATUS:                    LIVE (Vercel & Render at commit 2292fe6)
+DEPLOYMENT STATUS:                    PUBLISHED (commit cc76c0e; live hosting at 2292fe6)
 VERIFICATION OUTCOME:                 ✅ 100% PASSING — ZERO REGRESSIONS
 ================================================================================
 ```
@@ -163,10 +163,9 @@ Every one of the 25 core submitted features was verified against the latest loca
 | **Final PDF Document** | Repository Root | Verified | `BRANDTRACE_CodeAxis_Final_Submission.pdf` (27 KB) |
 
 ### Deployment Alignment & Synchronization
-- **Live Deployed Commit:** `2292fe6ba00b13ab7303bc75288e568ce166a254` (currently active on Vercel and Render).
-- **Remote `origin/main` Commit:** `2292fe6ba00b13ab7303bc75288e568ce166a254` (synchronized with deployed build).
-- **Local Working Tree:** `2292fe6ba00b13ab7303bc75288e568ce166a254` + verified enhancements (124 modified/untracked files verified).
-- **Production Readiness:** The live cloud deployment is healthy, functional, and serving the core application. The verified local release (containing OCR, Logo CV, Typography analyzer, and Expiry worker) is tested and staged for git commit and push when approved by the team lead.
+- **Published Release Commit (GitHub):** `cc76c0e18d134876247750b2a29cc674b5aba77a` (pushed to `origin/main`).
+- **Live Cloud Deployed Commit:** `2292fe6ba00b13ab7303bc75288e568ce166a254` (currently active on Vercel frontend and Render backend).
+- **Evidence Separation:** Local test evidence (204 backend tests, 32 browser scenarios, 27 smoke checks) confirms 100% functionality of release commit `cc76c0e`. Live cloud deployments run the stable `2292fe6` baseline with PostgreSQL persistence, awaiting completion of cloud build cycles.
 
 ---
 

@@ -92,15 +92,20 @@ Verified database entities:
 
 ---
 
-## 5. Live Services Verification
+## 5. Live Services Verification & Deployment Separation
 
+- **Published Release Commit (GitHub):** `cc76c0e18d134876247750b2a29cc674b5aba77a` (pushed to `origin/main`).
+- **Live Cloud Deployed Commit:** `2292fe6ba00b13ab7303bc75288e568ce166a254` (currently active on Vercel frontend and Render backend).
 - **Production Frontend:** `https://brandtrace-woad.vercel.app/`
   - Status: **HTTP 200 OK** (66,892 bytes rendered)
   - Vercel global edge CDN delivery active.
 - **Production Backend Health:** `https://brandtrace-api.onrender.com/api/health`
   - Status: **HTTP 200 OK** `{"status":"ok","service":"brandtrace","version":"0.3.0"}`
+- **Production Backend Readiness & Database:** `https://brandtrace-api.onrender.com/api/ready`
+  - Status: **HTTP 200 OK** `{"status":"ready","database":"postgresql"}`
 - **Production OpenAPI Documentation:** `https://brandtrace-api.onrender.com/docs`
   - Status: **HTTP 200 OK** (Swagger UI active)
+- **Evidence Boundary Note:** Local test assertions (204 backend tests, 32 browser scenarios, 27 smoke checks) reflect the verified release commit `cc76c0e`. Live hosting is operational and healthy at `2292fe6`, awaiting cloud CI/CD synchronization.
 
 ---
 
