@@ -356,6 +356,128 @@ export interface ReviewComment {
   created_at: string;
 }
 
+export interface LogoStandardsConfig {
+  id?: string;
+  workspace_id?: string;
+  reference_id?: string;
+  min_width_px: number;
+  min_height_px: number;
+  max_width_px?: number | null;
+  max_height_px?: number | null;
+  min_width_pt: number;
+  min_width_mm: number;
+  aspect_ratio_tolerance: number;
+  min_clearspace_ratio: number;
+  approved_colors: string[];
+  color_delta_e_tolerance: number;
+  permitted_quadrants: string[];
+  permitted_backgrounds: string;
+  allowed_variants?: string[];
+  min_dpi: number;
+  enforce_on_every_page: boolean;
+}
+
+export interface LogoReferenceItem {
+  id: string;
+  workspace_id: string;
+  name: string;
+  category: string;
+  variant: string;
+  storage_path: string;
+  original_filename: string;
+  original_hash: string;
+  file_size: number;
+  mime_type: string;
+  width: number;
+  height: number;
+  aspect_ratio: number;
+  has_transparency: boolean;
+  primary_color_hex?: string;
+  secondary_color_hex?: string;
+  dominant_colors_json?: string;
+  dominant_colors?: Array<{ hex: string; percent: number }>;
+  approval_status: 'PENDING_APPROVAL' | 'APPROVED' | 'DEACTIVATED';
+  version: string;
+  owner_id: string;
+  description?: string;
+  usage_notes?: string;
+  created_at: string;
+  approved_at?: string;
+  approved_by?: string;
+  standards?: LogoStandardsConfig;
+}
+
+export interface LogoCandidateItem {
+  id: string;
+  page_number: number;
+  bounding_box: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    canvas_width: number;
+    canvas_height: number;
+  };
+  page_space_coords?: {
+    x_pt: number;
+    y_pt: number;
+    width_pt: number;
+    height_pt: number;
+    width_mm: number;
+    height_mm: number;
+    page_width_pt: number;
+    page_height_pt: number;
+  };
+  detected_aspect_ratio: number;
+  matched_reference_id?: string;
+  matched_variant?: string;
+  similarity_method?: string;
+  similarity_score: number;
+  confidence_band: string;
+  candidate_verdict: string;
+  checks_summary: Record<string, string>;
+  detected_colors: string[];
+  difference_overlay?: string;
+}
+
+export interface LogoFindingItem {
+  id: string;
+  analysis_id: string;
+  candidate_id: string;
+  workspace_id: string;
+  page_number: number;
+  finding_type: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  title: string;
+  explanation: string;
+  expected_standard: string;
+  observed_value: string;
+  evidence_numerical_json?: string;
+  visual_overlay_region_json?: string;
+  recommended_action: string;
+  disposition: 'UNRESOLVED' | 'RESOLVED' | 'DISMISSED';
+}
+
+export interface LogoAnalysisResponse {
+  analysis_id: string;
+  workspace_id: string;
+  filename: string;
+  source_type: 'IMAGE' | 'PDF';
+  page_count: number;
+  overall_verdict: string;
+  candidates: LogoCandidateItem[];
+  findings: LogoFindingItem[];
+  summary: {
+    total_candidates: number;
+    approved_matches: number;
+    findings_count: number;
+    status: string;
+  };
+  reference_versions_used: Array<{ id: string; name: string; variant: string; version: string }>;
+  created_at: string;
+  completed_at?: string;
+}
+
 export interface GovernanceAlert {
   id: string;
   workspace_id: string;
@@ -770,4 +892,81 @@ export const api = {
     }),
   removeWorkspaceMember: (workspaceId: string, actorId: string) =>
     call<{ status: string }>(`/api/workspaces/${workspaceId}/members/${actorId}`, { method: 'DELETE' }),
+
+  // Feature 13: Advanced Reference-Based Logo Intelligence & Standards
+  listLogoReferences: (workspaceId: string = 'ws_default', statusFilter?: string) => {
+    const q = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
+    return call<LogoReferenceItem[]>(`/api/logo-intelligence/references${q}`, {
+      headers: { 'x-workspace-id': workspaceId },
+    });
+  },
+  registerLogoReference: (formData: FormData, workspaceId: string = 'ws_default') =>
+    call<LogoReferenceItem>('/api/logo-intelligence/references', {
+      method: 'POST',
+      body: formData,
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  approveLogoReference: (referenceId: string, workspaceId: string = 'ws_default') =>
+    call<LogoReferenceItem>(`/api/logo-intelligence/references/${referenceId}/approve`, {
+      method: 'POST',
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  deactivateLogoReference: (referenceId: string, workspaceId: string = 'ws_default') =>
+    call<LogoReferenceItem>(`/api/logo-intelligence/references/${referenceId}/deactivate`, {
+      method: 'POST',
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  getLogoStandards: (referenceId: string, workspaceId: string = 'ws_default') =>
+    call<LogoStandardsConfig>(`/api/logo-intelligence/standards/${referenceId}`, {
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  updateLogoStandards: (referenceId: string, standards: Partial<LogoStandardsConfig>, workspaceId: string = 'ws_default') =>
+    call<LogoStandardsConfig>(`/api/logo-intelligence/standards/${referenceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(standards),
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  analyzeLogoImage: (file: File, filename?: string, workspaceId: string = 'ws_default') => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (filename) fd.append('filename', filename);
+    return call<LogoAnalysisResponse>('/api/logo-intelligence/analyze/image', {
+      method: 'POST',
+      body: fd,
+      headers: { 'x-workspace-id': workspaceId },
+    });
+  },
+  analyzeLogoPdf: (file: File, filename?: string, workspaceId: string = 'ws_default') => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (filename) fd.append('filename', filename);
+    return call<LogoAnalysisResponse>('/api/logo-intelligence/analyze/pdf', {
+      method: 'POST',
+      body: fd,
+      headers: { 'x-workspace-id': workspaceId },
+    });
+  },
+  getLogoAnalysis: (analysisId: string, workspaceId: string = 'ws_default') =>
+    call<LogoAnalysisResponse>(`/api/logo-intelligence/analyses/${analysisId}`, {
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  listLogoFindings: (analysisId?: string, workspaceId: string = 'ws_default') => {
+    const q = analysisId ? `?analysis_id=${encodeURIComponent(analysisId)}` : '';
+    return call<LogoFindingItem[]>(`/api/logo-intelligence/findings${q}`, {
+      headers: { 'x-workspace-id': workspaceId },
+    });
+  },
+  resolveLogoFinding: (findingId: string, disposition: string = 'RESOLVED', workspaceId: string = 'ws_default') =>
+    call<LogoFindingItem>(`/api/logo-intelligence/findings/${findingId}/resolve?disposition=${encodeURIComponent(disposition)}`, {
+      method: 'POST',
+      headers: { 'x-workspace-id': workspaceId },
+    }),
+  seedDemoLogoReferences: (workspaceId: string = 'ws_default') =>
+    call<{ status: string; references_registered: number; message: string }>(
+      '/api/logo-intelligence/demo/seed',
+      {
+        method: 'POST',
+        headers: { 'x-workspace-id': workspaceId },
+      }
+    ),
 };

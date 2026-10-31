@@ -3378,6 +3378,11 @@ def get_expiry_worker_status_endpoint(
     return get_worker_status()
 
 
+# Mount Reference-Based Logo Intelligence & Standards Router
+from .routers.logo_intelligence import router as logo_intelligence_router
+app.include_router(logo_intelligence_router)
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", "8000"))

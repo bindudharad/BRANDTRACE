@@ -29,6 +29,8 @@ REQUIRED_SCHEMA_TABLES = frozenset({
     "workspace_members", "rule_versions", "system_state",
     "constitution_imports", "imported_rule_candidates", "evidence_sources",
     "review_comments", "governance_alerts", "governance_jobs",
+    "logo_references", "logo_standards", "logo_analyses",
+    "logo_candidates", "logo_findings",
 })
 
 def get_engine():
@@ -652,3 +654,133 @@ def init_db():
         _safe_add_column(conn, "rules", "source_vault_id", "TEXT")
         _safe_add_column(conn, "facts", "source_vault_id", "TEXT")
         _safe_add_column(conn, "brand_assets", "perceptual_hash", "TEXT")
+
+        # Reference-Based Logo Intelligence & Standards
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logo_references (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                name TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'primary',
+                variant TEXT NOT NULL DEFAULT 'horizontal',
+                file_storage_key TEXT NOT NULL,
+                original_filename TEXT NOT NULL,
+                original_hash TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                mime_type TEXT NOT NULL DEFAULT 'image/png',
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                aspect_ratio REAL NOT NULL,
+                has_transparency BOOLEAN NOT NULL DEFAULT 0,
+                primary_color_hex TEXT,
+                secondary_color_hex TEXT,
+                detected_colors_json TEXT NOT NULL DEFAULT '[]',
+                approval_status TEXT NOT NULL DEFAULT 'PENDING_APPROVAL',
+                version TEXT NOT NULL DEFAULT '1.0',
+                owner_id TEXT NOT NULL DEFAULT 'demo.brand_admin',
+                description TEXT,
+                usage_notes TEXT,
+                created_at TEXT NOT NULL,
+                approved_at TEXT,
+                approved_by TEXT,
+                superseded_by TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logo_standards (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                reference_id TEXT NOT NULL UNIQUE,
+                min_width_px INTEGER NOT NULL DEFAULT 80,
+                min_height_px INTEGER NOT NULL DEFAULT 24,
+                max_width_px INTEGER,
+                max_height_px INTEGER,
+                min_width_pt REAL NOT NULL DEFAULT 50.0,
+                min_width_mm REAL NOT NULL DEFAULT 17.6,
+                aspect_ratio_tolerance REAL NOT NULL DEFAULT 0.05,
+                min_clearspace_ratio REAL NOT NULL DEFAULT 0.5,
+                approved_colors_json TEXT NOT NULL DEFAULT '[]',
+                color_delta_e_tolerance REAL NOT NULL DEFAULT 8.0,
+                permitted_quadrants_json TEXT NOT NULL DEFAULT '["ALL"]',
+                permitted_backgrounds TEXT NOT NULL DEFAULT 'ANY',
+                allowed_variants_json TEXT NOT NULL DEFAULT '["*"]',
+                min_dpi INTEGER NOT NULL DEFAULT 72,
+                enforce_on_every_page BOOLEAN NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logo_analyses (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                source_asset_id TEXT,
+                source_filename TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                page_count INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'COMPLETED',
+                overall_verdict TEXT NOT NULL DEFAULT 'COMPLIANT',
+                candidates_detected INTEGER NOT NULL DEFAULT 0,
+                compliant_candidates INTEGER NOT NULL DEFAULT 0,
+                findings_count INTEGER NOT NULL DEFAULT 0,
+                reference_versions_used_json TEXT NOT NULL DEFAULT '[]',
+                error_summary TEXT,
+                created_at TEXT NOT NULL,
+                completed_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logo_candidates (
+                id TEXT PRIMARY KEY,
+                analysis_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                page_number INTEGER NOT NULL DEFAULT 1,
+                bounding_box_json TEXT NOT NULL,
+                page_space_coords_json TEXT,
+                detected_aspect_ratio REAL NOT NULL,
+                matched_reference_id TEXT,
+                matched_variant TEXT,
+                similarity_method TEXT NOT NULL DEFAULT 'TEMPLATE_MULTI_SCALE',
+                similarity_score REAL NOT NULL DEFAULT 0.0,
+                confidence_band TEXT NOT NULL DEFAULT 'AMBIGUOUS',
+                candidate_verdict TEXT NOT NULL DEFAULT 'APPROVED_MATCH',
+                checks_summary_json TEXT NOT NULL DEFAULT '{}',
+                detected_colors_json TEXT NOT NULL DEFAULT '[]',
+                difference_overlay_base64 TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS logo_findings (
+                id TEXT PRIMARY KEY,
+                analysis_id TEXT NOT NULL,
+                candidate_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                page_number INTEGER NOT NULL DEFAULT 1,
+                finding_type TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'HIGH',
+                title TEXT NOT NULL,
+                explanation TEXT NOT NULL,
+                expected_standard TEXT NOT NULL,
+                observed_value TEXT NOT NULL,
+                evidence_numerical_json TEXT NOT NULL DEFAULT '{}',
+                visual_overlay_region_json TEXT,
+                recommended_action TEXT NOT NULL,
+                disposition TEXT NOT NULL DEFAULT 'UNRESOLVED',
+                disposition_reason TEXT,
+                disposition_by TEXT,
+                disposition_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
