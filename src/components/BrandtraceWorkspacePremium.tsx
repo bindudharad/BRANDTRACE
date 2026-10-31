@@ -243,7 +243,15 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [ready, setReady] = useState(false);
-  const [role, setRole] = useState<UserRole>('reviewer');
+  const [role, setRole] = useState<UserRole>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('bt_demo_role') as UserRole;
+      if (saved && ['brand_admin', 'reviewer', 'creator', 'auditor'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'reviewer';
+  });
   const [isJudgeAccessOpen, setIsJudgeAccessOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<SystemStatusData>(getCachedSystemStatus);
 

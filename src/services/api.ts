@@ -370,12 +370,33 @@ export interface GovernanceAlert {
   created_at: string;
 }
 
-let activeRole: UserRole = 'reviewer';
-let activeActor: string = 'demo.reviewer';
+function getInitialRole(): UserRole {
+  if (typeof window !== 'undefined') {
+    const saved = sessionStorage.getItem('bt_demo_role') as UserRole;
+    if (saved && ['brand_admin', 'reviewer', 'creator', 'auditor'].includes(saved)) {
+      return saved;
+    }
+  }
+  return 'reviewer';
+}
+
+function getInitialActor(): string {
+  if (typeof window !== 'undefined') {
+    const saved = sessionStorage.getItem('bt_demo_actor');
+    if (saved) return saved;
+  }
+  return 'demo.reviewer';
+}
+
+let activeRole: UserRole = getInitialRole();
+let activeActor: string = getInitialActor();
 let activeWorkspace: string = 'ws_default';
 
 export function setSimulatedWorkspace(workspace: string) {
   activeWorkspace = workspace || 'ws_default';
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem('bt_demo_workspace', activeWorkspace);
+  }
 }
 
 export function getSimulatedWorkspace(): string {
@@ -386,6 +407,11 @@ export function setSimulatedUser(role: UserRole, actor?: string, workspace?: str
   activeRole = role;
   activeActor = actor || `demo.${role}`;
   if (workspace) activeWorkspace = workspace;
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem('bt_demo_role', activeRole);
+    sessionStorage.setItem('bt_demo_actor', activeActor);
+    if (workspace) sessionStorage.setItem('bt_demo_workspace', activeWorkspace);
+  }
 }
 
 export function getSimulatedUser(): { role: UserRole; actor: string; workspace: string } {
