@@ -82,7 +82,7 @@ def check_files_existence() -> list[str]:
 def check_markdown_links() -> list[str]:
     errors = []
     link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
-    
+
     for fname in EXPECTED_FILES:
         fpath = HANDBOOK_DIR / fname
         if not fpath.exists():
@@ -107,19 +107,19 @@ def check_stale_phrases_in_readme() -> list[str]:
     if not README_FILE.exists():
         return ["Root README.md not found!"]
     content = README_FILE.read_text(encoding="utf-8")
-    
+
     # Check lines 130-160 and 545-565 for 'Planned for Round 3'
     features_section = re.search(r"## 4\. Key Features(.*?)(?=## 5\.)", content, re.DOTALL)
     if features_section and "Planned for Round 3" in features_section.group(1):
         errors.append("Root README.md still contains 'Planned for Round 3' in Key Features table.")
-        
+
     limitations_section = re.search(r"## 16\. Known Limitations(.*?)(?=## 17\.)", content, re.DOTALL)
     if limitations_section and "Planned for Round 3" in limitations_section.group(1):
         errors.append("Root README.md still contains 'Planned for Round 3' in Known Limitations table.")
-        
+
     if "BRANDTRACE has not been deployed to a public URL" in content:
         errors.append("Root README.md claims BRANDTRACE is not deployed to a public URL.")
-        
+
     return errors
 
 def check_technical_metrics() -> list[str]:
@@ -130,30 +130,30 @@ def check_technical_metrics() -> list[str]:
         text = api_ref.read_text(encoding="utf-8")
         if not ("44 registered" in text or "Total Registered Routes: 44" in text or "44 routes" in text):
             errors.append("08_API_REFERENCE.md does not accurately document the 44 registered routes.")
-            
+
     # 2. Check Database Schema table count
     db_schema = HANDBOOK_DIR / "10_DATABASE_SCHEMA.md"
     if db_schema.exists():
         text = db_schema.read_text(encoding="utf-8")
         if not ("15 relational" in text or "15 core tables" in text or "15 tables" in text):
             errors.append("10_DATABASE_SCHEMA.md does not reference the 15 relational tables.")
-            
+
     # 3. Check Test Catalog results
     test_catalog = HANDBOOK_DIR / "34_TEST_CATALOG_AND_RESULTS.md"
     if test_catalog.exists():
         text = test_catalog.read_text(encoding="utf-8")
         if "144" not in text:
             errors.append("34_TEST_CATALOG_AND_RESULTS.md does not reference 144 passing backend tests.")
-            
+
     return errors
 
 def main() -> int:
     print("==================================================")
     print(" BRANDTRACE Documentation Library Validation")
     print("==================================================")
-    
+
     all_errors = []
-    
+
     print("\n[1/4] Checking Handbook file existence (46 files)...")
     errs = check_files_existence()
     if errs:
@@ -162,7 +162,7 @@ def main() -> int:
         all_errors.extend(errs)
     else:
         print(f"  PASS: All {len(EXPECTED_FILES)} handbook files exist and have substantial content.")
-        
+
     print("\n[2/4] Validating relative Markdown links across handbook...")
     errs = check_markdown_links()
     if errs:
@@ -171,7 +171,7 @@ def main() -> int:
         all_errors.extend(errs)
     else:
         print("  PASS: All relative markdown links resolve to existing files on disk.")
-        
+
     print("\n[3/4] Checking README.md for stale/outdated claims...")
     errs = check_stale_phrases_in_readme()
     if errs:
@@ -180,7 +180,7 @@ def main() -> int:
         all_errors.extend(errs)
     else:
         print("  PASS: Root README.md feature table and deployment status are accurate.")
-        
+
     print("\n[4/4] Verifying technical metrics across documentation...")
     errs = check_technical_metrics()
     if errs:
@@ -189,7 +189,7 @@ def main() -> int:
         all_errors.extend(errs)
     else:
         print("  PASS: API route count (44), DB tables (15), and test counts (144) verified.")
-        
+
     print("\n==================================================")
     if all_errors:
         print(f" FAILED: {len(all_errors)} errors detected.")

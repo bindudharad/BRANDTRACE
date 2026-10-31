@@ -102,7 +102,7 @@ graph LR
         Raycaster["THREE.Raycaster"]
         Hover["Scale Pulse (1.25x) + Glow"]
         Click["Open Inspector Drawer"]
-        
+
         Pointer --> Raycaster
         Raycaster --> Hover
         Raycaster --> Click

@@ -2,7 +2,7 @@
 
 ## Purpose of the Corporate Claim Ledger
 
-Marketing claims regarding geographic availability, market share, performance benchmarks, and compliance certifications must be grounded in verified corporate evidence. The **Approved Claim Ledger** (`facts` table) serves as BRANDTRACE's single source of truth for factual assertions. 
+Marketing claims regarding geographic availability, market share, performance benchmarks, and compliance certifications must be grounded in verified corporate evidence. The **Approved Claim Ledger** (`facts` table) serves as BRANDTRACE's single source of truth for factual assertions.
 
 Rather than allowing authors or generative AI to synthesize unsubstantiated claims, every factual statement in publishable copy must correspond to an active, unexpired record in the ledger.
 
@@ -44,16 +44,16 @@ flowchart TD
     ClaimMatch{"Does draft mention fact claim/value?"}
     ClaimMatch -->|No| CheckMissing["Evaluate mandatory rules"]
     ClaimMatch -->|Yes| ExpiredCheck{"Is fact expired (now > expires_at)?"}
-    
+
     ExpiredCheck -->|Yes| StatusOutdated["Status: OUTDATED (High Severity)"]
     ExpiredCheck -->|No| GeoCheck{"Is this a geographic claim?"}
-    
+
     GeoCheck -->|No| StatusSupported["Status: SUPPORTED (Verified)"]
     GeoCheck -->|Yes| ScopeCheck{"Does draft claim broader scope than fact?"}
-    
+
     ScopeCheck -->|No| StatusSupported
     ScopeCheck -->|Yes| ExclusiveCheck{"Does fact state exclusive restriction?"}
-    
+
     ExclusiveCheck -->|Yes| StatusContradicted["Status: CONTRADICTED (Explicit conflict)"]
     ExclusiveCheck -->|No| StatusNeedsReview["Status: NEEDS_REVIEW (Broad claim, narrow evidence)"]
 ```

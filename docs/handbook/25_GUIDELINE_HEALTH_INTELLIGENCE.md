@@ -25,14 +25,14 @@ The Guideline Health engine aggregates empirical findings and human review dispo
 graph TD
     FindingsDB[("findings Table\n(disposition, actor)")] --> HealthEngine["Guideline Health Engine\n(compute_guideline_health)"]
     RulesDB[("rules Table")] --> HealthEngine
-    
+
     subgraph Analysis ["Deterministic Evaluation"]
         HealthEngine --> Tally["Disposition Counts\n(Accepted, Dismissed, Escalated, Waived)"]
         Tally --> Disagreement["Disagreement Detection\n(Actor divergence)"]
         Tally --> Confidence["Confidence Gating\n(Draft count >= 3)"]
         Disagreement --> SuggestionGen["Deterministic Suggestion Generator\n(Pure Rule-Based)"]
     end
-    
+
     SuggestionGen --> HealthAPI["GET /api/guideline-health\nResponse Payload"]
 ```
 
@@ -55,7 +55,7 @@ For each rule $r$ in workspace $W$, the engine tallies findings across associate
 
 ## 3. Reviewer Disagreement Detection
 
-A primary innovation in BRANDTRACE is **multi-actor disagreement detection**. 
+A primary innovation in BRANDTRACE is **multi-actor disagreement detection**.
 
 A rule demonstrates semantic ambiguity when one reviewer accepts a finding as a genuine violation while a different reviewer dismisses an identical finding triggered by the same rule:
 

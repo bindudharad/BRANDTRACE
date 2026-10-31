@@ -20,7 +20,7 @@ This document details the mathematical algorithms and color science implemented 
 graph LR
     Image["Raster Image (PNG / JPEG)"] --> Pillow["Pillow Quantization"]
     Pillow --> DominantRGB["Dominant Color in sRGB (R, G, B)"]
-    
+
     subgraph ColorTransform ["Color Space Transformation"]
         DominantRGB --> LinearRGB["Linearize sRGB Channels"]
         LinearRGB --> XYZ["sRGB -> CIE XYZ (D65 Illuminant)"]

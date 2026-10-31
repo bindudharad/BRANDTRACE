@@ -21,13 +21,13 @@ stateDiagram-v2
     [*] --> IngestDraft : Author Submits Content (Text / PDF / Image)
     IngestDraft --> AnalyzeContent : Deterministic Rule Engine
     AnalyzeContent --> InReview : Score Calculated & Findings Flagged
-    
+
     state InReview {
         [*] --> EvaluateFindings
         EvaluateFindings --> AcceptCorrection : Accept Exact-Span Suggestion
         EvaluateFindings --> ManualEdit : Author Performs Manual Edit
         EvaluateFindings --> ReasonedDismissal : Dismiss with Documented Reason
-        
+
         AcceptCorrection --> SnapshotCreated : Save Revision Snapshot
         ManualEdit --> SnapshotCreated
         ReasonedDismissal --> PenaltyCleared : Clear Score Deduction
@@ -35,7 +35,7 @@ stateDiagram-v2
     }
 
     InReview --> ApprovalGate : Reviewer Clicks 'Approve Content'
-    
+
     state ApprovalGate {
         check_severity: Check Unresolved High/Critical Findings
         check_severity --> Blocked409 : Unresolved High/Critical Exist
@@ -73,11 +73,11 @@ The review draft appears in the reviewer workspace with an initial status of `IN
 
 ### Step 4: Remediation Actions & Revision Snapshots
 Reviewers resolve findings using three authorized operations (`POST /api/reviews/{id}/findings/{f_id}/actions`):
-1. **Accept Suggestion (`action: "ACCEPT"`):**  
+1. **Accept Suggestion (`action: "ACCEPT"`):**
    The engine replaces the flagged text span with the suggested phrase, updates `reviews.content`, clears the finding penalty, and captures a full revision snapshot in `review_versions`.
-2. **Manual Revision (`action: "EDIT"`):**  
+2. **Manual Revision (`action: "EDIT"`):**
    The reviewer edits the text. Guardrails reject contamination strings or QA metadata tags (`HTTP 422`). An audit event and version snapshot are recorded.
-3. **Reasoned Dismissal (`action: "DISMISS"`):**  
+3. **Reasoned Dismissal (`action: "DISMISS"`):**
    The reviewer waives the finding. A non-empty justification string (`reason`) is mandatory. The finding disposition is recorded in `findings.disposition` and the score penalty is cleared.
 
 ### Step 5: Version History & Rollback

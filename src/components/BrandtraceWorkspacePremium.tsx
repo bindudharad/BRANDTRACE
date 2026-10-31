@@ -15,7 +15,15 @@ import {
   RuleSuggestion,
   AuditEntry,
   FactVersion,
+  GovernanceAlert,
 } from '../services/api';
+import { GuidelineImportModal } from './BrandConstitution/GuidelineImportModal';
+import { EvidenceSourceVault } from './BrandConstitution/EvidenceSourceVault';
+import { RuleConflictModal } from './BrandConstitution/RuleConflictModal';
+import { ExportEvidenceButton } from './ContentReview/ExportEvidenceButton';
+import { ReviewAssignmentModal } from './ContentReview/ReviewAssignmentModal';
+import { ReviewCommentsPanel } from './ContentReview/ReviewCommentsPanel';
+import { QualityMetricsCards } from './analytics/QualityMetricsCards';
 import { SystemStatus } from './system/SystemStatus';
 import {
   getCachedSystemStatus,
@@ -67,6 +75,11 @@ import {
   Palette,
   Cpu,
   Copy,
+  Database,
+  UserCheck,
+  Download,
+  MessageSquare,
+  Calendar,
 } from 'lucide-react';
 
 export type View =
@@ -142,16 +155,21 @@ export function formatMethodLabel(method?: string): string {
 }
 
 export function formatFileFormat(format?: string, mime?: string, fileName?: string): string {
-  const testStr = `${format || ''} ${mime || ''} ${fileName || ''}`.toLowerCase();
-  if (testStr.includes('pdf')) return 'PDF Document';
-  if (testStr.includes('png')) return 'PNG Graphic';
-  if (testStr.includes('jpeg') || testStr.includes('jpg')) return 'JPEG Graphic';
-  if (testStr.includes('markdown') || testStr.includes('.md')) return 'Markdown';
-  if (testStr.includes('text') || testStr.includes('.txt')) return 'Plain Text';
-  if (format && !['marketing_copy', 'general_document', 'announcement', 'email', 'social', 'document', 'image'].includes(format.toLowerCase())) {
-    return format.toUpperCase();
+  const f = (format || '').toLowerCase().trim();
+  const m = (mime || '').toLowerCase().trim();
+  const fn = (fileName || '').toLowerCase().trim();
+  const testStr = `${f} ${m} ${fn}`;
+
+  if (testStr.includes('pdf') || fn.endsWith('.pdf')) return 'PDF';
+  if (testStr.includes('png') || fn.endsWith('.png')) return 'PNG';
+  if (testStr.includes('jpeg') || testStr.includes('jpg') || fn.endsWith('.jpg') || fn.endsWith('.jpeg')) return 'JPEG';
+  if (testStr.includes('markdown') || fn.endsWith('.md')) return 'Markdown';
+  if (testStr.includes('text') || testStr.includes('.txt') || m.includes('text/plain')) return 'Plain Text';
+  if (f === 'direct_text' || f === 'text_input' || (!fileName && !mime)) return 'Direct Draft Copy';
+  if (f && !['marketing_copy', 'general_document', 'announcement', 'email', 'social', 'document', 'image'].includes(f)) {
+    return f.toUpperCase();
   }
-  return 'PDF Document';
+  return 'Direct Draft Copy';
 }
 
 export function formatDocumentCategory(category?: string): string {
@@ -276,9 +294,13 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
   const [copyNotice, setCopyNotice] = useState<boolean>(false);
 
   // Constitution tabs & modals
-  const [constTab, setConstTab] = useState<'rules' | 'facts' | 'assets' | 'profile'>('rules');
+  const [constTab, setConstTab] = useState<'rules' | 'facts' | 'sources' | 'assets' | 'profile'>('rules');
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isFactModalOpen, setIsFactModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [expiryAlerts, setExpiryAlerts] = useState<GovernanceAlert[]>([]);
   const [newRule, setNewRule] = useState<Partial<Rule>>({
     title: '',
     category: 'terminology',
@@ -356,6 +378,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
       if (im) setImpactMap(im);
       if (assets) setBrandAssets(assets);
       if (gHealth) setGuidelineHealth(gHealth);
+      api.governanceAlerts().then(setExpiryAlerts).catch(() => {});
       if (suggestions && Array.isArray(suggestions)) {
         const acceptedMap: Record<string, RuleSuggestion> = {};
         for (const s of suggestions) {
@@ -1269,11 +1292,16 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#617168', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 <span style={{ color: '#0E9F78' }}>BRANDTRACE</span>
                 <span>/</span>
-                <span>{view}</span>
+                <span>WORKSPACE</span>
               </div>
               <h1 style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, letterSpacing: '-0.025em', color: '#123B2D' }}>
                 {view === 'Overview' ? 'Executive Governance Summary' : view}
               </h1>
+              {view === 'Content Review' && (
+                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#617168' }}>
+                  Evidence-based document governance and compliance clearance
+                </p>
+              )}
             </div>
           </div>
 
@@ -1460,6 +1488,42 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
               {/* Architectural Scope & Transparency Banner */}
               <HonestLimitationsBanner />
 
+              {/* Proactive Governance Expiry Monitoring Alerts */}
+              {expiryAlerts.filter((a) => !a.acknowledged).length > 0 && (
+                <div
+                  style={{
+                    background: '#FFFBEB',
+                    border: '1px solid #FCD34D',
+                    borderRadius: 10,
+                    padding: '14px 18px',
+                    marginBottom: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <AlertTriangle size={18} style={{ color: '#D97706', flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: '#92400E', fontWeight: 600 }}>
+                      {expiryAlerts.filter((a) => !a.acknowledged).length} governance items require attention (evidence sources or facts expired / nearing expiration).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    style={{ fontSize: 12, padding: '4px 12px', color: '#92400E', borderColor: '#FCD34D', background: '#FFFFFF' }}
+                    onClick={() => {
+                      setConstTab('sources');
+                      setView('Brand Constitution');
+                    }}
+                  >
+                    <Database size={13} /> View Evidence Sources
+                  </button>
+                </div>
+              )}
+
               {/* Truthful System & Environment Status Card */}
               <SystemStatus variant="card" className="mb-6" showRefresh />
 
@@ -1605,6 +1669,12 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                   <Scale size={14} /> Claim Ledger & Verified Facts ({facts.length})
                 </button>
                 <button
+                  className={`btn-secondary btn-sm ${constTab === 'sources' ? 'btn-primary' : ''}`}
+                  onClick={() => setConstTab('sources')}
+                >
+                  <Database size={14} /> Evidence Source Vault
+                </button>
+                <button
                   className={`btn-secondary btn-sm ${constTab === 'assets' ? 'btn-primary' : ''}`}
                   onClick={() => setConstTab('assets')}
                 >
@@ -1628,9 +1698,29 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                         Deterministic rules enforced on all content drafts before publication.
                       </p>
                     </div>
-                    <button className="btn-primary btn-sm" onClick={() => setIsRuleModalOpen(true)}>
-                      <Plus size={14} /> Add Brand Rule
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => setIsConflictModalOpen(true)}
+                        title="Scan for contradictory or duplicate brand rules"
+                      >
+                        <Scale size={14} /> Check Rule Conflicts
+                      </button>
+                      {role === 'brand_admin' && (
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => setIsImportModalOpen(true)}
+                          title="Import brand guidelines digital PDF and extract reviewable candidates"
+                        >
+                          <FileUp size={14} /> Import Brand Guidelines
+                        </button>
+                      )}
+                      <button className="btn-primary btn-sm" onClick={() => setIsRuleModalOpen(true)}>
+                        <Plus size={14} /> Add Brand Rule
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ display: 'grid', gap: 14 }}>
@@ -1840,15 +1930,15 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                     <div>
                       <div className="label-sm">Primary Brand Colour</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                        <span style={{ width: 26, height: 26, borderRadius: 6, background: brandProfile?.primary_color || '#0f766e', border: '1px solid rgba(255,255,255,0.2)' }} />
-                        <code style={{ fontSize: 14, color: '#e8f0f8' }}>{brandProfile?.primary_color || '#0f766e'}</code>
+                        <span style={{ width: 26, height: 26, borderRadius: 6, background: brandProfile?.primary_color || '#0f766e', border: '1px solid rgba(0,0,0,0.1)' }} />
+                        <code style={{ fontSize: 14, color: 'var(--bt-forest)', fontWeight: 600 }}>{brandProfile?.primary_color || '#0f766e'}</code>
                       </div>
                     </div>
                     <div>
                       <div className="label-sm">Secondary Accent Colour</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                        <span style={{ width: 26, height: 26, borderRadius: 6, background: brandProfile?.secondary_color || '#2dd4bf', border: '1px solid rgba(255,255,255,0.2)' }} />
-                        <code style={{ fontSize: 14, color: '#e8f0f8' }}>{brandProfile?.secondary_color || '#2dd4bf'}</code>
+                        <span style={{ width: 26, height: 26, borderRadius: 6, background: brandProfile?.secondary_color || '#2dd4bf', border: '1px solid rgba(0,0,0,0.1)' }} />
+                        <code style={{ fontSize: 14, color: 'var(--bt-forest)', fontWeight: 600 }}>{brandProfile?.secondary_color || '#2dd4bf'}</code>
                       </div>
                     </div>
                     <div>
@@ -1894,6 +1984,16 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* Evidence Source Vault Tab (Feature Two) */}
+              {constTab === 'sources' && (
+                <EvidenceSourceVault
+                  role={role}
+                  onSourceLinked={() => {
+                    refresh();
+                  }}
+                />
               )}
             </div>
           )}
@@ -2375,11 +2475,11 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                                 if (match) setSelected(match);
                               }
                             }}
-                            style={{ minHeight: 32, fontSize: 12, padding: '4px 10px', maxWidth: 300 }}
+                            style={{ minHeight: 34, fontSize: 12, padding: '4px 10px', minWidth: 200, maxWidth: 380 }}
                           >
                             {reviews.map((r) => (
                               <option key={r.id} value={r.id}>
-                                {r.title} ({r.score} pts · {r.status})
+                                {r.title} ({r.score} pts)
                               </option>
                             ))}
                           </select>
@@ -2395,6 +2495,40 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
 
                           {/* Single Review Status Badge */}
                           <StatusBadge value={selected.status} />
+
+                          {/* Priority Badge */}
+                          {selected.priority && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                background: selected.priority === 'urgent' ? '#FEE2E2' : selected.priority === 'high' ? '#FFEDD5' : '#F1F5F9',
+                                color: selected.priority === 'urgent' ? '#DC2626' : selected.priority === 'high' ? '#C2410C' : '#475569',
+                                border: `1px solid ${selected.priority === 'urgent' ? '#FCA5A5' : selected.priority === 'high' ? '#FDBA74' : '#CBD5E1'}`,
+                              }}
+                            >
+                              {selected.priority} priority
+                            </span>
+                          )}
+
+                          {/* Assignment Pill / Action */}
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() => setIsAssignModalOpen(true)}
+                            style={{ fontSize: 11, padding: '2px 8px', minHeight: 28, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            title="Assign or reassign review to a workspace team member"
+                          >
+                            <UserCheck size={12} />
+                            {selected.assigned_to ? `Assigned: ${selected.assigned_to}` : 'Assign'}
+                            {selected.due_date && ` · Due: ${new Date(selected.due_date).toLocaleDateString()}`}
+                          </button>
+
+                          {/* Export Evidence Packet (PDF/JSON) */}
+                          <ExportEvidenceButton reviewId={selected.id} reviewTitle={selected.title} />
 
                           {(selected.id === 'rev_launch_q4' || /summer|campaign/i.test(selected.title)) && (
                             <span style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
@@ -2611,6 +2745,11 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                         currentRole={role}
                       />
                     </div>
+                  </div>
+
+                  {/* Internal Review Collaboration Comments (Feature Five) */}
+                  <div style={{ marginTop: 24 }}>
+                    <ReviewCommentsPanel reviewId={selected.id} role={role} />
                   </div>
                 </div>
               )}
@@ -3284,6 +3423,38 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
           </div>
         </div>
       )}
+
+      {/* Feature One: Digital Brand Guideline Import Modal */}
+      <GuidelineImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        role={role}
+        onCandidateApproved={() => {
+          refresh();
+        }}
+      />
+
+      {/* Feature Three: Deterministic Rule Conflict Detector Modal */}
+      <RuleConflictModal
+        isOpen={isConflictModalOpen}
+        onClose={() => setIsConflictModalOpen(false)}
+      />
+
+      {/* Feature Five: Review Assignment Modal */}
+      {selected && (
+        <ReviewAssignmentModal
+          isOpen={isAssignModalOpen}
+          onClose={() => setIsAssignModalOpen(false)}
+          review={selected}
+          role={role}
+          onAssignmentUpdated={(updated) => {
+            setSelected(updated);
+            setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+            setSuccess(`Review ${updated.id} assignment successfully updated.`);
+            setTimeout(() => setSuccess(''), 3500);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -3312,14 +3483,14 @@ function ReviewTable({ reviews, open }: { reviews: Review[]; open: (r: Review) =
             border: '1px solid #DCE5DF',
             borderRadius: 8,
             background: '#F8FAF8',
-            color: '#e8f0f8',
+            color: 'var(--bt-text-primary)',
             textAlign: 'left',
             cursor: 'pointer',
             transition: 'all 180ms ease',
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.borderColor = 'rgba(45, 212, 191, 0.4)';
-            (e.currentTarget as HTMLElement).style.background = '#0a1a28';
+            (e.currentTarget as HTMLElement).style.borderColor = '#0E9F78';
+            (e.currentTarget as HTMLElement).style.background = '#FFFFFF';
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLElement).style.borderColor = '#DCE5DF';
@@ -3642,8 +3813,8 @@ function ReviewPanel({
                           {/* Evidence Source / Citation */}
                           {f.source_id ? (
                             <div className="evidence-block">
-                              <div style={{ fontWeight: 600, color: '#2dd4bf', fontSize: 12, marginBottom: 4 }}>
-                                Source: {f.source_title} · ID: {f.source_id} · v{f.source_version || '1.0'}
+                              <div style={{ fontWeight: 600, color: '#0E9F78', fontSize: 12, marginBottom: 4 }}>
+                                Rule: <strong>{f.source_id}</strong> · Source: {f.source_title} {f.source_version ? `(v${f.source_version})` : ''}
                               </div>
                               <div className="evidence-excerpt">“{f.source_excerpt}”</div>
                             </div>
@@ -3747,17 +3918,17 @@ function ReviewPanel({
                                   </div>
 
                                   {placementFindingId === f.id && (
-                                    <div style={{ marginTop: 12, background: '#071626', border: '1px solid #1e3a5f', borderRadius: 8, padding: 12 }}>
+                                    <div style={{ marginTop: 12, background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 8, padding: 12 }}>
                                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                        <span className="label-sm" style={{ color: '#7dd3fc', margin: 0 }}>
+                                        <span className="label-sm" style={{ color: '#065F46', margin: 0, fontWeight: 700 }}>
                                           Draft Editor — Position “{f.passage}” in Context
                                         </span>
                                         {customPlacementText.toLowerCase().includes(f.passage.toLowerCase()) ? (
-                                          <span style={{ fontSize: 11, color: '#86efac', fontWeight: 600 }}>
+                                          <span style={{ fontSize: 11, color: '#16A34A', fontWeight: 600 }}>
                                             ✓ Required term present
                                           </span>
                                         ) : (
-                                          <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600 }}>
+                                          <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 600 }}>
                                             ⚠ Must include “{f.passage}”
                                           </span>
                                         )}
@@ -4595,14 +4766,14 @@ function AuditView({
                   border: `1px solid ${selected?.id === r.id ? 'rgba(14,159,120,0.5)' : '#DCE5DF'}`,
                   borderRadius: 8,
                   background: selected?.id === r.id ? '#E9F6F0' : '#F8FAF8',
-                  color: '#e8f0f8',
+                  color: 'var(--bt-text-primary)',
                   textAlign: 'left',
                   cursor: 'pointer',
                   transition: 'all 180ms ease',
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: selected?.id === r.id ? '#2dd4bf' : '#e8f0f8' }}>{r.title}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: selected?.id === r.id ? '#0E9F78' : 'var(--bt-forest)' }}>{r.title}</div>
                   <div style={{ fontSize: 11, color: '#8A9A91', marginTop: 2 }}>
                     {new Date(r.created_at).toLocaleString()} &middot; {r.content_type}
                   </div>
@@ -4726,6 +4897,9 @@ function InsightsView({
           </div>
         ))}
       </div>
+
+      {/* Feature Seven: Database-Grounded Quality Telemetry Dashboard */}
+      <QualityMetricsCards insights={insights} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
         <div className="card-premium apple-card">

@@ -28,7 +28,7 @@ As enterprises scale across multiple business units, geographies, and agency par
 ## The Four Core Governance Problems
 
 ### 1. Prohibited Phrases & Off-Brand Terminology
-* **The Failure**: Brands spend substantial capital establishing a distinct positioning, yet day-to-day collateral frequently includes forbidden terms, off-brand slang, or subjective superlatives ("the best platform", "cheap pricing", "guaranteed success"). 
+* **The Failure**: Brands spend substantial capital establishing a distinct positioning, yet day-to-day collateral frequently includes forbidden terms, off-brand slang, or subjective superlatives ("the best platform", "cheap pricing", "guaranteed success").
 * **The Consequence**: Using prohibited terms degrades brand perception and can breach advertising standards (e.g., claiming a product is "cheap" when corporate positioning mandates "accessible" or "cost-effective"; claiming "best" without independent benchmark verification).
 * **The Root Cause**: Authors lack active in-line guidance at the moment of composition. Static brand manuals are detached from drafting tools, leading authors to guess or rely on outdated habits.
 

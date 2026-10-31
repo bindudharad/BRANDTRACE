@@ -27,6 +27,8 @@ REQUIRED_SCHEMA_TABLES = frozenset({
     "review_versions", "findings", "audit", "fact_versions",
     "evidence_dependencies", "brand_assets", "rule_suggestions",
     "workspace_members", "rule_versions", "system_state",
+    "constitution_imports", "imported_rule_candidates", "evidence_sources",
+    "review_comments", "governance_alerts", "governance_jobs",
 })
 
 def get_engine():
@@ -519,3 +521,134 @@ def init_db():
             )
             """
         )
+
+        # Enterprise Features (Round 3 Final Release)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS constitution_imports (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                filename TEXT NOT NULL,
+                document_hash TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                page_count INTEGER NOT NULL,
+                candidate_count INTEGER NOT NULL DEFAULT 0,
+                approved_count INTEGER NOT NULL DEFAULT 0,
+                rejected_count INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'PENDING_REVIEW',
+                imported_by TEXT NOT NULL DEFAULT 'demo.brand_admin',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS imported_rule_candidates (
+                id TEXT PRIMARY KEY,
+                import_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                candidate_type TEXT NOT NULL DEFAULT 'rule',
+                category TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                requirement TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'HIGH',
+                page_number INTEGER,
+                section_heading TEXT,
+                original_excerpt TEXT NOT NULL,
+                extraction_method TEXT NOT NULL DEFAULT 'DETERMINISTIC_PARSER',
+                status TEXT NOT NULL DEFAULT 'PENDING_APPROVAL',
+                reviewed_by TEXT,
+                reviewed_at TEXT,
+                review_decision TEXT,
+                rejection_reason TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS evidence_sources (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                title TEXT NOT NULL,
+                source_type TEXT NOT NULL DEFAULT 'BRAND_GUIDELINE',
+                file_name TEXT,
+                url TEXT,
+                content_hash TEXT,
+                version TEXT NOT NULL DEFAULT '1.0',
+                page_reference TEXT,
+                section_reference TEXT,
+                excerpt TEXT NOT NULL,
+                owner TEXT NOT NULL DEFAULT 'Brand Admin',
+                verification_status TEXT NOT NULL DEFAULT 'VERIFIED',
+                last_verified_at TEXT,
+                effective_at TEXT,
+                expires_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS review_comments (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                review_id TEXT NOT NULL,
+                finding_id TEXT,
+                author TEXT NOT NULL,
+                author_role TEXT NOT NULL DEFAULT 'reviewer',
+                comment TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS governance_alerts (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                alert_type TEXT NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                target_title TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                created_at TEXT NOT NULL,
+                UNIQUE(workspace_id, idempotency_key)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS governance_jobs (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL DEFAULT 'ws_default',
+                job_type TEXT NOT NULL DEFAULT 'EXPIRY_AUDIT',
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                items_scanned INTEGER NOT NULL DEFAULT 0,
+                alerts_created INTEGER NOT NULL DEFAULT 0,
+                re_reviews_generated INTEGER NOT NULL DEFAULT 0,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT,
+                notification_outcome TEXT,
+                created_at TEXT NOT NULL,
+                completed_at TEXT
+            )
+            """
+        )
+
+        _safe_add_column(conn, "reviews", "assigned_to", "TEXT")
+        _safe_add_column(conn, "reviews", "priority", "TEXT NOT NULL DEFAULT 'MEDIUM'")
+        _safe_add_column(conn, "reviews", "due_date", "TEXT")
+        _safe_add_column(conn, "rules", "source_vault_id", "TEXT")
+        _safe_add_column(conn, "facts", "source_vault_id", "TEXT")
+        _safe_add_column(conn, "brand_assets", "perceptual_hash", "TEXT")

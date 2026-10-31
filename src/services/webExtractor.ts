@@ -117,13 +117,13 @@ export function parseHtmlContent(rawHtml: string, sourceUrl: string): ExtractedW
     doc.querySelectorAll('script, style, noscript, iframe, svg, canvas, link').forEach((el) => el.remove());
 
     // 1. Page Title
-    const title = doc.querySelector('title')?.textContent?.trim() || 
-                  doc.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim() || 
+    const title = doc.querySelector('title')?.textContent?.trim() ||
+                  doc.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim() ||
                   'Untitled Webpage';
 
     // 2. Description
-    const description = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() || 
-                        doc.querySelector('meta[property="og:description"]')?.getAttribute('content')?.trim() || 
+    const description = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() ||
+                        doc.querySelector('meta[property="og:description"]')?.getAttribute('content')?.trim() ||
                         '';
 
     // 3. Headings (H1, H2, H3, H4)

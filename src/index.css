@@ -39,43 +39,43 @@
   --bt-bg-forest-dark: #0A241B;
   --bt-bg-forest-light: #1A4E3D;
   --bt-bg-emerald-soft: #E9F6F0;
-  
+
   /* Brand Accents (WCAG AA Compliant >= 4.5:1 on White) */
   --bt-forest: #123B2D;
   --bt-emerald: #0A7352;
   --bt-emerald-hover: #086145;
   --bt-emerald-active: #064E37;
   --bt-emerald-border: #0A7352;
-  
+
   /* Text & Typography */
   --bt-text-primary: var(--light-text-primary);
   --bt-text-secondary: var(--light-text-secondary);
   --bt-text-muted: var(--light-text-muted);
   --bt-text-inverse: #FFFFFF;
   --bt-text-inverse-muted: #B3C7BD;
-  
+
   /* Borders & Dividers */
   --bt-border: var(--light-border);
   --bt-border-light: #EBF0EC;
   --bt-border-dark: #275242;
-  
+
   /* Governance & Severity Semantics (Accessible Contrast) */
   --bt-high-bg: #FEF2F2;
   --bt-high-text: #991B1B;
   --bt-high-border: #FCA5A5;
-  
+
   --bt-medium-bg: #FFFBEB;
   --bt-medium-text: #92400E;
   --bt-medium-border: #FCD34D;
-  
+
   --bt-low-bg: #F0F9FF;
   --bt-low-text: #075985;
   --bt-low-border: #BAE6FD;
-  
+
   --bt-supported-bg: #F0FDF4;
   --bt-supported-text: #166534;
   --bt-supported-border: #86EFAC;
-  
+
   --bt-outdated-bg: #FFF7ED;
   --bt-outdated-text: #9A3412;
   --bt-outdated-border: #FDBA74;
@@ -920,7 +920,16 @@ textarea.input-premium {
 
 .bt-draft-context-sticky {
   position: sticky !important;
-  top: 80px !important;
+  top: 24px !important;
+  align-self: start !important;
+  z-index: 10 !important;
+}
+
+@media (max-width: 1100px) {
+  .bt-draft-context-sticky {
+    position: static !important;
+    top: auto !important;
+  }
 }
 
 .bt-extracted-text-box {
@@ -1044,7 +1053,7 @@ textarea.input-premium {
 
 .bt-review-workspace-grid {
   display: grid !important;
-  grid-template-columns: minmax(360px, 38%) minmax(520px, 62%) !important;
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr) !important;
   gap: 20px !important;
   align-items: start !important;
   width: 100% !important;

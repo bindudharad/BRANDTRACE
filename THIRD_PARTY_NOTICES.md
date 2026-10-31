@@ -6,8 +6,8 @@ BRANDTRACE is built on and includes components from third-party projects. This d
 
 ## 1. Inherited Scaffold — LoomFrog
 
-**Source:** [https://github.com/kaimir-auth/LoomFrog](https://github.com/kaimir-auth/LoomFrog)  
-**Author:** Amir Asadullah Chowdhury  
+**Source:** [https://github.com/kaimir-auth/LoomFrog](https://github.com/kaimir-auth/LoomFrog)
+**Author:** Amir Asadullah Chowdhury
 **Licence:** MIT
 
 BRANDTRACE was initialised from the LoomFrog React/Vite frontend project. The following components from the LoomFrog scaffold remain in this repository, preserved for attribution and licence compliance:

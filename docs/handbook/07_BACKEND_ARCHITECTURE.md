@@ -54,7 +54,7 @@ sequenceDiagram
         Life->>Tables: Seed Default Demo Rules & Facts if empty
     end
     Life-->>ASGI: Application Ready (HTTP 200 /api/ready)
-    
+
     Note over ASGI,Tables: Serving Incoming REST Requests...
 
     ASGI->>Life: Stop Application (SIGTERM)

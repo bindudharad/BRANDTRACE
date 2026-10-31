@@ -1,8 +1,8 @@
 # BRANDTRACE — Hackathon Judge Guide
 
-**Project:** BRANDTRACE — Evidence-Aware Brand Governance and Content Review Platform  
-**Hackathon:** Inkloom AI CodeAxis Round 2  
-**Tagline:** *Every finding has a source. Every decision has an owner.*  
+**Project:** BRANDTRACE — Evidence-Aware Brand Governance and Content Review Platform
+**Hackathon:** Inkloom AI CodeAxis Round 2
+**Tagline:** *Every finding has a source. Every decision has an owner.*
 
 ---
 

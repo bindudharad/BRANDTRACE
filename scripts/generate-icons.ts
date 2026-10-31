@@ -24,7 +24,7 @@ const createSvg = (size: number, isMaskable: boolean = false) => {
 
   <!-- Frog Group Scaled & Positioned -->
   <g transform="translate(${offsetX}, ${offsetY}) scale(${scale})">
-    
+
     <!-- LAYER 1: Wide Deep Bloom -->
     <g stroke="#00E5FF" stroke-width="24" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round" fill="none">
       <path d="M 64 34 C 70 32, 90 32, 96 34 C 100 24, 114 24, 117 35 C 119 43, 115 50, 110 54 C 120 62, 122 75, 112 85 C 96 95, 64 95, 48 85 C 38 75, 40 62, 50 54 C 45 50, 41 43, 43 35 C 46 24, 60 24, 64 34 Z" />

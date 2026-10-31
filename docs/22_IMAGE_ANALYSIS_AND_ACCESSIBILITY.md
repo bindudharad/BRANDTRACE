@@ -36,9 +36,9 @@ The color science module is a standalone, deterministic Python module implementi
 Relative luminance ($L$) models the human eye's spectral sensitivity to light under sRGB:
 $$L = 0.2126 \cdot R_{\text{linear}} + 0.7152 \cdot G_{\text{linear}} + 0.0722 \cdot B_{\text{linear}}$$
 Where each channel $C \in \{R, G, B\}$ is converted from 8-bit sRGB ($0..255$) to linear light:
-$$C_{\text{linear}} = \begin{cases} 
-\frac{C / 255}{12.92} & \text{if } C/255 \le 0.03928 \\ 
-\left(\frac{C/255 + 0.055}{1.055}\right)^{2.4} & \text{otherwise} 
+$$C_{\text{linear}} = \begin{cases}
+\frac{C / 255}{12.92} & \text{if } C/255 \le 0.03928 \\
+\left(\frac{C/255 + 0.055}{1.055}\right)^{2.4} & \text{otherwise}
 \end{cases}$$
 
 ### 2. WCAG Contrast Ratio Calculation

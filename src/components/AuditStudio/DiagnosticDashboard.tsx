@@ -55,9 +55,9 @@ export const DiagnosticDashboard: React.FC<DiagnosticDashboardProps> = ({
       ? `**AI Engine**: ${rep.usedModel || rep.semantic.usedModel}${rep.fallbackNotice || rep.semantic.fallbackNotice ? ` (${rep.fallbackNotice || rep.semantic.fallbackNotice})` : ''}  \n`
       : '';
     return `# LoomFrog Brand DNA Audit Report
-**Brand**: ${dna.metadata.brandName} (v${dna.metadata.brandVersion})  
-**Date**: ${new Date(rep.timestamp).toLocaleString()}  
-${engineLine}${contextLine}**Composite Alignment Score**: ${rep.scores.sOverall}% (${rep.scores.overallRatingLabel})  
+**Brand**: ${dna.metadata.brandName} (v${dna.metadata.brandVersion})
+**Date**: ${new Date(rep.timestamp).toLocaleString()}
+${engineLine}${contextLine}**Composite Alignment Score**: ${rep.scores.sOverall}% (${rep.scores.overallRatingLabel})
 **Confidence Index**: ${(rep.scores.confidenceIndex * 100).toFixed(0)}%
 
 ---

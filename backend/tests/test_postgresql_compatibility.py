@@ -29,7 +29,7 @@ def test_sqlalchemy_statement_conversion():
     """Verify positional parameter '?' conversion to named parameters compatible with PostgreSQL."""
     query = "SELECT * FROM reviews WHERE id=? AND status=? AND score >= ?"
     stmt, params = _statement(query, ("rev_123", "IN_REVIEW", 80))
-    
+
     # Check converted SQL has named params
     sql_text = str(stmt)
     assert ":p0" in sql_text
@@ -64,7 +64,7 @@ def test_bootstrap_upserts_use_postgresql_compatible_conflict_syntax():
 def test_schema_ddl_postgresql_dialect_compilation():
     """Verify that all DDL statements used in init_db compile against the PostgreSQL dialect."""
     pg_dialect = postgresql.dialect()
-    
+
     # Statements defined in init_db
     statements = [
         """

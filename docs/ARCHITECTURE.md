@@ -6,21 +6,21 @@ BRANDTRACE is an evidence-linked brand governance platform for organizations man
 flowchart TD
     Client["React / Vite Workspace (Port 3000)"]
     API["FastAPI Governance Gateway (Port 8000)"]
-    
+
     subgraph Governance Core
         Det["Deterministic Rule Engine"]
         FactLedger["Time-Aware Fact Ledger"]
         Visual["Multimodal Visual Analyzer (Pillow)"]
         AI["Replaceable AI Adapter (Offline / Gemini)"]
     end
-    
+
     subgraph Human Gate & Ledgers
         Approval["Human Approval Gate (State Machine)"]
         VersionStore["Immutable Draft Version Store"]
         AuditLedger["Immutable Audit Trail"]
         Impact["Rule-Change Impact Map"]
     end
-    
+
     subgraph Storage Adapter
         SQLAlchemy["SQLAlchemy 2.0 Engine"]
         SQLite["SQLite (Local Zero-Setup Demo)"]
@@ -36,13 +36,13 @@ flowchart TD
     Approval --> VersionStore
     Approval --> AuditLedger
     API --> Impact
-    
+
     Det --> SQLAlchemy
     FactLedger --> SQLAlchemy
     Visual --> SQLAlchemy
     Approval --> SQLAlchemy
     Impact --> SQLAlchemy
-    
+
     SQLAlchemy --> SQLite
     SQLAlchemy --> Postgres
 ```

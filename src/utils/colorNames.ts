@@ -11,7 +11,7 @@ const NAMED_PALETTE: Array<{ name: string; hex: string }> = [
   { name: 'Cool Gray', hex: '#94A3B8' },
   { name: 'Light Silver', hex: '#E2E8F0' },
   { name: 'Pure White', hex: '#FFFFFF' },
-  
+
   { name: 'Electric Indigo', hex: '#6366F1' },
   { name: 'Royal Indigo', hex: '#4F46E5' },
   { name: 'Deep Violet', hex: '#7C3AED' },
@@ -24,7 +24,7 @@ const NAMED_PALETTE: Array<{ name: string; hex: string }> = [
   { name: 'Vibrant Emerald', hex: '#10B981' },
   { name: 'Forest Green', hex: '#059669' },
   { name: 'Lime Green', hex: '#84CC16' },
-  
+
   { name: 'Amber Gold', hex: '#F59E0B' },
   { name: 'Warm Orange', hex: '#F97316' },
   { name: 'Crimson Red', hex: '#EF4444' },

@@ -21,7 +21,7 @@ BRANDTRACE supports two distinct operational security modes governed by the `AUT
 ```mermaid
 graph TD
     Request["Incoming API Request"] --> ModeCheck{"AUTH_MODE setting"}
-    
+
     ModeCheck -->|AUTH_MODE = strict| StrictAuth["Production Strict Mode"]
     StrictAuth --> TokenCheck{"Authorization: Bearer <token>"}
     TokenCheck -->|Missing / Invalid| Deny401["HTTP 401 Unauthorized"]

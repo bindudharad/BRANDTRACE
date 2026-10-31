@@ -29,18 +29,18 @@ The interface styling is defined in `src/index.css` using native CSS custom prop
   --bt-bg-canvas: #04080f;             /* Deep cosmic black base canvas */
   --bt-bg-surface: #0b1528;            /* Elevated card and module surface */
   --bt-bg-surface-elevated: #112240;   /* Modal and floating dropdown surface */
-  
+
   /* Borders & Dividers */
   --bt-border: #1e3a5f;                /* Structural panel divider */
   --bt-border-focus: #2dd4bf;          /* Interactive focus indicator */
-  
+
   /* Brand & Evidentiary Accents */
   --bt-teal: #2dd4bf;                  /* Primary brand teal (Verified / Supported) */
   --bt-teal-glow: rgba(45, 212, 191, 0.15);
   --bt-amber: #f59e0b;                 /* Warning / Needs Review */
   --bt-crimson: #f43f5e;               /* Danger / Contradicted / Critical */
   --bt-slate: #64748b;                 /* Inactive / Outdated evidence */
-  
+
   /* Typography Colors */
   --bt-text-primary: #f8fafc;          /* High-contrast headings and copy */
   --bt-text-secondary: #cbd5e1;        /* Body copy */

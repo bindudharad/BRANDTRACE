@@ -71,7 +71,7 @@ export async function extractInputData(fileOrText: File | string): Promise<Extra
         const sheet = workbook.Sheets[sheetName];
         if (!sheet) return;
         const jsonData = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1 });
-        
+
         jsonData.forEach((row, rowIndex) => {
           if (!Array.isArray(row)) return;
           // Filter out pure numbers or empty cells; extract text-bearing content

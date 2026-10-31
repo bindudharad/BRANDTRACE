@@ -21,7 +21,7 @@ BRANDTRACE features a dark obsidian, Apple-inspired interface designed for high-
 ```mermaid
 graph TD
     NavBar["Top Navigation Bar: Persona Switcher, Workspace Selector, Environment Tag"] --> MainContent
-    
+
     subgraph Views ["The 9 Primary Workspace Views"]
         V1["1. Overview Dashboard"]
         V2["2. Content Reviews & Ingestion"]
@@ -33,7 +33,7 @@ graph TD
         V8["8. Compliance Audit Trail"]
         V9["9. Workspace & Judge Tour"]
     end
-    
+
     MainContent --> Views
 ```
 

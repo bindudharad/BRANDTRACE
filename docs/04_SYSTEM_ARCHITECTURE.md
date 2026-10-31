@@ -25,7 +25,7 @@ flowchart TD
         ImgPillow["Image Analyzer (image_analyzer.py)"]
         PDFParser["PDF Text Parser (pdf_parser.py)"]
         AIAdapter["AI Adapter (ai_adapter.py)"]
-        
+
         Router --> Guards
         Guards --> GovEngine
         GovEngine --> AIAdapter
@@ -42,7 +42,7 @@ flowchart TD
         RulesTable[("rules")]
         FactsTable[("facts")]
         AuditTable[("audit")]
-        
+
         DB --- ReviewsTable
         DB --- FindingsTable
         DB --- RulesTable

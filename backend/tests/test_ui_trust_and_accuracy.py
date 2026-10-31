@@ -28,7 +28,7 @@ from backend.app.main import app
 def test_no_hardcoded_test_counters_in_ui_components():
     """Verify that neither 126 nor stale test counts are displayed as live telemetry."""
     src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-    
+
     prohibited_patterns = [
         r"126\s*Passed",
         r"126\s*Automated Tests",
@@ -38,9 +38,9 @@ def test_no_hardcoded_test_counters_in_ui_components():
         r"Automated tests:\s*21\s*passed",
         r"Smoke assertions:\s*27/27\s*passed",
     ]
-    
+
     violations = []
-    
+
     for root, _, files in os.walk(src_dir):
         for f in files:
             if f.endswith((".tsx", ".ts")):
@@ -61,10 +61,10 @@ def test_prerendered_html_has_no_stale_test_counters():
     dist_html = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "dist", "index.html"))
     if not os.path.exists(dist_html):
         pytest.skip("dist/index.html not built yet")
-    
+
     with open(dist_html, "r", encoding="utf-8", errors="replace") as f:
         html = f.read()
-    
+
     assert "126 Passed" not in html
     assert "126 Automated Tests" not in html
     assert "Single-Enterprise Staging Active" not in html
@@ -87,7 +87,7 @@ def evaluate_environment_matrix(configured_env: str, db_status: str, dialect: st
         "production": "Production",
         "unknown": "Environment Unverified",
     }
-    
+
     if db_status != "ready" or not dialect:
         return {
             "environmentLabel": env_labels.get(configured_env, "Environment Unverified"),
@@ -96,9 +96,9 @@ def evaluate_environment_matrix(configured_env: str, db_status: str, dialect: st
             "databaseDialect": "unknown",
             "configurationMismatch": False,
         }
-    
+
     norm_dialect = "postgresql" if "postgres" in dialect.lower() else "sqlite" if "sqlite" in dialect.lower() else "unknown"
-    
+
     mismatch = False
     if configured_env == "staging" and norm_dialect == "sqlite":
         mismatch = True
@@ -106,7 +106,7 @@ def evaluate_environment_matrix(configured_env: str, db_status: str, dialect: st
         mismatch = True
     elif configured_env not in ["local", "demo", "staging", "production"]:
         mismatch = True
-        
+
     return {
         "environmentLabel": "Environment Unverified" if (mismatch and configured_env not in env_labels) else env_labels.get(configured_env, "Environment Unverified"),
         "readiness": "mismatch" if mismatch else "ready",
@@ -196,10 +196,10 @@ def test_demo_role_simulation_messaging():
 def test_backend_permission_checks_remain_enforced():
     """Verify that client role simulation headers cannot bypass real authorization rules."""
     client = TestClient(app)
-    
+
     # 1. Unauthenticated request to protected endpoint returns 401 in strict mode
     # (or respects ALLOW_DEMO_AUTH boundary)
-    
+
     # 2. Reviewer cannot create rules (requires brand_admin)
     res_rule = client.post(
         "/api/rules",
@@ -241,7 +241,7 @@ def test_backend_permission_checks_remain_enforced():
 def test_no_prohibited_overconfident_claims_in_frontend():
     """Verify zero hallucination and other prohibited marketing statements are eliminated."""
     src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-    
+
     prohibited_strings = [
         "zero hallucination",
         "hallucination-free",
@@ -250,7 +250,7 @@ def test_no_prohibited_overconfident_claims_in_frontend():
         "server permissions updated",
         "single-enterprise staging active",
     ]
-    
+
     found_violations = []
     for root, _, files in os.walk(src_dir):
         for f in files:

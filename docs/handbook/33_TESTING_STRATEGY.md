@@ -23,15 +23,15 @@ graph TD
     subgraph E2E ["Top Tier: Isolated Browser QA (32 Tests)"]
         BrowserQA["DOM State, Route Navigation, Role Simulation, 3D Canvas Fallback"]
     end
-    
+
     subgraph Integration ["Middle Tier: API & Workflow Suites (60+ Tests)"]
         Workflows["Review Gating, Multi-Tenant Isolation, Rule Suggestions, Approval Gate"]
     end
-    
+
     subgraph Unit ["Foundation: Deterministic Unit Tests (80+ Tests)"]
         ColorMath["CIE76 Delta-E, sRGB Linearization, WCAG Contrast Ratio, Regex Span"]
     end
-    
+
     E2E --> Integration
     Integration --> Unit
 ```

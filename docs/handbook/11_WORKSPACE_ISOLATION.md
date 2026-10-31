@@ -48,13 +48,13 @@ graph TD
 
 ## Core Isolation Invariants
 
-1. **Mandatory Query Scoping:**  
+1. **Mandatory Query Scoping:**
    Every database query accessing `rules`, `facts`, `reviews`, `brand_assets`, `evidence_dependencies`, `audit`, or `rule_suggestions` contains an explicit `WHERE workspace_id = ?` clause.
-2. **Identical Bytes, Independent Metadata:**  
+2. **Identical Bytes, Independent Metadata:**
    The Brand Asset Registry (`brand_assets`) strictly scopes lookups by `(content_hash, workspace_id)`. If Tenant A and Tenant B upload the exact same image bytes (producing identical SHA-256 hash `H1`), Tenant A can mark the asset `APPROVED` with global licensing while Tenant B marks it `RESTRICTED` with expired licensing. Neither tenant can see or modify the other's private asset metadata.
-3. **No Cross-Tenant Rule Mutation:**  
+3. **No Cross-Tenant Rule Mutation:**
    Creating or updating rules requires that the authenticated user actor belong to the target workspace in `workspace_members`. Submitting rule triage actions or activating clarification suggestions for a rule outside the caller's workspace fails with `HTTP 403 Forbidden`.
-4. **Isolated Evaluation Context:**  
+4. **Isolated Evaluation Context:**
    When a review is evaluated (`POST /api/reviews`), the deterministic engine fetches active rules and valid facts strictly matching the review's parent `workspace_id`. Policies from other workspaces never influence findings or clearance scores.
 
 ---

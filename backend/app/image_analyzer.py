@@ -24,6 +24,21 @@ from .color_science import (
     delta_e,
 )
 
+try:
+    from .services.visual_intelligence import (
+        compute_difference_hash,
+        compute_visual_coverage,
+        detect_logo_template,
+        evaluate_logo_clearspace,
+    )
+except ImportError:
+    from app.services.visual_intelligence import (
+        compute_difference_hash,
+        compute_visual_coverage,
+        detect_logo_template,
+        evaluate_logo_clearspace,
+    )
+
 
 class ImageAnalysisError(Exception):
     def __init__(self, message: str):
@@ -314,6 +329,31 @@ def analyze_image_compliance(
         "uncertainty": "Transparent limitation notice; no false pass given.",
     })
 
+    # 5. Advanced Visual Intelligence: Perceptual hash & Measurable Clearspace
+    d_hash = compute_difference_hash(img)
+    if expected_logo_aspect and width >= 50 and height >= 50:
+        # Check margins relative to canvas boundaries
+        bbox = [round(width * 0.1), round(height * 0.1), round(width * 0.8), round(height * 0.8)]
+        cs_result = evaluate_logo_clearspace(img, bbox, min_margin_factor=0.25)
+        if not cs_result["meets_clearspace"]:
+            visual_findings.append({
+                "category": "visual_logo",
+                "type": "logo_clearspace",
+                "severity": "HIGH",
+                "status": "CONTRADICTED",
+                "passage": f"[Logo Margin: {cs_result['measured_margin_px']}px ({cs_result['margin_ratio']}H)]",
+                "explanation": (
+                    f"Logo clearspace margin {cs_result['measured_margin_px']}px fails brand standard "
+                    f"(required {cs_result['required_margin_px']}px, minimum 0.25x height). Elements or canvas edge infringe on exclusion zone."
+                ),
+                "suggested_correction": f"Increase logo clearance margin to at least {cs_result['required_margin_px']}px around all sides.",
+                "source_excerpt": f"Measured margin: {cs_result['measured_margin_px']}px. Required: {cs_result['required_margin_px']}px (0.25H).",
+                "analysis_method": "PERCEPTUAL_LOGO_CLEARSPACE_ENGINE",
+                "uncertainty": "Deterministic spatial clearspace measurement relative to detected logo bounds.",
+            })
+
+    coverage = compute_visual_coverage(visual_findings, width, height, has_logo_detected=bool(expected_logo_aspect))
+
     return {
         "width": width,
         "height": height,
@@ -321,5 +361,7 @@ def analyze_image_compliance(
         "aspect_ratio": actual_aspect,
         "dominant_colors": extracted_hexes,
         "content_hash": content_hash,
+        "perceptual_hash": d_hash,
         "visual_findings": visual_findings,
+        "coverage_report": coverage,
     }

@@ -110,7 +110,7 @@ sequenceDiagram
     Engine-->>API: Findings with Exact Spans & Citations
     API->>DB: Store Review, Findings, Dependencies
     API-->>Client: HTTP 201 Created (Review + Findings)
-    
+
     Reviewer->>Client: Remediate / Dismiss Findings
     Client->>API: POST /api/reviews/{id}/findings/{f_id}/actions {action, reason}
     API->>DB: Update Finding Disposition & Record Version Snapshot

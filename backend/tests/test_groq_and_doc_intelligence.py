@@ -54,14 +54,14 @@ def test_privacy_guard_preflight_scanner():
     """Verify privacy guard flags emails, phone numbers, and career terms without logging raw PII."""
     text_with_pii = "Contact me at alice.smith@example.com or +1 555-0199 for my Curriculum Vitae."
     result = inspect_document_privacy_preflight(text_with_pii, filename="Alice_Smith_Resume.pdf")
-    
+
     assert result["has_pii"] is True
     assert "email_address" in result["detected_types"]
     assert "phone_number" in result["detected_types"]
     assert result["is_likely_personal_doc"] is True
     assert result["warning_message"] is not None
     assert "personal information" in result["warning_message"].lower()
-    
+
     # Text without PII
     clean_text = "Brandtrace provides evidence-linked deterministic governance."
     clean_result = inspect_document_privacy_preflight(clean_text, filename="whitepaper.pdf")
@@ -87,7 +87,7 @@ def test_rule_scoping_for_document_types():
     assert is_rule_applicable(marketing_rule, "resume_cv") is False
     assert is_rule_applicable(marketing_rule, "academic_assignment") is False
     assert is_rule_applicable(marketing_rule, "technical_doc") is False
-    
+
     # Marketing documents should apply marketing rules
     assert is_rule_applicable(marketing_rule, "marketing_copy") is True
     assert is_rule_applicable(marketing_rule, "social_media") is True
@@ -117,7 +117,7 @@ async def test_resume_not_flagged_by_marketing_rules():
         review = resp.json()
         assert review["document_type"] == "resume_cv"
         assert review["file_format"] == "text"
-        
+
         # Rule R-TERM-02 requires 'Brandtrace' in marketing copy. It must NOT be in the findings here!
         finding_rule_ids = [f.get("rule_id") for f in review["findings"]]
         assert "R-TERM-02" not in finding_rule_ids
@@ -129,7 +129,7 @@ async def test_digital_pdf_upload_text_extraction():
     writer = PdfWriter()
     # Add a page with actual selectable digital text stream
     page = writer.add_blank_page(width=300, height=300)
-    
+
     # In pypdf, we can write a simple PDF containing a text object
     # Or create a minimal synthetic PDF
     buf = io.BytesIO()

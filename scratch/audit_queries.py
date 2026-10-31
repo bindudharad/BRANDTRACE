@@ -23,7 +23,7 @@ for method, path, snippet in endpoints:
     sig_end = snippet.find("):\n")
     sig = snippet[:sig_end + 2] if sig_end != -1 else snippet[:300]
     has_ws = "workspace_id" in sig
-    
+
     # Extract SQL
     sqls = re.findall(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'|"[^"\n]+"|\'[^\'\n]+\'', snippet)
     suspicious = []

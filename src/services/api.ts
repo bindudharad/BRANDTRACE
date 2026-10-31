@@ -60,6 +60,9 @@ export interface Review {
   document_summary?: string;
   analysis_method: string;
   rule_versions: string;
+  assigned_to?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  due_date?: string;
   created_at: string;
   updated_at: string;
   findings: EvidenceFinding[];
@@ -180,6 +183,15 @@ export interface Insights {
   by_severity?: Record<string, number>;
   by_evidence_status?: Record<string, number>;
   disagreements_count?: number;
+  active_rules_count?: number;
+  draft_rules_count?: number;
+  conflicting_rules_count?: number;
+  duplicate_rules_count?: number;
+  expired_facts_count?: number;
+  approaching_expiry_facts_count?: number;
+  rules_without_sources_count?: number;
+  active_alerts_count?: number;
+  evidence_sources_count?: number;
 }
 
 export interface ImpactItem {
@@ -256,6 +268,108 @@ export interface ImpactMap {
   items: ImpactItem[];
 }
 
+export interface ConstitutionImport {
+  id: string;
+  workspace_id: string;
+  filename: string;
+  document_hash: string;
+  file_size: number;
+  page_count: number;
+  candidate_count: number;
+  approved_count: number;
+  rejected_count: number;
+  status: string;
+  imported_by: string;
+  created_at: string;
+}
+
+export interface ImportCandidate {
+  id: string;
+  import_id: string;
+  workspace_id: string;
+  candidate_type: 'rule' | 'fact';
+  category: string;
+  kind: string;
+  pattern: string;
+  requirement: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  page_number?: number;
+  section_heading?: string;
+  original_excerpt: string;
+  extraction_method: string;
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  reviewed_by?: string;
+  reviewed_at?: string;
+  review_decision?: string;
+  rejection_reason?: string;
+  created_at: string;
+}
+
+export interface EvidenceSource {
+  id: string;
+  workspace_id: string;
+  title: string;
+  source_type: string;
+  file_name?: string;
+  url?: string;
+  content_hash?: string;
+  version: string;
+  page_reference?: string;
+  section_reference?: string;
+  excerpt: string;
+  owner: string;
+  verification_status: 'VERIFIED' | 'PENDING_VERIFICATION' | 'EXPIRED' | 'SUPERSEDED';
+  last_verified_at?: string;
+  effective_at?: string;
+  expires_at?: string;
+  created_at: string;
+  updated_at: string;
+  linked_rules_count?: number;
+  linked_facts_count?: number;
+  linked_rules?: Array<{ id: string; title: string; kind: string; pattern: string; severity: string; status: string }>;
+  linked_facts?: Array<{ id: string; claim: string; value: string; status: string; expires_at?: string }>;
+}
+
+export interface RuleConflict {
+  conflict_type: 'HARD_CONFLICT' | 'POTENTIAL_CONFLICT' | 'DUPLICATE_RULE';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  rule_a_id: string;
+  rule_a_title: string;
+  rule_a_kind: string;
+  rule_a_pattern: string;
+  rule_b_id: string;
+  rule_b_title: string;
+  rule_b_kind: string;
+  rule_b_pattern: string;
+  explanation: string;
+  resolution_recommendation: string;
+}
+
+export interface ReviewComment {
+  id: string;
+  workspace_id: string;
+  review_id: string;
+  finding_id?: string;
+  author: string;
+  author_role: string;
+  comment: string;
+  created_at: string;
+}
+
+export interface GovernanceAlert {
+  id: string;
+  workspace_id: string;
+  alert_type: string;
+  target_type: string;
+  target_id: string;
+  target_title: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  message: string;
+  idempotency_key: string;
+  status: 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED';
+  created_at: string;
+}
+
 let activeRole: UserRole = 'reviewer';
 let activeActor: string = 'demo.reviewer';
 let activeWorkspace: string = 'ws_default';
@@ -280,6 +394,10 @@ export function getSimulatedUser(): { role: UserRole; actor: string; workspace: 
 
 const rawBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 const base = rawBase.endsWith('/api') ? rawBase.slice(0, -4) : rawBase;
+
+export function getApiBaseUrl(): string {
+  return base;
+}
 
 async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
   const isFormData = options.body instanceof FormData;
@@ -421,4 +539,83 @@ export const api = {
     call<BrandAsset>(`/api/brand-assets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteAsset: (id: string) =>
     call<void>(`/api/brand-assets/${id}`, { method: 'DELETE' }),
+
+  // Feature 1: Brand Guideline Import
+  importBrandGuidelines: (file: File, consentAi: boolean = false) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (consentAi) fd.append('consent_ai', 'true');
+    return call<ConstitutionImport>('/api/constitution/import-guidelines', {
+      method: 'POST',
+      body: fd,
+    });
+  },
+  constitutionImports: () => call<ConstitutionImport[]>('/api/constitution/imports'),
+  importCandidates: (importId: string) => call<ImportCandidate[]>(`/api/constitution/imports/${importId}/candidates`),
+  updateCandidate: (candidateId: string, body: Partial<ImportCandidate>) =>
+    call<ImportCandidate>(`/api/constitution/candidates/${candidateId}`, { method: 'PUT', body: JSON.stringify(body) }),
+  approveCandidate: (candidateId: string) =>
+    call<{ status: string; candidate_id: string; created_entity_id: string; candidate_type: string }>(`/api/constitution/candidates/${candidateId}/approve`, { method: 'POST' }),
+  rejectCandidate: (candidateId: string, reason?: string) =>
+    call<{ status: string; candidate_id: string; reason?: string }>(`/api/constitution/candidates/${candidateId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
+  // Feature 2: Evidence Source Vault
+  evidenceSources: () => call<EvidenceSource[]>('/api/evidence-sources'),
+  createEvidenceSource: (body: Partial<EvidenceSource>) =>
+    call<EvidenceSource>('/api/evidence-sources', { method: 'POST', body: JSON.stringify(body) }),
+  evidenceSource: (id: string) => call<EvidenceSource>(`/api/evidence-sources/${id}`),
+  updateEvidenceSource: (id: string, body: Partial<EvidenceSource>) =>
+    call<EvidenceSource>(`/api/evidence-sources/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteEvidenceSource: (id: string) =>
+    call<void>(`/api/evidence-sources/${id}`, { method: 'DELETE' }),
+
+  // Feature 3: Deterministic Rule Conflict Detection
+  checkRuleConflicts: (body: Partial<Rule>) =>
+    call<RuleConflict[]>('/api/rules/check-conflicts', { method: 'POST', body: JSON.stringify(body) }),
+  ruleConflicts: () => call<RuleConflict[]>('/api/governance/rule-conflicts'),
+
+  // Feature 4: Compliance Evidence Packet Export
+  exportEvidenceUrl: (reviewId: string, format: 'pdf' | 'json' = 'pdf') =>
+    `${base}/api/reviews/${reviewId}/export-evidence?format=${format}`,
+  exportEvidenceJson: (reviewId: string) =>
+    call<any>(`/api/reviews/${reviewId}/export-evidence?format=json`),
+  downloadEvidencePdf: async (reviewId: string): Promise<Blob> => {
+    const headers: Record<string, string> = {
+      'X-Demo-Role': activeRole,
+      'X-Demo-Actor': activeActor,
+      'X-Workspace-Id': activeWorkspace,
+    };
+    const res = await fetch(`${base}/api/reviews/${reviewId}/export-evidence?format=pdf`, { headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to download PDF.' }));
+      throw new Error(err.detail || 'Failed to download compliance evidence PDF.');
+    }
+    return res.blob();
+  },
+
+  // Feature 5: Review Assignment & Collaboration
+  updateReviewAssignment: (reviewId: string, assignment: { assigned_to?: string; priority?: string; due_date?: string }) =>
+    call<Review>(`/api/reviews/${reviewId}/assignment`, { method: 'PATCH', body: JSON.stringify(assignment) }),
+  reviewComments: (reviewId: string) =>
+    call<ReviewComment[]>(`/api/reviews/${reviewId}/comments`),
+  addReviewComment: (reviewId: string, comment: string, findingId?: string) =>
+    call<ReviewComment>(`/api/reviews/${reviewId}/comments`, { method: 'POST', body: JSON.stringify({ comment, finding_id: findingId }) }),
+
+  // Feature 6: Proactive Expiry Monitoring & Governance Alerts
+  triggerExpiryScan: () =>
+    call<{ status: string; scanned_items: number; new_alerts_created: number; scan_timestamp: string }>('/api/governance/expiry-scan', { method: 'POST' }),
+  triggerExpiryWorker: () =>
+    call<{ status: string; job_id: string; job_status: string; scanned_items: number; new_alerts_created: number; re_reviews_generated: number }>('/api/governance/expiry-worker/trigger', { method: 'POST' }),
+  expiryJobs: (limit: number = 20) =>
+    call<any[]>(`/api/governance/expiry-jobs?limit=${limit}`),
+  governanceAlerts: (status?: string) =>
+    call<GovernanceAlert[]>(`/api/governance/expiry-alerts${status ? `?status=${status}` : ''}`),
+  acknowledgeAlert: (alertId: string) =>
+    call<{ status: string; alert_id: string }>(`/api/governance/expiry-alerts/${alertId}/acknowledge`, { method: 'POST' }),
+
+  // Feature 7: Advanced Visual Intelligence
+  checkAssetSimilarity: (assetId: string, targetAssetId: string) =>
+    call<{ asset_1: string; asset_2: string; similarity_score: number; is_perceptually_equivalent: boolean }>(
+      `/api/brand-assets/${assetId}/similarity?target_asset_id=${targetAssetId}`
+    ),
 };

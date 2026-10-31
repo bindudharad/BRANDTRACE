@@ -64,7 +64,7 @@ def main():
     pw_file = Path(temp_base) / "pg_pw.txt"
     log_file = Path(temp_base) / "pg_server.log"
     ctl_log = Path(temp_base) / "pg_ctl.log"
-    
+
     # Generate test-only random credentials (never logged or exposed)
     pg_password = secrets.token_hex(16)
     pw_file.write_text(pg_password, encoding="utf-8")
@@ -176,12 +176,12 @@ def main():
         # 6. Test Schema Initialization and Migration
         log("\n[Step 5] Initializing schema via init_db() on PostgreSQL...")
         init_db()
-        
+
         # Verify all 15 tables exist in PostgreSQL information_schema
         table_rows = rows("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
         created_tables = sorted([r["table_name"] for r in table_rows])
         log(f"Created tables in PostgreSQL ({len(created_tables)}): {', '.join(created_tables)}")
-        
+
         expected_tables = [
             "audit", "brand_assets", "brand_profiles", "evidence_dependencies",
             "fact_versions", "facts", "findings", "review_versions", "reviews",
@@ -321,7 +321,7 @@ def main():
         }))
         alpha_findings = rows("SELECT * FROM findings WHERE review_id = ?", ("rev_alpha_probe",))
         alpha_rule_ids = {f["source_id"] for f in alpha_findings if f.get("source_id")}
-        
+
         log(f"ws_alpha governance findings triggered by rules: {alpha_rule_ids}")
         assert "r_alpha_1" in alpha_rule_ids, "Expected r_alpha_1 to trigger for ws_alpha"
         assert "r_beta_1" not in alpha_rule_ids, "CRITICAL: Foreign rule r_beta_1 leaked into ws_alpha!"
@@ -403,7 +403,7 @@ def main():
         # Audit trail & versioning
         audit(review_id=review_id, action="DISMISS_FINDING", actor="demo.reviewer", reason="Exception approved", workspace_id="ws_alpha")
         save_version(review_id=review_id, content="Updated content", reason="Version bump", created_by="demo.reviewer")
-        
+
         audits = rows("SELECT * FROM audit WHERE review_id = ? ORDER BY created_at DESC", (review_id,))
         assert len(audits) >= 1
         assert audits[0]["action"] == "DISMISS_FINDING"
@@ -444,7 +444,7 @@ def main():
             "backend/tests/test_round3_claim_ledger.py",
             "backend/tests/test_defect_repairs_round3.py",
         ]
-        
+
         test_env = os.environ.copy()
         test_env["DATABASE_URL"] = db_url
         test_env["PYTHONPATH"] = str(BACKEND_DIR)
@@ -467,7 +467,7 @@ def main():
                 log(f"STDOUT for {suite}:\n{res.stdout}")
                 log(f"STDERR for {suite}:\n{res.stderr}")
                 raise RuntimeError(f"Pytest suite {suite} failed on PostgreSQL!")
-            
+
             # Print database proof line and summary line from pytest output
             proof_lines = [line for line in res.stdout.splitlines() if "[PYTEST SESSION DB PROOF]" in line]
             for pl in proof_lines:

@@ -2,7 +2,7 @@
 
 ## The Role of Codified Brand Rules
 
-In traditional corporate environments, brand guidelines exist as lengthy, static brand manuals. Authors rarely read them in full, and compliance reviewers must manually remember hundreds of vocabulary constraints. 
+In traditional corporate environments, brand guidelines exist as lengthy, static brand manuals. Authors rarely read them in full, and compliance reviewers must manually remember hundreds of vocabulary constraints.
 
 BRANDTRACE converts static guidelines into **executable brand rules**. Rules are versioned, machine-readable records that specify exact patterns, severity levels, policy requirements, and source citations.
 

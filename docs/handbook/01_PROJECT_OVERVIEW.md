@@ -24,7 +24,7 @@ Modern organizations produce brand and marketing communications across distribut
 
 **BRANDTRACE** resolves this governance failure. Operating as an evidence-aware governance gateway, it inspects digital copy, PDF document text layers, and image assets *prior to publication*. Every finding is pinned to a verifiable source citation, and every decision is permanently recorded in an append-only audit trail.
 
-> **Product Tagline:**  
+> **Product Tagline:**
 > *Every finding has a source. Every decision has an owner.*
 
 ---

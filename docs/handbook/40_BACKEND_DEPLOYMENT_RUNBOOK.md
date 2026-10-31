@@ -23,7 +23,7 @@ graph TD
     Client["Client (Vercel Frontend / API Client)"] -->|HTTPS / TLS| Ingress["Reverse Proxy / Ingress (Nginx / Cloud Run / Railway)"]
     Ingress -->|Forward| Uvicorn["ASGI Server (Uvicorn / Gunicorn)"]
     Uvicorn --> FastAPIApp["FastAPI Application (backend.app.main:app)"]
-    
+
     subgraph DataPersistence ["Managed Persistence Layer"]
         FastAPIApp -->|Connection Pool| NeonDB[("PostgreSQL Serverless (Neon)")]
     end

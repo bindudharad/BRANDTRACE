@@ -10,10 +10,10 @@ interface OnboardingModalProps {
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onClose }) => {
-  const { 
-    setIsDemoMode, 
-    setActiveTab, 
-    setIsKeyModalOpen, 
+  const {
+    setIsDemoMode,
+    setActiveTab,
+    setIsKeyModalOpen,
     setCurrentDraftText,
     setCurrentReport,
     setIsDemoOutputPromptOpen,

@@ -110,7 +110,7 @@ class OfflineProvider(BaseAIProvider):
                 continue
             seen_spans.append((s, e))
             token = match.group(0)
-            
+
             # Context-sensitive neutral suggested corrections
             # Avoid replacing one unsupported claim with another promotional claim.
             # Do not introduce claims that require evidence (e.g. "zero risk" -> "low risk"

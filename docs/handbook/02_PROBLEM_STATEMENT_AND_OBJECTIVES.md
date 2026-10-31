@@ -44,15 +44,15 @@ graph TD
 
 ### Specific Problem Vectors
 
-1. **Inconsistent and Subjective Guidelines:**  
+1. **Inconsistent and Subjective Guidelines:**
    Brand guidelines are typically distributed as dense, 80-page static PDFs. Reviewers interpret subjective phrases ("professional tone", "modern aesthetic") inconsistently, leading to arbitrary feedback and reviewer friction.
-2. **Unanchored Factual Claims:**  
+2. **Unanchored Factual Claims:**
    Marketing copy often makes empirical assertions: *"Supported by 99.9% of global banks"* or *"Available across 50 countries"*. Reviewers lack a single source of truth to verify whether a claim is active, expired, or geographically limited.
-3. **The 'Ghost Approval' Problem:**  
+3. **The 'Ghost Approval' Problem:**
    When high-risk violations are overlooked or casually dismissed in chat channels, no audit record links the specific published draft to the reviewer who authorized the exception.
-4. **Impact Invisibility on Policy Changes:**  
+4. **Impact Invisibility on Policy Changes:**
    When legal teams retire a claim or update a corporate fact, no mechanism exists to identify which published or pending assets rely on that obsolete statement.
-5. **AI Hallucinations in Compliance Tools:**  
+5. **AI Hallucinations in Compliance Tools:**
    Using generative LLMs directly as compliance judges introduces non-deterministic grading: the same draft evaluated twice may receive conflicting scores and hallucinatory policy citations.
 
 ---

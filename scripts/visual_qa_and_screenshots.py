@@ -43,10 +43,10 @@ def run_visual_audit():
     print("=" * 80)
     print("BRANDTRACE VISUAL QA & CONTRAST AUDIT")
     print("=" * 80)
-    
+
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=CHROME_PATH, headless=True)
-        
+
         # ---------------------------------------------------------------------
         # 1. 1920x1080 Full-page Landing & Judge Access Modal
         # ---------------------------------------------------------------------
@@ -149,12 +149,12 @@ def run_visual_audit():
             tour_step1_1080 = os.path.join(OUTPUT_DIR, "product_tour_step1_1920x1080.png")
             page.screenshot(path=tour_step1_1080)
             print(f"Captured: {tour_step1_1080}")
-            
+
             # Verify 8 steps
             step_indicator = page.locator("text=/08").or_(page.locator("text=01 / 08")).first
             assert step_indicator.is_visible(), "Expected 8-step indicator ('01 / 08')"
             print("Verified: Canonical 8-step Product Tour open from Workspace Take Judge Tour button")
-            
+
             # Close tour
             page.keyboard.press("Escape")
             page.wait_for_timeout(300)
@@ -242,7 +242,7 @@ def run_visual_audit():
             lum_fg = get_luminance(fg_rgba[0], fg_rgba[1], fg_rgba[2])
             lum_bg = get_luminance(bg_rgba[0], bg_rgba[1], bg_rgba[2])
             ratio = contrast_ratio(lum_fg, lum_bg)
-            
+
             # Determine threshold
             try:
                 px = float(item["fontSize"].replace("px", ""))
@@ -253,7 +253,7 @@ def run_visual_audit():
             passed = ratio >= min_req
             if not passed:
                 all_compliant = False
-            
+
             contrast_report.append({
                 "element": item["selector"],
                 "text": item["text"],

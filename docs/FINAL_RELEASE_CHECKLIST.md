@@ -1,7 +1,7 @@
 # BRANDTRACE — Round 3 Final Release & Submission Checklist
-**CodeAxis Hackathon Round 3: The Final Build**  
-*Team: Team_Nexus*  
-*Date: 2026-10-30*  
+**CodeAxis Hackathon Round 3: The Final Build**
+*Team: Team_Nexus*
+*Date: 2026-10-30*
 
 This checklist clearly separates **automated locally-verified engineering steps** (already completed and verified) from the **manual external deployment and submission steps** that only the team leader can perform.
 

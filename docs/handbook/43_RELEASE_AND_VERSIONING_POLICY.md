@@ -21,7 +21,7 @@ BRANDTRACE applies semantic versioning across three distinct layers:
 ```mermaid
 graph TD
     AppRelease["Application Software Release\nSemVer (MAJOR.MINOR.PATCH)\ne.g. 1.0.0 (Round 3 Final)"]
-    
+
     subgraph GovernanceVersionControl ["Enterprise Policy Versioning"]
         RuleVersion["Brand Constitution Rules\n(vMAJOR.MINOR)\ne.g. v1.0 -> v1.1"]
         FactVersion["Claim Ledger Facts\n(vMAJOR.MINOR)\ne.g. v1.0 -> v1.1"]

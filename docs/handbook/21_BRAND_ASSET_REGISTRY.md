@@ -27,7 +27,7 @@ The Brand Asset Registry enables brand administrators to register authorized vis
 graph LR
     Asset["Brand Asset (PNG / JPEG)"] --> Hash["Compute SHA-256 (64-char Hex)"]
     Hash --> Registry["Store in brand_assets Table"]
-    
+
     subgraph Metadata ["Registry Record"]
         M1["name: Corporate Primary Hero"]
         M2["approval_status: APPROVED / RESTRICTED"]

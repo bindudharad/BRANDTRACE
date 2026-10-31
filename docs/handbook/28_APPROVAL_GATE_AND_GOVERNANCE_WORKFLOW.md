@@ -87,13 +87,13 @@ sequenceDiagram
 
     Creator->>Review: Submit Marketing Draft
     Review-->>Review: Detect 1 HIGH Severity Superlative
-    
+
     Reviewer->>Gate: POST /approval {action: "approve"}
     Gate-->>Reviewer: HTTP 409 Conflict (High-risk finding unresolved)
-    
+
     Reviewer->>Review: POST /findings/{id}/actions {action: "ACCEPT"}
     Review-->>Review: Text remediated; finding resolved
-    
+
     Reviewer->>Gate: POST /approval {action: "approve"}
     Gate->>Audit: Record REVIEW_APPROVED event
     Gate-->>Reviewer: HTTP 200 OK (Status: APPROVED)

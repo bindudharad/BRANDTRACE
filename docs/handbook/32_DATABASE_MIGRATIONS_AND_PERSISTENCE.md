@@ -23,7 +23,7 @@ graph TD
     AppLayer["Application Services (FastAPI routes)"] --> DBContext["db() Context Manager"]
     DBContext --> StatementTrans["Parameter Translator (_statement)\n(? to :p0, :p1, ...)"]
     StatementTrans --> SQLEngine["SQLAlchemy Engine (pool_pre_ping=True)"]
-    
+
     SQLEngine -->|sqlite:///brandtrace.db| SQLiteDriver["SQLite Driver (check_same_thread=False)"]
     SQLEngine -->|postgresql+psycopg://...| PostgresDriver["Psycopg 3 Driver (Serverless Neon Pool)"]
 ```

@@ -28,7 +28,7 @@ The Claim Impact Map resolves this vulnerability through continuous relational d
 ```mermaid
 graph TD
     FactUpdate["Fact F-001 Expires / Amends"] --> Traversal["Traverse evidence_dependencies Table"]
-    
+
     subgraph Dependency Graph
         Traversal --> Rev1["Draft rev_launch_q4 (Cites F-001)"]
         Traversal --> Rev2["Draft rev_annual_report (Cites F-001)"]

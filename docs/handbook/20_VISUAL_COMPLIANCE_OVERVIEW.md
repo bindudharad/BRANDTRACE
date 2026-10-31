@@ -37,7 +37,7 @@ BRANDTRACE provides robust visual brand governance focused on deterministic math
 ```mermaid
 graph TD
     Upload["Image Upload (PNG / JPEG)"] --> SizeCheck["Validate File Size (<= 10MB) & Headers"]
-    
+
     subgraph AssetRegistry ["1. Asset Registry Lookup"]
         SizeCheck --> Hash["Compute SHA-256 Hash"]
         Hash --> RegistrySearch["Query brand_assets (Scoped by workspace_id)"]

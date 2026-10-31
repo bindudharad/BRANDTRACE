@@ -9,7 +9,7 @@ interface FrogHero3DProps {
 /**
  * Procedural 3D Voxel Frog Hero Visual built entirely from flat-faced cube/box primitives
  * (Three.js BoxGeometry) in a minimalist Minecraft mob aesthetic.
- * 
+ *
  * Features:
  * - 100% Box/Rectangular-Prism geometry (zero spheres or rounded primitives).
  * - Flat-shaded faces with visible wireframe edge outlines.

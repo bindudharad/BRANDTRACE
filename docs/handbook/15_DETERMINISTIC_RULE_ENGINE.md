@@ -26,7 +26,7 @@ BRANDTRACE solves this by executing its core policy evaluation loop deterministi
 ```mermaid
 graph TD
     Input["Input Draft Content"] --> Preprocess["Normalize Whitespace & Encodings"]
-    
+
     subgraph RuleExecution ["Deterministic Pipeline (governance.py)"]
         Preprocess --> RegexScan["Compiled Regex Evaluator (re.finditer)"]
         Preprocess --> TermScan["Required Terminology Verifier"]
@@ -77,11 +77,11 @@ $$S = \max\left(0, 100 - \sum_{i=1}^{N} W(\text{severity}_i)\right)$$
 
 Where the penalty weight function $W(\cdot)$ is defined as:
 
-$$W(\text{severity}) = \begin{cases} 
+$$W(\text{severity}) = \begin{cases}
 30 & \text{if } \text{severity} = \text{CRITICAL} \\
 18 & \text{if } \text{severity} = \text{HIGH} \\
 10 & \text{if } \text{severity} = \text{MEDIUM} \\
-4  & \text{if } \text{severity} = \text{LOW} 
+4  & \text{if } \text{severity} = \text{LOW}
 \end{cases}$$
 
 Only **unresolved findings** (where `disposition` is `NULL` or unaccepted) apply score penalties. When a reviewer remediates a finding by accepting a suggestion, editing the text, or recording an authorized dismissal reason, its penalty is cleared from the score.

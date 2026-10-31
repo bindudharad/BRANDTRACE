@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary & Delivered Scope
 
-BRANDTRACE is an evidence-linked brand governance platform engineered for organizations creating content across multiple human contributors and generative AI tools. 
+BRANDTRACE is an evidence-linked brand governance platform engineered for organizations creating content across multiple human contributors and generative AI tools.
 
 Delivered capabilities for Round 2 include:
 1. **Evidence-Linked Governance Workspace**: A responsive, accessible React/Vite interface featuring 9 specialized operational screens: Overview, Brand Constitution, Content Review, Findings Workspace, Correction Editor, Approval Queue, Audit History, Governance Insights, and the Judge Demo Walkthrough.
@@ -61,7 +61,7 @@ Results: 27/27 passed, 0 failed
 
 ## 4. Deviations from Round 1 & Project Evolution
 
-The inherited Round 1 project was a client-side prototype requiring users to supply their own Gemini API keys directly in the browser. 
+The inherited Round 1 project was a client-side prototype requiring users to supply their own Gemini API keys directly in the browser.
 
 In Round 2:
 - Replaced the client-side key model with an independent FastAPI server architecture.

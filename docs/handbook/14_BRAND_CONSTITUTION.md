@@ -21,7 +21,7 @@ The Brand Constitution is the centralized repository of normative brand standard
 ```mermaid
 graph TD
     BC["Brand Constitution"]
-    
+
     subgraph Normative Rules ["rules Table"]
         R1["Prohibited Phrases ('cheap', 'best')"]
         R2["Required Terminology ('BRANDTRACE')"]

@@ -24,7 +24,7 @@ graph TD
     HeaderCheck --> SizeGuard["Validate Size (<= 10MB)"]
     SizeGuard --> StreamRead["Read Bytes via io.BytesIO"]
     StreamRead --> PyPDF["pypdf.PdfReader Parsing"]
-    
+
     PyPDF --> EncryptedCheck{"Is PDF Encrypted?"}
     EncryptedCheck -->|Yes| ErrorEncrypted["Raise PDFParserError (HTTP 400)"]
     EncryptedCheck -->|No| PageLoop["Iterate Pages & Call page.extract_text()"]
@@ -39,14 +39,14 @@ graph TD
 
 ## Technical Implementation (`pdf_parser.py`)
 
-1. **Native Pure-Python Parsing (`pypdf`):**  
+1. **Native Pure-Python Parsing (`pypdf`):**
    The parser uses `pypdf.PdfReader` directly in Python. It requires zero external OS packages, zero C-libraries, and zero system PATH dependencies (such as poppler or Ghostscript).
-2. **Text-Layer Extraction:**  
+2. **Text-Layer Extraction:**
    Extracts text page-by-page using `page.extract_text()`, preserving word spacing and punctuation necessary for regex pattern matching.
-3. **Encrypted & Corrupted Stream Handling:**  
+3. **Encrypted & Corrupted Stream Handling:**
    - Encrypted PDFs (`reader.is_encrypted == True`) fail safely with an informative `PDFParserError` without crashing the ASGI worker.
    - Corrupted streams or invalid PDF headers fail immediately with standard HTTP 400 error responses.
-4. **Blank Page Resiliency:**  
+4. **Blank Page Resiliency:**
    Blank or spacer pages within a valid document are handled gracefully; text from remaining pages is extracted and normalized.
 
 ---

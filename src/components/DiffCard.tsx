@@ -99,8 +99,8 @@ export const DiffCard: React.FC<DiffCardProps> = ({
       intensity={severity === 'CRITICAL' ? 'strong' : 'subtle'}
     >
       <div className={`p-5 rounded-2xl border transition-all ${
-        isApplied 
-          ? 'border-teal-400 bg-[#030818] shadow-[0_0_30px_rgba(20,184,166,0.3)]' 
+        isApplied
+          ? 'border-teal-400 bg-[#030818] shadow-[0_0_30px_rgba(20,184,166,0.3)]'
           : 'border-cyan-500/20 bg-[#030818]/80 backdrop-blur-md hover:border-cyan-500/40'
       }`}>
         {/* Top Header with Category Word on left and Severity Badge on right */}

@@ -83,16 +83,16 @@ sequenceDiagram
 
     Creator->>API: Submit Draft for Review
     API->>DB: Record Review & Generate Findings
-    
+
     Reviewer1->>API: POST /disposition (Finding 1 -> ACCEPTED_EDIT)
     API->>DB: Update finding disposition_by="Reviewer A"
-    
+
     Reviewer2->>API: POST /disposition (Finding 2 -> DISMISSED)
     API->>DB: Update finding disposition_by="Reviewer B"
-    
+
     Admin->>API: GET /api/guideline-health
     API->>Admin: Return disagreement_detected=true for Rule R-01
-    
+
     Admin->>API: POST /api/guideline-health/suggest
     API->>Admin: Persist Candidate Rule Clarification Proposal
 ```

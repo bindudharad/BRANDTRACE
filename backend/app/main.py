@@ -5,6 +5,7 @@ human approval gates, multi-format (PDF/Image) analysis, audit ledger, and gover
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import logging
@@ -15,7 +16,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File, Form, Header
+from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File, Form, Header, Response, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -71,11 +72,43 @@ from .schemas import (
     WorkspaceIn,
     WorkspaceOut,
     BootstrapOut,
+    ConstitutionImportOut,
+    ImportCandidateOut,
+    CandidateUpdateIn,
+    CandidateRejectIn,
+    EvidenceSourceIn,
+    EvidenceSourceUpdateIn,
+    EvidenceSourceOut,
+    RuleConflictOut,
+    ReviewAssignmentIn,
+    ReviewCommentIn,
+    ReviewCommentOut,
+    GovernanceAlertOut,
+    ExpiryScanOut,
+    OcrResponseOut,
+    LogoPlacementOut,
+    TypographyComplianceOut,
+    WorkerStatusOut,
 )
 from .governance import run_governance_analysis, is_expired, calculate_health_score
 from .pdf_parser import extract_pdf_pages, format_pdf_text_for_review, PDFExtractionError
 from .image_analyzer import analyze_image_compliance, ImageAnalysisError
 from .impact_map import calculate_impact_map, trigger_targeted_rereview
+from .services.guideline_importer import extract_candidates_from_pdf
+from .services.rule_conflict_detector import scan_all_rule_conflicts, check_candidate_conflicts
+from .services.compliance_exporter import build_compliance_packet_json, build_compliance_packet_pdf
+from .services.expiry_monitor import (
+    run_expiry_scan,
+    execute_expiry_job,
+    list_governance_jobs,
+    list_governance_alerts,
+    acknowledge_governance_alert,
+)
+from .services.visual_intelligence import perceptual_similarity_score
+from .services.ocr_service import ocr_pipeline
+from .services.logo_detector import detect_logo_placement
+from .services.typography_analyzer import evaluate_typography_compliance
+from .services.expiry_worker import scheduler_worker, get_worker_status, trigger_automated_audit
 
 DEFAULT_WORKSPACE_MEMBERSHIPS: Dict[str, Set[str]] = {
     "system.admin": {"ws_default"},
@@ -340,6 +373,81 @@ def ready():
         "image_analysis_available": True,
     }
 
+DEFAULT_SEED_EVIDENCE_SOURCES = [
+    (
+        "src_voice_01",
+        "ws_default",
+        "Brand Voice Standard",
+        "BRAND_GUIDELINE",
+        "brand-voice-guide-2026.pdf",
+        None,
+        "a1b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdef",
+        "1.2",
+        "Page 4",
+        "Section 1.2: Superlatives & Tone",
+        "Use precise, evidence-backed language rather than subjective superlatives.",
+        "Brand Admin",
+        "VERIFIED",
+        "2026-01-15T09:00:00+00:00",
+        None,
+        None,
+    ),
+    (
+        "src_naming_01",
+        "ws_default",
+        "Naming Guide",
+        "BRAND_GUIDELINE",
+        "naming-conventions-2026.pdf",
+        None,
+        "b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdefa1",
+        "1.0",
+        "Page 2",
+        "Section 2.1: Trademark Capitalization",
+        "The product name is Brandtrace in body copy.",
+        "Brand Admin",
+        "VERIFIED",
+        "2026-02-01T10:00:00+00:00",
+        None,
+        None,
+    ),
+    (
+        "src_msg_01",
+        "ws_default",
+        "Messaging Guide",
+        "BRAND_GUIDELINE",
+        "messaging-framework.pdf",
+        None,
+        "c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdefa1b2",
+        "1.0",
+        "Page 7",
+        "Section 3.4: Value Positioning",
+        "Use accessible, efficient, or cost-effective instead of cheap.",
+        "Brand Admin",
+        "VERIFIED",
+        "2026-02-10T11:00:00+00:00",
+        None,
+        None,
+    ),
+    (
+        "src_launch_01",
+        "ws_default",
+        "Launch brief",
+        "PRODUCT_SPEC",
+        "q4-launch-brief.pdf",
+        None,
+        "d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdefa1b2c3",
+        "2.0",
+        "Page 3",
+        "Section 1: Regional Availability",
+        "BRANDTRACE is available to teams in India.",
+        "Product Marketing",
+        "VERIFIED",
+        "2026-03-01T12:00:00+00:00",
+        None,
+        "2027-01-01T00:00:00+00:00",
+    ),
+]
+
 @app.post("/api/demo/setup")
 async def demo_setup(
     role: str = Depends(get_demo_role),
@@ -502,6 +610,22 @@ async def demo_setup(
                 ),
             )
 
+        # Seed baseline evidence sources if not present
+        if not rows("SELECT * FROM evidence_sources WHERE workspace_id='ws_default'"):
+            for s in DEFAULT_SEED_EVIDENCE_SOURCES:
+                conn.execute(
+                    """
+                    INSERT INTO evidence_sources (
+                        id, workspace_id, title, source_type, file_name, url,
+                        content_hash, version, page_reference, section_reference,
+                        excerpt, owner, verification_status, last_verified_at,
+                        effective_at, expires_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO NOTHING
+                    """,
+                    (s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[12], s[13], s[14], s[15], now(), now())
+                )
+
     return await overview(workspace_id="ws_default")
 
 @app.post("/api/demo/reset")
@@ -553,6 +677,7 @@ async def demo_reset(
     with db() as conn:
         conn.execute("DELETE FROM findings WHERE review_id IN (SELECT id FROM reviews WHERE workspace_id='ws_default' OR workspace_id IS NULL) OR review_id IS NULL")
         conn.execute("DELETE FROM review_versions WHERE review_id IN (SELECT id FROM reviews WHERE workspace_id='ws_default' OR workspace_id IS NULL) OR review_id IS NULL")
+        conn.execute("DELETE FROM review_comments WHERE workspace_id='ws_default' OR workspace_id IS NULL")
         conn.execute("DELETE FROM evidence_dependencies WHERE workspace_id='ws_default' OR workspace_id IS NULL")
         conn.execute("DELETE FROM reviews WHERE workspace_id='ws_default' OR workspace_id IS NULL")
         conn.execute("DELETE FROM audit WHERE workspace_id='ws_default' OR workspace_id IS NULL")
@@ -562,6 +687,10 @@ async def demo_reset(
         conn.execute("DELETE FROM rules WHERE workspace_id='ws_default' OR workspace_id IS NULL")
         conn.execute("DELETE FROM fact_versions WHERE fact_id IN (SELECT id FROM facts WHERE workspace_id='ws_default' OR workspace_id IS NULL) OR fact_id IS NULL")
         conn.execute("DELETE FROM facts WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM imported_rule_candidates WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM constitution_imports WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM governance_alerts WHERE workspace_id='ws_default' OR workspace_id IS NULL")
+        conn.execute("DELETE FROM evidence_sources WHERE workspace_id='ws_default' OR workspace_id IS NULL")
         conn.execute("DELETE FROM brand_profiles WHERE workspace_id='ws_default' OR workspace_id IS NULL")
         conn.execute("DELETE FROM workspaces WHERE id='ws_default'")
 
@@ -710,6 +839,21 @@ async def demo_reset(
                 rf_data[5], "INITIAL_APPROVAL", "system", rf_data[13]
             ),
         )
+
+        # Seed baseline evidence sources
+        for s in DEFAULT_SEED_EVIDENCE_SOURCES:
+            conn.execute(
+                """
+                INSERT INTO evidence_sources (
+                    id, workspace_id, title, source_type, file_name, url,
+                    content_hash, version, page_reference, section_reference,
+                    excerpt, owner, verification_status, last_verified_at,
+                    effective_at, expires_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO NOTHING
+                """,
+                (s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[12], s[13], s[14], s[15], now(), now())
+            )
 
     # Seed 1 sample initial review with findings (Curated Judge Demo Review)
     sample_id = "rev_launch_q4"
@@ -1317,16 +1461,36 @@ async def upload_and_review(
                         else:
                             raise HTTPException(422, "Scanned PDF OCR completed but no readable text was returned by the vision model.")
                     except GroqOCRError as e:
-                        raise HTTPException(422, f"Groq Vision OCR processing failed: {e.message}")
+                        logger.warning(f"Groq Vision OCR failed, falling back to native OCR: {e}")
+                        native_res = ocr_pipeline.process_pdf(file_bytes)
+                        if native_res.get("extracted_text"):
+                            extracted_text = native_res["extracted_text"]
+                            ocr_applied = True
+                            ocr_method = native_res.get("extraction_method", "HYBRID_OCR")
+                        else:
+                            raise HTTPException(422, f"Groq Vision OCR processing failed: {e.message}")
                     except PDFRenderingError as e:
                         raise HTTPException(422, f"Failed to render scanned PDF pages: {e.message}")
                     except Exception as e:
-                        raise HTTPException(422, f"Scanned PDF processing failed: {str(e)}")
+                        logger.warning(f"Groq OCR error, using local fallback: {e}")
+                        native_res = ocr_pipeline.process_pdf(file_bytes)
+                        if native_res.get("extracted_text"):
+                            extracted_text = native_res["extracted_text"]
+                            ocr_applied = True
+                            ocr_method = native_res.get("extraction_method", "HYBRID_OCR")
+                        else:
+                            raise HTTPException(422, f"Scanned PDF processing failed: {str(e)}")
                 else:
-                    raise HTTPException(
-                        422,
-                        "Uploaded PDF contains no extractable digital text (scanned document). Groq Vision OCR is currently unconfigured or unavailable in this environment."
-                    )
+                    native_res = ocr_pipeline.process_pdf(file_bytes)
+                    if native_res.get("extracted_text"):
+                        extracted_text = native_res["extracted_text"]
+                        ocr_applied = True
+                        ocr_method = native_res.get("extraction_method", "HYBRID_OCR")
+                    else:
+                        raise HTTPException(
+                            422,
+                            "Uploaded PDF contains no extractable digital text and native OCR could not detect readable content."
+                        )
             else:
                 raise HTTPException(
                     422,
@@ -1364,6 +1528,7 @@ async def upload_and_review(
         if consent_ocr:
             from .services.groq_client import is_groq_configured
             from .services.groq_vision_ocr import extract_text_from_image_bytes
+            ocr_done = False
             if is_groq_configured():
                 try:
                     ocr_res = extract_text_from_image_bytes(file_bytes, mime_type=mime)
@@ -1371,8 +1536,18 @@ async def upload_and_review(
                         extracted_text += f"\n\n[OCR Extracted Text from Graphic Asset]:\n{ocr_res['extracted_text']}"
                         ocr_applied = True
                         ocr_method = "GROQ_VISION_OCR"
+                        ocr_done = True
                 except Exception as e:
                     logger.warning(f"Image OCR failed: {e}")
+            if not ocr_done:
+                try:
+                    local_ocr = ocr_pipeline.process_image(file_bytes)
+                    if local_ocr.get("extracted_text"):
+                        extracted_text += f"\n\n[OCR Extracted Text from Graphic Asset]:\n{local_ocr['extracted_text']}"
+                        ocr_applied = True
+                        ocr_method = f"LOCAL_OCR_{local_ocr.get('ocr_engine', 'EASYOCR')}"
+                except Exception as e:
+                    logger.warning(f"Local Image OCR fallback failed: {e}")
     else:
         raise HTTPException(
             415,
@@ -1727,6 +1902,25 @@ def insights(workspace_id: str = Depends(get_workspace_id)):
 
     disagreements = len(rows("SELECT f.id" + scope + " AND f.disposition IN ('DISMISSED', 'ESCALATED')", (workspace_id,)))
 
+    # Real database-grounded quality and health intelligence metrics
+    active_rules_count = len(rows("SELECT id FROM rules WHERE workspace_id=? AND status='APPROVED'", (workspace_id,)))
+    draft_rules_count = len(rows("SELECT id FROM imported_rule_candidates WHERE workspace_id=? AND status='PENDING_APPROVAL'", (workspace_id,)))
+    all_active_rules = rows("SELECT * FROM rules WHERE workspace_id=? AND status='APPROVED'", (workspace_id,))
+    conflicts = scan_all_rule_conflicts(all_active_rules)
+    conflicting_rules_count = len([c for c in conflicts if c.get("conflict_type") == "HARD_CONFLICT"])
+    duplicate_rules_count = len([c for c in conflicts if c.get("conflict_type") == "DUPLICATE_RULE"])
+
+    now_ts = now()
+    expired_facts_count = len(rows("SELECT id FROM facts WHERE workspace_id=? AND status='APPROVED' AND expires_at IS NOT NULL AND expires_at < ?", (workspace_id, now_ts)))
+
+    from datetime import datetime, timezone, timedelta
+    thirty_days_ts = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    approaching_expiry_facts_count = len(rows("SELECT id FROM facts WHERE workspace_id=? AND status='APPROVED' AND expires_at IS NOT NULL AND expires_at >= ? AND expires_at <= ?", (workspace_id, now_ts, thirty_days_ts)))
+
+    rules_without_sources_count = len(rows("SELECT id FROM rules WHERE workspace_id=? AND (source_title IS NULL OR source_title='' OR source_excerpt IS NULL OR source_excerpt='')", (workspace_id,)))
+    active_alerts_count = len(rows("SELECT id FROM governance_alerts WHERE workspace_id=? AND status='ACTIVE'", (workspace_id,)))
+    evidence_sources_count = len(rows("SELECT id FROM evidence_sources WHERE workspace_id=?", (workspace_id,)))
+
     return {
         "recurring": recurring,
         "unresolved": unresolved,
@@ -1735,6 +1929,15 @@ def insights(workspace_id: str = Depends(get_workspace_id)):
         "by_severity": by_severity,
         "by_evidence_status": by_evidence_status,
         "disagreements_count": disagreements,
+        "active_rules_count": active_rules_count,
+        "draft_rules_count": draft_rules_count,
+        "conflicting_rules_count": conflicting_rules_count,
+        "duplicate_rules_count": duplicate_rules_count,
+        "expired_facts_count": expired_facts_count,
+        "approaching_expiry_facts_count": approaching_expiry_facts_count,
+        "rules_without_sources_count": rules_without_sources_count,
+        "active_alerts_count": active_alerts_count,
+        "evidence_sources_count": evidence_sources_count,
     }
 
 @app.get("/api/governance/impact-map")
@@ -2336,6 +2539,844 @@ def remove_workspace_member(
     audit(workspace_id, "MEMBER_REMOVED", ctx["actor"], details=json.dumps({
         "removed_actor": actor_id, "workspace_id": workspace_id
     }), workspace_id=workspace_id)
+
+# -----------------------------------------------------------------------------
+# Enterprise Feature 1: Brand Constitution Intelligence (PDF Guideline Importer)
+# -----------------------------------------------------------------------------
+
+@app.post("/api/constitution/import-guidelines", response_model=ConstitutionImportOut)
+async def import_brand_guidelines(
+    file: UploadFile = File(...),
+    consent_ai: bool = Form(False),
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to import brand guidelines.")
+
+    CHUNK_SIZE = 64 * 1024
+    chunks = []
+    total_bytes = 0
+    while True:
+        chunk = await file.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        total_bytes += len(chunk)
+        if total_bytes > MAX_UPLOAD_BYTES:
+            await file.close()
+            raise HTTPException(413, f"File size exceeds maximum permitted {MAX_UPLOAD_BYTES // (1024*1024)} MB.")
+        chunks.append(chunk)
+    file_bytes = b"".join(chunks)
+
+    try:
+        extraction_res = extract_candidates_from_pdf(file_bytes, file.filename or "guidelines.pdf", consent_ai=consent_ai)
+    except PDFExtractionError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        raise HTTPException(422, f"Failed to extract text from PDF: {str(e)}")
+
+    workspace_id = ctx["workspace_id"]
+    import_id = ident("imp")
+    doc_hash = extraction_res["document_hash"]
+    page_count = extraction_res["page_count"]
+    candidates = extraction_res["candidates"]
+    cand_count = len(candidates)
+    created_ts = now()
+
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO constitution_imports (
+                id, workspace_id, filename, document_hash, file_size,
+                page_count, candidate_count, approved_count, rejected_count,
+                status, imported_by, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'PENDING_REVIEW', ?, ?)
+            """,
+            (import_id, workspace_id, file.filename or "guidelines.pdf", doc_hash, total_bytes, page_count, cand_count, ctx["actor"], created_ts)
+        )
+        for c in candidates:
+            cand_id = ident("cand")
+            conn.execute(
+                """
+                INSERT INTO imported_rule_candidates (
+                    id, import_id, workspace_id, candidate_type, category, kind,
+                    pattern, requirement, severity, page_number, section_heading,
+                    original_excerpt, extraction_method, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL', ?)
+                """,
+                (
+                    cand_id, import_id, workspace_id, c["candidate_type"], c["category"], c["kind"],
+                    c["pattern"], c["requirement"], c["severity"], c["page_number"], c["section_heading"],
+                    c["original_excerpt"], c["extraction_method"], created_ts
+                )
+            )
+
+    audit(
+        import_id, "CONSTITUTION_GUIDELINES_IMPORTED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"filename": file.filename, "document_hash": doc_hash, "candidates": cand_count}),
+        workspace_id=workspace_id
+    )
+
+    return row("SELECT * FROM constitution_imports WHERE id=?", (import_id,))
+
+
+@app.get("/api/constitution/imports", response_model=List[ConstitutionImportOut])
+def list_constitution_imports(workspace_id: str = Depends(get_workspace_id)):
+    return rows("SELECT * FROM constitution_imports WHERE workspace_id=? ORDER BY created_at DESC", (workspace_id,))
+
+
+@app.get("/api/constitution/imports/{import_id}/candidates", response_model=List[ImportCandidateOut])
+def list_import_candidates(import_id: str, workspace_id: str = Depends(get_workspace_id)):
+    return rows("SELECT * FROM imported_rule_candidates WHERE import_id=? AND workspace_id=? ORDER BY page_number ASC, created_at ASC", (import_id, workspace_id))
+
+
+@app.put("/api/constitution/candidates/{candidate_id}", response_model=ImportCandidateOut)
+def update_import_candidate(
+    candidate_id: str,
+    update: CandidateUpdateIn,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to edit candidate rules.")
+    workspace_id = ctx["workspace_id"]
+    cand = row("SELECT * FROM imported_rule_candidates WHERE id=? AND workspace_id=?", (candidate_id, workspace_id))
+    if not cand:
+        raise HTTPException(404, "Candidate not found.")
+    if cand["status"] != "PENDING_APPROVAL":
+        raise HTTPException(422, f"Candidate cannot be edited in '{cand['status']}' status.")
+
+    fields = []
+    params = []
+    if update.pattern is not None:
+        fields.append("pattern=?")
+        params.append(update.pattern)
+    if update.requirement is not None:
+        fields.append("requirement=?")
+        params.append(update.requirement)
+    if update.category is not None:
+        fields.append("category=?")
+        params.append(update.category)
+    if update.kind is not None:
+        fields.append("kind=?")
+        params.append(update.kind)
+    if update.severity is not None:
+        fields.append("severity=?")
+        params.append(update.severity)
+
+    if fields:
+        params.extend([candidate_id, workspace_id])
+        with db() as conn:
+            conn.execute(f"UPDATE imported_rule_candidates SET {', '.join(fields)} WHERE id=? AND workspace_id=?", params)
+
+    return row("SELECT * FROM imported_rule_candidates WHERE id=?", (candidate_id,))
+
+
+@app.post("/api/constitution/candidates/{candidate_id}/approve")
+def approve_import_candidate(
+    candidate_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to approve candidate rules.")
+    workspace_id = ctx["workspace_id"]
+    cand = row("SELECT * FROM imported_rule_candidates WHERE id=? AND workspace_id=?", (candidate_id, workspace_id))
+    if not cand:
+        raise HTTPException(404, "Candidate not found.")
+    if cand["status"] != "PENDING_APPROVAL":
+        raise HTTPException(422, f"Candidate is already '{cand['status']}'.")
+
+    import_rec = row("SELECT * FROM constitution_imports WHERE id=?", (cand["import_id"],))
+    source_filename = import_rec.get("filename", "Imported Brand Guideline") if import_rec else "Imported Brand Guideline"
+    page_ref = f"Page {cand['page_number']}" if cand.get("page_number") else "Guideline Document"
+    source_title = f"{source_filename} ({page_ref})"
+
+    ts = now()
+    created_entity_id = None
+
+    with db() as conn:
+        if cand["candidate_type"] == "fact":
+            fact_id = ident("F")
+            conn.execute(
+                """
+                INSERT INTO facts (
+                    id, workspace_id, claim, value, owner, status, version,
+                    source_title, source_excerpt, created_at, notes
+                ) VALUES (?, ?, ?, ?, ?, 'APPROVED', '1.0', ?, ?, ?, ?)
+                """,
+                (
+                    fact_id, workspace_id, cand["pattern"], cand["requirement"], ctx["actor"],
+                    source_title, cand["original_excerpt"], ts, f"Imported from {source_filename}"
+                )
+            )
+            created_entity_id = fact_id
+        else:
+            rule_id = ident("R")
+            conn.execute(
+                """
+                INSERT INTO rules (
+                    id, workspace_id, title, category, kind, pattern, requirement,
+                    severity, version, status, owner, source_title, source_excerpt,
+                    applicable_document_types, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '1.0', 'APPROVED', ?, ?, ?, 'all', ?)
+                """,
+                (
+                    rule_id, workspace_id, f"Rule: {cand['pattern'][:40]}", cand["category"], cand["kind"],
+                    cand["pattern"], cand["requirement"], cand["severity"], ctx["actor"],
+                    source_title, cand["original_excerpt"], ts
+                )
+            )
+            conn.execute(
+                """
+                INSERT INTO rule_versions (
+                    id, rule_id, workspace_id, version, title, category, kind,
+                    pattern, requirement, severity, source_title, source_excerpt,
+                    activated_by, activation_reason, created_at
+                ) VALUES (?, ?, ?, '1.0', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Brand Guideline Import Approval', ?)
+                """,
+                (
+                    ident("rulever"), rule_id, workspace_id, f"Rule: {cand['pattern'][:40]}",
+                    cand["category"], cand["kind"], cand["pattern"], cand["requirement"],
+                    cand["severity"], source_title, cand["original_excerpt"], ctx["actor"], ts
+                )
+            )
+            created_entity_id = rule_id
+
+        # Update candidate status
+        conn.execute(
+            """
+            UPDATE imported_rule_candidates
+            SET status='APPROVED', reviewed_by=?, reviewed_at=?, review_decision='APPROVED'
+            WHERE id=?
+            """,
+            (ctx["actor"], ts, candidate_id)
+        )
+        # Update import approved count
+        conn.execute(
+            "UPDATE constitution_imports SET approved_count=approved_count+1 WHERE id=?",
+            (cand["import_id"],)
+        )
+
+    audit(
+        cand["import_id"], "CONSTITUTION_CANDIDATE_APPROVED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"candidate_id": candidate_id, "entity_id": created_entity_id, "type": cand["candidate_type"]}),
+        workspace_id=workspace_id
+    )
+
+    return {
+        "status": "APPROVED",
+        "candidate_id": candidate_id,
+        "created_entity_id": created_entity_id,
+        "candidate_type": cand["candidate_type"],
+    }
+
+
+@app.post("/api/constitution/candidates/{candidate_id}/reject")
+def reject_import_candidate(
+    candidate_id: str,
+    body: Optional[CandidateRejectIn] = None,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to reject candidate rules.")
+    workspace_id = ctx["workspace_id"]
+    cand = row("SELECT * FROM imported_rule_candidates WHERE id=? AND workspace_id=?", (candidate_id, workspace_id))
+    if not cand:
+        raise HTTPException(404, "Candidate not found.")
+    if cand["status"] != "PENDING_APPROVAL":
+        raise HTTPException(422, f"Candidate is already '{cand['status']}'.")
+
+    reason = (body.reason if body and body.reason else "Rejected by Brand Administrator")
+    ts = now()
+
+    with db() as conn:
+        conn.execute(
+            """
+            UPDATE imported_rule_candidates
+            SET status='REJECTED', reviewed_by=?, reviewed_at=?, review_decision='REJECTED', rejection_reason=?
+            WHERE id=?
+            """,
+            (ctx["actor"], ts, reason, candidate_id)
+        )
+        conn.execute(
+            "UPDATE constitution_imports SET rejected_count=rejected_count+1 WHERE id=?",
+            (cand["import_id"],)
+        )
+
+    audit(
+        cand["import_id"], "CONSTITUTION_CANDIDATE_REJECTED", ctx["actor"], actor_role=ctx["role"],
+        reason=reason,
+        details=json.dumps({"candidate_id": candidate_id}),
+        workspace_id=workspace_id
+    )
+
+    return {"status": "REJECTED", "candidate_id": candidate_id, "reason": reason}
+
+# -----------------------------------------------------------------------------
+# Enterprise Feature 2: Evidence Source Vault
+# -----------------------------------------------------------------------------
+
+@app.get("/api/evidence-sources", response_model=List[EvidenceSourceOut])
+def list_evidence_sources(workspace_id: str = Depends(get_workspace_id)):
+    sources = rows("SELECT * FROM evidence_sources WHERE workspace_id=? ORDER BY created_at DESC", (workspace_id,))
+    out = []
+    for s in sources:
+        sid = s["id"]
+        lr_cnt = len(rows("SELECT id FROM rules WHERE workspace_id=? AND (source_id=? OR source_vault_id=?)", (workspace_id, sid, sid)))
+        lf_cnt = len(rows("SELECT id FROM facts WHERE workspace_id=? AND (source_id=? OR source_vault_id=?)", (workspace_id, sid, sid)))
+        item = dict(s)
+        item["linked_rules_count"] = lr_cnt
+        item["linked_facts_count"] = lf_cnt
+        out.append(item)
+    return out
+
+
+@app.post("/api/evidence-sources", status_code=201, response_model=EvidenceSourceOut)
+def create_evidence_source(
+    src_in: EvidenceSourceIn,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("brand_admin", "reviewer"):
+        raise HTTPException(403, "Reviewer or Brand Admin role required to register evidence sources.")
+    workspace_id = ctx["workspace_id"]
+    sid = ident("src")
+    ts = now()
+    content_hash = src_in.content_hash or hashlib.sha256(src_in.excerpt.encode("utf-8")).hexdigest()
+
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO evidence_sources (
+                id, workspace_id, title, source_type, file_name, url,
+                content_hash, version, page_reference, section_reference,
+                excerpt, owner, verification_status, last_verified_at,
+                effective_at, expires_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                sid, workspace_id, src_in.title, src_in.source_type, src_in.file_name,
+                src_in.url, content_hash, src_in.version, src_in.page_reference,
+                src_in.section_reference, src_in.excerpt, src_in.owner,
+                src_in.verification_status, ts, src_in.effective_at,
+                src_in.expires_at, ts, ts
+            )
+        )
+
+    audit(
+        sid, "EVIDENCE_SOURCE_CREATED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"title": src_in.title, "hash": content_hash, "version": src_in.version}),
+        workspace_id=workspace_id
+    )
+
+    created = row("SELECT * FROM evidence_sources WHERE id=?", (sid,))
+    res = dict(created)
+    res["linked_rules_count"] = 0
+    res["linked_facts_count"] = 0
+    return res
+
+
+@app.get("/api/evidence-sources/{source_id}")
+def get_evidence_source(source_id: str, workspace_id: str = Depends(get_workspace_id)):
+    s = row("SELECT * FROM evidence_sources WHERE id=? AND workspace_id=?", (source_id, workspace_id))
+    if not s:
+        raise HTTPException(404, f"Evidence source '{source_id}' not found.")
+    linked_rules = rows("SELECT id, title, kind, pattern, severity, status FROM rules WHERE workspace_id=? AND (source_id=? OR source_vault_id=?)", (workspace_id, source_id, source_id))
+    linked_facts = rows("SELECT id, claim, value, status, expires_at FROM facts WHERE workspace_id=? AND (source_id=? OR source_vault_id=?)", (workspace_id, source_id, source_id))
+    out = dict(s)
+    out["linked_rules"] = linked_rules
+    out["linked_facts"] = linked_facts
+    out["linked_rules_count"] = len(linked_rules)
+    out["linked_facts_count"] = len(linked_facts)
+    return out
+
+
+@app.put("/api/evidence-sources/{source_id}", response_model=EvidenceSourceOut)
+def update_evidence_source(
+    source_id: str,
+    update: EvidenceSourceUpdateIn,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to modify evidence sources.")
+    workspace_id = ctx["workspace_id"]
+    s = row("SELECT * FROM evidence_sources WHERE id=? AND workspace_id=?", (source_id, workspace_id))
+    if not s:
+        raise HTTPException(404, f"Evidence source '{source_id}' not found.")
+
+    fields = ["updated_at=?"]
+    params = [now()]
+    if update.title is not None:
+        fields.append("title=?")
+        params.append(update.title)
+    if update.source_type is not None:
+        fields.append("source_type=?")
+        params.append(update.source_type)
+    if update.excerpt is not None:
+        fields.append("excerpt=?")
+        params.append(update.excerpt)
+        new_hash = hashlib.sha256(update.excerpt.encode("utf-8")).hexdigest()
+        fields.append("content_hash=?")
+        params.append(new_hash)
+    if update.version is not None:
+        fields.append("version=?")
+        params.append(update.version)
+    if update.verification_status is not None:
+        fields.append("verification_status=?")
+        params.append(update.verification_status)
+    if update.owner is not None:
+        fields.append("owner=?")
+        params.append(update.owner)
+    if update.page_reference is not None:
+        fields.append("page_reference=?")
+        params.append(update.page_reference)
+    if update.section_reference is not None:
+        fields.append("section_reference=?")
+        params.append(update.section_reference)
+    if update.expires_at is not None:
+        fields.append("expires_at=?")
+        params.append(update.expires_at)
+
+    params.extend([source_id, workspace_id])
+    with db() as conn:
+        conn.execute(f"UPDATE evidence_sources SET {', '.join(fields)} WHERE id=? AND workspace_id=?", params)
+
+    audit(
+        source_id, "EVIDENCE_SOURCE_UPDATED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"updated_fields": [f.split("=")[0] for f in fields[:-1]]}),
+        workspace_id=workspace_id
+    )
+
+    updated = row("SELECT * FROM evidence_sources WHERE id=?", (source_id,))
+    res = dict(updated)
+    lr_cnt = len(rows("SELECT id FROM rules WHERE workspace_id=? AND (source_id=? OR source_vault_id=?)", (workspace_id, source_id, source_id)))
+    lf_cnt = len(rows("SELECT id FROM facts WHERE workspace_id=? AND (source_id=? OR source_vault_id=?)", (workspace_id, source_id, source_id)))
+    res["linked_rules_count"] = lr_cnt
+    res["linked_facts_count"] = lf_cnt
+    return res
+
+
+@app.delete("/api/evidence-sources/{source_id}", status_code=204)
+def delete_evidence_source(
+    source_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to delete evidence sources.")
+    workspace_id = ctx["workspace_id"]
+    s = row("SELECT * FROM evidence_sources WHERE id=? AND workspace_id=?", (source_id, workspace_id))
+    if not s:
+        raise HTTPException(404, f"Evidence source '{source_id}' not found.")
+
+    with db() as conn:
+        conn.execute("DELETE FROM evidence_sources WHERE id=? AND workspace_id=?", (source_id, workspace_id))
+
+    audit(source_id, "EVIDENCE_SOURCE_DELETED", ctx["actor"], actor_role=ctx["role"], workspace_id=workspace_id)
+    return Response(status_code=204)
+
+# -----------------------------------------------------------------------------
+# Enterprise Feature 3: Deterministic Rule Conflict Detection
+# -----------------------------------------------------------------------------
+
+@app.post("/api/rules/check-conflicts", response_model=List[RuleConflictOut])
+def check_rule_conflicts(
+    candidate: RuleIn,
+    workspace_id: str = Depends(get_workspace_id),
+):
+    active_rules = rows("SELECT * FROM rules WHERE workspace_id=? AND status='APPROVED'", (workspace_id,))
+    cand_dict = candidate.model_dump()
+    cand_dict["id"] = "PROPOSED_RULE"
+    return check_candidate_conflicts(cand_dict, active_rules)
+
+
+@app.get("/api/governance/rule-conflicts", response_model=List[RuleConflictOut])
+def get_rule_conflicts(workspace_id: str = Depends(get_workspace_id)):
+    active_rules = rows("SELECT * FROM rules WHERE workspace_id=? AND status='APPROVED'", (workspace_id,))
+    return scan_all_rule_conflicts(active_rules)
+
+# -----------------------------------------------------------------------------
+# Enterprise Feature 4: Downloadable Compliance Evidence Packet
+# -----------------------------------------------------------------------------
+
+@app.get("/api/reviews/{review_id}/export-evidence")
+def export_evidence_packet(
+    review_id: str,
+    format: str = "pdf",
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    workspace_id = ctx["workspace_id"]
+    rev = row("SELECT * FROM reviews WHERE id=? AND workspace_id=?", (review_id, workspace_id))
+    if not rev:
+        raise HTTPException(404, f"Review '{review_id}' not found in workspace.")
+
+    audit(
+        review_id, "COMPLIANCE_EVIDENCE_EXPORTED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"export_format": format.lower()}),
+        workspace_id=workspace_id
+    )
+
+    fmt = format.lower().strip()
+    if fmt == "json":
+        packet_json = build_compliance_packet_json(review_id, workspace_id=workspace_id)
+        return JSONResponse(content=packet_json)
+    elif fmt == "pdf":
+        try:
+            pdf_bytes = build_compliance_packet_pdf(review_id, workspace_id=workspace_id)
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="brandtrace-evidence-{review_id}.pdf"'
+                }
+            )
+        except Exception as e:
+            raise HTTPException(500, f"Failed to generate evidence PDF: {str(e)}")
+    else:
+        raise HTTPException(422, f"Unsupported export format '{format}'. Supported formats are 'pdf' and 'json'.")
+
+# -----------------------------------------------------------------------------
+# Enterprise Feature 5: Review Assignment & Collaboration
+# -----------------------------------------------------------------------------
+
+@app.patch("/api/reviews/{review_id}/assignment", response_model=ReviewOut)
+def update_review_assignment(
+    review_id: str,
+    assignment: ReviewAssignmentIn,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    if ctx["role"] not in ("reviewer", "brand_admin"):
+        raise HTTPException(403, "Reviewer or Brand Admin role required to assign reviews.")
+    workspace_id = ctx["workspace_id"]
+    rev = row("SELECT * FROM reviews WHERE id=? AND workspace_id=?", (review_id, workspace_id))
+    if not rev:
+        raise HTTPException(404, f"Review '{review_id}' not found.")
+
+    fields = ["updated_at=?"]
+    params = [now()]
+    if assignment.assigned_to is not None:
+        fields.append("assigned_to=?")
+        params.append(assignment.assigned_to)
+    if assignment.priority is not None:
+        fields.append("priority=?")
+        params.append(assignment.priority)
+    if assignment.due_date is not None:
+        fields.append("due_date=?")
+        params.append(assignment.due_date)
+
+    params.extend([review_id, workspace_id])
+    with db() as conn:
+        conn.execute(f"UPDATE reviews SET {', '.join(fields)} WHERE id=? AND workspace_id=?", params)
+
+    audit(
+        review_id, "REVIEW_ASSIGNMENT_UPDATED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps(assignment.model_dump(exclude_unset=True)),
+        workspace_id=workspace_id
+    )
+
+    return get_review(review_id, workspace_id=workspace_id)
+
+
+@app.get("/api/reviews/{review_id}/comments", response_model=List[ReviewCommentOut])
+def list_review_comments(review_id: str, workspace_id: str = Depends(get_workspace_id)):
+    return rows("SELECT * FROM review_comments WHERE review_id=? AND workspace_id=? ORDER BY created_at ASC", (review_id, workspace_id))
+
+
+@app.post("/api/reviews/{review_id}/comments", status_code=201, response_model=ReviewCommentOut)
+def add_review_comment(
+    review_id: str,
+    comment_in: ReviewCommentIn,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    workspace_id = ctx["workspace_id"]
+    rev = row("SELECT * FROM reviews WHERE id=? AND workspace_id=?", (review_id, workspace_id))
+    if not rev:
+        raise HTTPException(404, f"Review '{review_id}' not found.")
+
+    cid = ident("rem")
+    ts = now()
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO review_comments (
+                id, workspace_id, review_id, finding_id, author, author_role, comment, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (cid, workspace_id, review_id, comment_in.finding_id, ctx["actor"], ctx["role"], comment_in.comment, ts)
+        )
+
+    audit(
+        review_id, "REVIEW_COMMENT_ADDED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"comment_id": cid, "finding_id": comment_in.finding_id}),
+        workspace_id=workspace_id
+    )
+
+    return row("SELECT * FROM review_comments WHERE id=?", (cid,))
+
+# -----------------------------------------------------------------------------
+# Enterprise Feature 6: Proactive Expiry Monitoring & Governance Alerts
+# -----------------------------------------------------------------------------
+
+@app.post("/api/governance/expiry-scan", response_model=ExpiryScanOut)
+def trigger_expiry_scan(ctx: Dict[str, str] = Depends(get_auth_context)):
+    workspace_id = ctx["workspace_id"]
+    res = run_expiry_scan(workspace_id)
+    audit(
+        workspace_id, "GOVERNANCE_EXPIRY_SCAN", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps(res),
+        workspace_id=workspace_id
+    )
+    return res
+
+
+@app.get("/api/governance/expiry-alerts", response_model=List[GovernanceAlertOut])
+def get_governance_alerts(
+    status: Optional[str] = "ACTIVE",
+    workspace_id: str = Depends(get_workspace_id)
+):
+    return list_governance_alerts(workspace_id=workspace_id, status=status)
+
+
+@app.post("/api/governance/expiry-alerts/{alert_id}/acknowledge")
+def acknowledge_alert(
+    alert_id: str,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    workspace_id = ctx["workspace_id"]
+    success = acknowledge_governance_alert(alert_id, workspace_id=workspace_id, actor=ctx["actor"])
+    if not success:
+        raise HTTPException(404, f"Alert '{alert_id}' not found.")
+    audit(
+        workspace_id, "GOVERNANCE_ALERT_ACKNOWLEDGED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"alert_id": alert_id}),
+        workspace_id=workspace_id
+    )
+    return {"status": "ACKNOWLEDGED", "alert_id": alert_id}
+
+
+@app.post("/api/governance/expiry-worker/trigger")
+def trigger_expiry_worker(
+    ctx: Dict[str, str] = Depends(get_auth_context)
+):
+    """
+    Trigger proactive expiry worker with retry loop, re-review generation, and job tracking.
+    """
+    workspace_id = ctx["workspace_id"]
+    job_result = execute_expiry_job(workspace_id=workspace_id, max_retries=3)
+    audit(
+        workspace_id, "EXPIRY_WORKER_EXECUTED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"job_id": job_result.get("job_id"), "status": job_result.get("job_status")}),
+        workspace_id=workspace_id
+    )
+    return job_result
+
+
+@app.get("/api/governance/expiry-jobs")
+def get_expiry_jobs(
+    limit: int = 20,
+    workspace_id: str = Depends(get_workspace_id)
+):
+    """List execution history of scheduled governance jobs."""
+    return list_governance_jobs(workspace_id=workspace_id, limit=limit)
+
+
+@app.get("/api/brand-assets/{asset_id}/similarity")
+def check_asset_similarity(
+    asset_id: str,
+    target_asset_id: str,
+    workspace_id: str = Depends(get_workspace_id)
+):
+    """Compute perceptual similarity score between two registered brand assets."""
+    a1 = row("SELECT * FROM brand_assets WHERE id=? AND workspace_id=?", (asset_id, workspace_id))
+    a2 = row("SELECT * FROM brand_assets WHERE id=? AND workspace_id=?", (target_asset_id, workspace_id))
+    if not a1 or not a2:
+        raise HTTPException(404, "One or both brand assets not found in workspace.")
+
+    hash1 = a1.get("perceptual_hash") or a1.get("content_hash", "")[:16]
+    hash2 = a2.get("perceptual_hash") or a2.get("content_hash", "")[:16]
+    similarity = perceptual_similarity_score(hash1, hash2)
+    return {
+        "asset_1": a1["name"],
+        "asset_2": a2["name"],
+        "similarity_score": similarity,
+        "is_perceptually_equivalent": similarity >= 90.0,
+    }
+
+
+@app.post("/api/documents/ocr", response_model=OcrResponseOut)
+async def process_document_ocr(
+    file: UploadFile = File(...),
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """
+    Provider-independent OCR endpoint for scanned PDFs and graphic image assets.
+    Extracts text with confidence scoring, detected word counts, and page breakdown.
+    """
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File exceeds upload limits.")
+
+    filename = (file.filename or "").lower()
+    mime = (file.content_type or "").lower()
+
+    if filename.endswith(".pdf") or "pdf" in mime or file_bytes[:4] == b"%PDF":
+        res = ocr_pipeline.process_pdf(file_bytes)
+        file_type = "pdf"
+        conf = 1.0 if res.get("digital_pages", 0) > 0 and res.get("scanned_pages", 0) == 0 else 0.85
+        total_p = res.get("total_pages", 1)
+        scanned_p = res.get("scanned_pages", 0)
+        digital_p = res.get("digital_pages", 0)
+        text = res.get("extracted_text", "")
+        method = res.get("extraction_method", "HYBRID_OCR")
+        words = len(text.split()) if text else 0
+        pages = res.get("pages", [])
+    elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")) or mime.startswith("image/"):
+        res = ocr_pipeline.process_image(file_bytes)
+        file_type = "image"
+        conf = float(res.get("confidence", 0.0))
+        total_p = 1
+        scanned_p = 1
+        digital_p = 0
+        text = res.get("extracted_text", "")
+        method = f"OCR_{res.get('ocr_engine', 'EASYOCR')}"
+        words = int(res.get("words_detected", 0))
+        pages = [res]
+    else:
+        raise HTTPException(415, "Unsupported file format for OCR. Provide PDF, PNG, or JPEG.")
+
+    audit(
+        ctx["workspace_id"], "OCR_EXTRACTION_PERFORMED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({"filename": filename, "method": method, "words": words}),
+        workspace_id=ctx["workspace_id"]
+    )
+
+    return {
+        "status": "SUCCESS" if text else "EMPTY",
+        "file_type": file_type,
+        "total_pages": total_p,
+        "scanned_pages": scanned_p,
+        "digital_pages": digital_p,
+        "extracted_text": text,
+        "confidence": round(conf, 3),
+        "words_detected": words,
+        "extraction_method": method,
+        "pages": pages,
+    }
+
+
+@app.post("/api/brand-assets/placement-check", response_model=LogoPlacementOut)
+async def check_logo_placement(
+    canvas_file: UploadFile = File(...),
+    template_file: UploadFile = File(...),
+    expected_location: Optional[str] = Form(None),
+    min_scale_pct: float = Form(4.0),
+    max_scale_pct: float = Form(40.0),
+    required_clearspace_ratio: float = Form(0.5),
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """
+    Computer vision logo detection and clearspace verification.
+    Validates bounding box, relative quadrant, scale percentage, and clearspace exclusion zone (M >= 0.5H).
+    """
+    canvas_bytes = await canvas_file.read()
+    template_bytes = await template_file.read()
+
+    try:
+        result = detect_logo_placement(
+            canvas_bytes=canvas_bytes,
+            template_logo_bytes=template_bytes,
+            expected_location=expected_location,
+            min_scale_pct=min_scale_pct,
+            max_scale_pct=max_scale_pct,
+            required_clearspace_ratio=required_clearspace_ratio,
+        )
+    except Exception as e:
+        raise HTTPException(422, f"Logo placement detection failed: {str(e)}")
+
+    audit(
+        ctx["workspace_id"], "LOGO_PLACEMENT_EVALUATED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({
+            "matched": result["matched"],
+            "compliant": result["placement_compliant"],
+            "detected_location": result["relative_position"]["detected_location"] if result["matched"] else "NONE",
+        }),
+        workspace_id=ctx["workspace_id"]
+    )
+
+    return result
+
+
+@app.post("/api/documents/typography-check", response_model=TypographyComplianceOut)
+async def check_typography_compliance(
+    file: UploadFile = File(...),
+    approved_fonts: Optional[str] = Form(None),
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """
+    Extract embedded font metadata from PDFs or analyze raster text typography.
+    Evaluates font family and style compliance against Brand Constitution guidelines.
+    """
+    doc_bytes = await file.read()
+    filename = (file.filename or "").lower()
+    mime = (file.content_type or "").lower()
+    file_type = "pdf" if (filename.endswith(".pdf") or "pdf" in mime or doc_bytes[:4] == b"%PDF") else "image"
+
+    font_list = None
+    if approved_fonts:
+        font_list = [f.strip() for f in approved_fonts.split(",") if f.strip()]
+
+    if not font_list:
+        font_list = ["Inter", "Helvetica", "Arial", "Roboto", "Montserrat", "Segoe UI"]
+
+    try:
+        result = evaluate_typography_compliance(
+            document_bytes=doc_bytes,
+            file_type=file_type,
+            approved_fonts=font_list,
+        )
+    except Exception as e:
+        raise HTTPException(422, f"Typography analysis failed: {str(e)}")
+
+    audit(
+        ctx["workspace_id"], "TYPOGRAPHY_COMPLIANCE_EVALUATED", ctx["actor"], actor_role=ctx["role"],
+        details=json.dumps({
+            "file_type": file_type,
+            "compliant": result["compliant"],
+            "detected_fonts_count": len(result["detected_fonts"]),
+        }),
+        workspace_id=ctx["workspace_id"]
+    )
+
+    return result
+
+
+@app.post("/api/governance/expiry-worker/start-scheduler")
+def start_expiry_scheduler(
+    interval_seconds: int = 3600,
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """Start background expiry and re-review scheduler worker."""
+    if ctx["role"] not in ("brand_admin", "admin"):
+        raise HTTPException(403, "Only brand_admin can manage background scheduler.")
+    scheduler_worker.check_interval_seconds = interval_seconds
+    scheduler_worker.start()
+    return {"status": "RUNNING", "interval_seconds": interval_seconds}
+
+
+@app.post("/api/governance/expiry-worker/stop-scheduler")
+def stop_expiry_scheduler(
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """Stop background expiry scheduler worker."""
+    if ctx["role"] not in ("brand_admin", "admin"):
+        raise HTTPException(403, "Only brand_admin can manage background scheduler.")
+    scheduler_worker.stop()
+    return {"status": "STOPPED"}
+
+
+@app.get("/api/governance/expiry-worker/status", response_model=WorkerStatusOut)
+def get_expiry_worker_status_endpoint(
+    ctx: Dict[str, str] = Depends(get_auth_context),
+):
+    """Get status of background expiry worker and recent governance audit jobs."""
+    return get_worker_status()
+
 
 if __name__ == "__main__":
     import uvicorn

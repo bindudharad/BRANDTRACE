@@ -81,12 +81,12 @@ def isolated_db(monkeypatch):
         temp_db_path = tf.name
     temp_url = f"sqlite:///{temp_db_path}"
     monkeypatch.setenv("DATABASE_URL", temp_url)
-    
+
     # Re-bind the engine and initialize clean schema
     get_engine()
     init_db()
     yield
-    
+
     # Clean up file descriptor and temporary file on disk
     try:
         os.remove(temp_db_path)

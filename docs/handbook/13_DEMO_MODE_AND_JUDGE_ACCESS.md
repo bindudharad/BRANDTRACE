@@ -27,7 +27,7 @@ BRANDTRACE adheres strictly to the organizer's demo guideline:
 graph TD
     Judge["Evaluator / Judge"] --> Modal["Judge Access Center (JudgeAccessModal.tsx)"]
     Modal --> SwitchRole["Select Persona"]
-    
+
     subgraph Available Personas
         P1["Compliance Reviewer (Recommended)"]
         P2["Brand Administrator"]
@@ -72,22 +72,22 @@ graph TD
 
 To protect the shared hosted demonstration database (PostgreSQL on Neon), strict guardrails are enforced in hosted environments (`ENVIRONMENT=staging`):
 
-1. **Destructive Reset Disabled:**  
+1. **Destructive Reset Disabled:**
    `POST /api/demo/reset` is disabled by default. Calling this endpoint without a valid server-side `DEMO_RESET_SECRET` immediately returns `HTTP 403 Forbidden`. Evaluators cannot accidentally or maliciously purge shared demo reviews.
-2. **Simulated Headers Cannot Authorize Resets:**  
+2. **Simulated Headers Cannot Authorize Resets:**
    Passing `X-Demo-Role: brand_admin` alone is insufficient to trigger database truncation. Reset operations require strict backend secrets.
-3. **Ephemeral Test Isolation:**  
+3. **Ephemeral Test Isolation:**
    All automated browser QA tests and destructive unit test suites run exclusively against temporary SQLite databases (`tempfile.NamedTemporaryFile`) on dedicated local ports. No test suite touches the live hosted database.
 
 ---
 
 ## How Evaluators Access the Application
 
-1. **Through the Landing Page:**  
+1. **Through the Landing Page:**
    Click the **"Judge Access"** button in the hero section or the **"Judge Mode"** button in the top navigation bar.
-2. **In the Workspace:**  
+2. **In the Workspace:**
    Use the **"Simulated Role"** dropdown located in the left sidebar to switch personas dynamically. A toast notification confirms role transition and summarizes permission boundaries.
-3. **Guided Walkthrough:**  
+3. **Guided Walkthrough:**
    Click **"Take Judge Tour"** to launch the 8-step interactive tour explaining verified technical invariants across the system.
 
 ---

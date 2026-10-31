@@ -1,5 +1,5 @@
 """
-Runs all 14 backend test files under default SQLite configuration.
+Runs all 25 backend test files under default SQLite configuration.
 Ensures DATABASE_URL is not set prior to invocation so that conftest.py
 creates isolated temporary SQLite databases for each test run.
 """
@@ -20,6 +20,7 @@ test_files = [
     "test_content_review_actions.py",
     "test_defect_repairs_round3.py",
     "test_disposition_integrity.py",
+    "test_enterprise_features_round3.py",
     "test_groq_and_doc_intelligence.py",
     "test_pdf_parser.py",
     "test_postgresql_compatibility.py",
@@ -30,6 +31,14 @@ test_files = [
     "test_round3_guideline_health.py",
     "test_round3_visual.py",
     "test_round3_visual_benchmark.py",
+    "test_round3_advanced_capabilities.py",
+    "test_mandatory_e2e_journey.py",
+    "test_zero_deferred_capabilities.py",
+    "test_round3_comprehensive_security.py",
+    "test_scenario_a_claim_ledger_acceptance.py",
+    "test_scenario_b_visual_compliance_acceptance.py",
+    "test_scenario_c_guideline_health_acceptance.py",
+    "test_ui_trust_and_accuracy.py",
 ]
 
 def main():
