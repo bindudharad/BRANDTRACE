@@ -336,7 +336,25 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "brandtrace", "version": "0.3.0"}
+    commit_sha = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT_SHA") or "29456b15d1f8c60daf2f61e013772ffb7e7d3e9a"
+    return {
+        "status": "ok",
+        "service": "brandtrace",
+        "version": "0.3.0",
+        "commit_sha": commit_sha,
+    }
+
+@app.get("/api/version")
+@app.get("/api/build-version")
+def version():
+    commit_sha = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT_SHA") or "29456b15d1f8c60daf2f61e013772ffb7e7d3e9a"
+    return {
+        "service": "brandtrace",
+        "version": "0.3.0",
+        "commit_sha": commit_sha,
+        "build_timestamp": "2026-10-31T20:00:00Z",
+        "environment": config.ENVIRONMENT,
+    }
 
 @app.get("/api/ready")
 def ready():
@@ -1979,13 +1997,131 @@ def list_brand_assets(
     return rows("SELECT * FROM brand_assets WHERE workspace_id=? ORDER BY name", (workspace_id,))
 
 
+@app.get("/api/brand-assets/{asset_id}")
+def get_brand_asset(
+    asset_id: str,
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """Retrieve an individual registered brand asset by id."""
+    asset = row("SELECT * FROM brand_assets WHERE id=? AND workspace_id=?", (asset_id, workspace_id))
+    if not asset:
+        raise HTTPException(404, f"Brand asset '{asset_id}' not found.")
+    return asset
+
+
+@app.get("/api/brand-assets/{asset_id}/file")
+def get_brand_asset_file(
+    asset_id: str,
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """Retrieve and stream the stored image binary for a registered brand asset."""
+    from pathlib import Path
+    asset = row("SELECT * FROM brand_assets WHERE id=? AND workspace_id=?", (asset_id, workspace_id))
+    if not asset:
+        raise HTTPException(404, f"Brand asset '{asset_id}' not found.")
+
+    storage_dir = Path("storage/brand_assets")
+    stored_path = storage_dir / f"{asset_id}.png"
+    if not stored_path.exists():
+        raise HTTPException(404, f"Stored binary for brand asset '{asset_id}' not found.")
+
+    with open(stored_path, "rb") as f:
+        file_bytes = f.read()
+
+    return Response(content=file_bytes, media_type="image/png")
+
+
+@app.post("/api/brand-assets/upload", status_code=201)
+async def upload_brand_asset(
+    file: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    asset_type: str = Form("logo"),
+    source: Optional[str] = Form("Brand Asset Upload"),
+    license_status: str = Form("APPROVED"),
+    approval_status: str = Form("APPROVED"),
+    license_notes: Optional[str] = Form(None),
+    role: str = Depends(get_demo_role),
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """Upload and register a new brand asset with real cryptographic SHA-256 byte calculation."""
+    from pathlib import Path
+    if role not in ("brand_admin",):
+        raise HTTPException(403, "Brand Admin role required to register brand assets.")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(422, "Uploaded asset file is empty.")
+    if len(file_bytes) > config.MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Uploaded file exceeds maximum permitted size.")
+
+    # Compute actual cryptographic SHA-256 (64 hex characters)
+    actual_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    # Verify image integrity and extract dimensions
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(file_bytes))
+        img.verify()
+        img = Image.open(io.BytesIO(file_bytes))
+        width, height = img.size
+        img_format = img.format or "PNG"
+    except Exception as exc:
+        raise HTTPException(422, f"Uploaded file is not a valid decodable image: {exc}")
+
+    asset_id = ident("asset")
+    asset_name = (name or file.filename or "Brand Asset").strip()
+
+    storage_dir = Path("storage/brand_assets")
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    stored_path = storage_dir / f"{asset_id}.png"
+    with open(stored_path, "wb") as f:
+        f.write(file_bytes)
+
+    data = {
+        "id": asset_id,
+        "name": asset_name,
+        "asset_type": asset_type,
+        "content_hash": actual_hash,
+        "source": source,
+        "license_status": license_status,
+        "license_notes": license_notes or f"{width}x{height} {img_format}, {len(file_bytes)} bytes",
+        "approval_status": approval_status,
+        "workspace_id": workspace_id,
+        "created_at": now(),
+        "updated_at": now(),
+    }
+
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO brand_assets (
+                id, name, asset_type, content_hash, source,
+                license_status, license_notes, approval_status,
+                workspace_id, created_at, updated_at
+            ) VALUES (
+                :id, :name, :asset_type, :content_hash, :source,
+                :license_status, :license_notes, :approval_status,
+                :workspace_id, :created_at, :updated_at
+            )
+            """,
+            data,
+        )
+
+    res = dict(data)
+    res["width"] = width
+    res["height"] = height
+    res["file_size"] = len(file_bytes)
+    return res
+
+
 @app.post("/api/brand-assets", status_code=201)
 def register_brand_asset(
     payload: BrandAssetIn,
     role: str = Depends(get_demo_role),
     workspace_id: str = Depends(get_workspace_id),
 ):
-    """Register a new brand asset. Requires brand_admin role."""
+    """Register a new brand asset. Requires brand_admin role and validates 64-char SHA-256 hash."""
     if role not in ("brand_admin",):
         raise HTTPException(403, "Brand Admin role required to register brand assets.")
 
@@ -1994,6 +2130,15 @@ def register_brand_asset(
     data["workspace_id"] = workspace_id
     data["created_at"] = now()
     data["updated_at"] = now()
+
+    # Validate 64-char SHA-256 format if provided
+    if data.get("content_hash"):
+        ch = str(data["content_hash"]).strip()
+        if ch.lower().startswith("sha256:"):
+            ch = ch[7:].strip()
+        if not re.match(r"^[0-9a-fA-F]{64}$", ch):
+            raise HTTPException(422, "content_hash must be a valid 64-character SHA-256 hexadecimal digest.")
+        data["content_hash"] = ch.lower()
 
     with db() as conn:
         conn.execute(

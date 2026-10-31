@@ -1,6 +1,6 @@
 # BRANDTRACE — FRONTEND & BACKEND COVERAGE MATRIX
 **Traceability Scope:** UI Interaction &rarr; REST API Route &rarr; Service Function &rarr; Database Entity.
-**Verification Date:** 2026-10-31 14:00:59 UTC
+**Verification Date:** 2026-10-31 16:14:48 UTC
 
 | UI Action / Feature | Frontend Service Call | Backend API Route | Service Logic | Database Entity | Verification Status |
 | :--- | :--- | :--- | :--- | :--- | :---: |

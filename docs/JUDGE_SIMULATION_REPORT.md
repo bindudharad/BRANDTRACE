@@ -36,7 +36,7 @@ To prevent test data contamination, a dedicated synthetic corporate profile was 
   1. `Product Availability Claim`: `"99.5% monthly service availability in a defined demonstration period."` (Source: Aster Labs Synthetic Service Report).
   2. `Workflow Efficiency Claim`: `"Internal benchmarks demonstrate an average 20% workflow efficiency improvement for enterprise teams."` (Source: Aster Labs Internal Benchmark QA-2026).
 * **1 Registered Brand Asset:**
-  - `Aster Labs Primary Logo` (SHA-256: `da39a3ee5e6b4b0d3255bfef95601890afd80709`).
+  - `Aster Labs Primary Logo` (SHA-256: `e1c1af0eb77d01404bd5297ec082444629fa257ee1017263c697907f7e390ec5`).
 * **Evaluated Marketing Draft:**
   > *"Discover why Aster Labs is the best enterprise platform for modern businesses. Get guaranteed results with zero risk. Our platform delivers 99.9% uptime and saves every organisation 50% of its time. Our intelligent automation solution is completely error free and delivers uninterrupted performance across every region."*
 

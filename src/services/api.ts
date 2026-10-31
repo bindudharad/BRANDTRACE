@@ -823,8 +823,11 @@ export const api = {
   health: () => call<HealthStatus>('/api/health'),
   ready: () => call<ReadyStatus>('/api/ready'),
   brandAssets: () => call<BrandAsset[]>('/api/brand-assets'),
+  getBrandAsset: (id: string) => call<BrandAsset>(`/api/brand-assets/${id}`),
   registerAsset: (body: Partial<BrandAsset>) =>
     call<BrandAsset>('/api/brand-assets', { method: 'POST', body: JSON.stringify(body) }),
+  uploadAssetFile: (formData: FormData) =>
+    call<BrandAsset & { width?: number; height?: number; file_size?: number }>('/api/brand-assets/upload', { method: 'POST', body: formData }),
   updateAsset: (id: string, body: Partial<BrandAsset>) =>
     call<BrandAsset>(`/api/brand-assets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteAsset: (id: string) =>

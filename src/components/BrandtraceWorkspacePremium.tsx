@@ -287,6 +287,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
   const [isTourModalOpen, setIsTourModalOpen] = useState(initialTourOpen || false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [assetFile, setAssetFile] = useState<File | null>(null);
   const [newAsset, setNewAsset] = useState<Partial<BrandAsset>>({
     name: '',
     asset_type: 'image',
@@ -296,6 +297,22 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
     approval_status: 'APPROVED',
     license_notes: '',
   });
+
+  const handleAssetFileChange = async (file: File) => {
+    setAssetFile(file);
+    if (!newAsset.name) {
+      setNewAsset(prev => ({ ...prev, name: file.name.replace(/\.[^/.]+$/, "") }));
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      setNewAsset(prev => ({ ...prev, content_hash: hashHex }));
+    } catch (err) {
+      console.warn("Could not compute browser SHA-256", err);
+    }
+  };
 
   // Review submission state
   const [title, setTitle] = useState('Launch announcement — Q4');
@@ -864,9 +881,21 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
     e.preventDefault();
     if (!newAsset.name) return;
     try {
-      await api.registerAsset(newAsset);
+      if (assetFile) {
+        const fd = new FormData();
+        fd.append('file', assetFile);
+        fd.append('name', newAsset.name);
+        fd.append('asset_type', newAsset.asset_type || 'logo');
+        fd.append('approval_status', newAsset.approval_status || 'APPROVED');
+        if (newAsset.source) fd.append('source', newAsset.source);
+        if (newAsset.license_notes) fd.append('license_notes', newAsset.license_notes);
+        await api.uploadAssetFile(fd);
+      } else {
+        await api.registerAsset(newAsset);
+      }
       await refresh();
       setIsAssetModalOpen(false);
+      setAssetFile(null);
       setSuccess(`Asset '${newAsset.name}' registered in brand registry.`);
       setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
@@ -3170,6 +3199,23 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                   placeholder="e.g. Primary Horizontal Logo 2026"
                   required
                 />
+              </div>
+              <div>
+                <label className="label-sm">Upload Binary Logo/Graphic (Auto-Computes SHA-256)</label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml"
+                  className="input-premium"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleAssetFileChange(f);
+                  }}
+                />
+                {assetFile && (
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#10B981' }}>
+                    Loaded: {assetFile.name} ({(assetFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>

@@ -39,6 +39,7 @@ test_files = [
     "test_scenario_b_visual_compliance_acceptance.py",
     "test_scenario_c_guideline_health_acceptance.py",
     "test_ui_trust_and_accuracy.py",
+    "test_brand_asset_hash_validation.py",
 ]
 
 def main():

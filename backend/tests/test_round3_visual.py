@@ -60,7 +60,7 @@ async def test_brand_asset_registry_crud():
             json={
                 'name': 'Primary Logo Vector',
                 'asset_type': 'image',
-                'content_hash': 'sha256_mock_hash_val_123',
+                'content_hash': '112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00',
                 'source': 'Figma Assets 2026',
                 'license_status': 'APPROVED',
                 'license_notes': 'Owned outright by Brand',
