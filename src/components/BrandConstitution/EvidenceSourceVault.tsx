@@ -51,6 +51,16 @@ export const EvidenceSourceVault: React.FC<EvidenceSourceVaultProps> = ({
   const [newExpiresAt, setNewExpiresAt] = useState('');
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+  // Edit Source State
+  const [editingSource, setEditingSource] = useState<EvidenceSource | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editExcerpt, setEditExcerpt] = useState('');
+  const [editVersion, setEditVersion] = useState('1.0');
+  const [editSectionRef, setEditSectionRef] = useState('');
+  const [editStatus, setEditStatus] = useState<'VERIFIED' | 'PENDING_VERIFICATION' | 'EXPIRED' | 'SUPERSEDED'>('VERIFIED');
+  const [editExpiresAt, setEditExpiresAt] = useState('');
+
   useEffect(() => {
     loadSources();
   }, []);
@@ -99,6 +109,49 @@ export const EvidenceSourceVault: React.FC<EvidenceSourceVaultProps> = ({
       loadSources();
     } catch (err: any) {
       setError(err?.message || 'Failed to register evidence source.');
+    }
+  };
+
+  const handleOpenEdit = (s: EvidenceSource) => {
+    setEditingSource(s);
+    setEditTitle(s.title);
+    setEditExcerpt(s.excerpt);
+    setEditVersion(s.version || '1.0');
+    setEditSectionRef(s.section_reference || '');
+    setEditStatus(s.verification_status);
+    setEditExpiresAt(s.expires_at ? s.expires_at.slice(0, 10) : '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSource) return;
+    try {
+      await api.updateEvidenceSource(editingSource.id, {
+        title: editTitle,
+        excerpt: editExcerpt,
+        version: editVersion,
+        section_reference: editSectionRef || undefined,
+        verification_status: editStatus,
+        expires_at: editExpiresAt ? `${editExpiresAt}T00:00:00Z` : undefined,
+      });
+      setIsEditModalOpen(false);
+      setEditingSource(null);
+      setActionSuccess('Evidence source updated successfully.');
+      loadSources();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update evidence source.');
+    }
+  };
+
+  const handleDeleteSource = async (id: string, title: string) => {
+    if (!window.confirm(`Are you sure you want to delete evidence source "${title}"?`)) return;
+    try {
+      await api.deleteEvidenceSource(id);
+      setActionSuccess('Evidence source deleted successfully.');
+      loadSources();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete evidence source.');
     }
   };
 
@@ -407,6 +460,33 @@ export const EvidenceSourceVault: React.FC<EvidenceSourceVaultProps> = ({
                         <b>Section Reference:</b> {s.section_reference}
                       </div>
                     )}
+
+                    {/* Admin Actions */}
+                    {role === 'brand_admin' && (
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEdit(s);
+                          }}
+                        >
+                          Edit Source Details
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          style={{ color: '#DC2626' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSource(s.id, s.title);
+                          }}
+                        >
+                          Delete Source
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -575,6 +655,141 @@ export const EvidenceSourceVault: React.FC<EvidenceSourceVaultProps> = ({
                 </button>
                 <button type="submit" className="btn-primary btn-sm">
                   Register Source & Generate Hash
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Source Modal */}
+      {isEditModalOpen && editingSource && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1100,
+            backgroundColor: 'rgba(10, 36, 27, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            className="card-premium"
+            style={{
+              width: '100%',
+              maxWidth: 580,
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#123B2D' }}>
+                Edit Evidence Source Details
+              </h3>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={18} color="#617168" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+                  Source Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #DCE5DF', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+                    Version
+                  </label>
+                  <input
+                    type="text"
+                    value={editVersion}
+                    onChange={(e) => setEditVersion(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #DCE5DF', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+                    Verification Status
+                  </label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #DCE5DF', fontSize: 13, boxSizing: 'border-box', backgroundColor: '#FFFFFF' }}
+                  >
+                    <option value="VERIFIED">VERIFIED</option>
+                    <option value="PENDING_VERIFICATION">PENDING VERIFICATION</option>
+                    <option value="EXPIRED">EXPIRED</option>
+                    <option value="SUPERSEDED">SUPERSEDED</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+                  Section Reference
+                </label>
+                <input
+                  type="text"
+                  value={editSectionRef}
+                  onChange={(e) => setEditSectionRef(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #DCE5DF', fontSize: 13, boxSizing: 'border-box' }}
+                  placeholder="e.g. Section 4.2: Prohibited Vocabulary"
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+                  Supporting Excerpt *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={editExcerpt}
+                  onChange={(e) => setEditExcerpt(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #DCE5DF', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+                  Expiration Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={editExpiresAt}
+                  onChange={(e) => setEditExpiresAt(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #DCE5DF', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  onClick={() => setIsEditModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary btn-sm">
+                  Save Changes
                 </button>
               </div>
             </form>

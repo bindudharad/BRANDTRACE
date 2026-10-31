@@ -16,7 +16,9 @@ import {
   AuditEntry,
   FactVersion,
   GovernanceAlert,
+  RuleConflict,
 } from '../services/api';
+import { VisualIntelligenceModal } from './VisualIntelligence/VisualIntelligenceModal';
 import { GuidelineImportModal } from './BrandConstitution/GuidelineImportModal';
 import { EvidenceSourceVault } from './BrandConstitution/EvidenceSourceVault';
 import { RuleConflictModal } from './BrandConstitution/RuleConflictModal';
@@ -44,6 +46,7 @@ import {
   EvidenceDecisionChain,
   GuidelineHealthMeters,
   HonestLimitationsBanner,
+  ExpiryWorkerPanel,
 } from './analytics';
 import {
   LayoutDashboard,
@@ -80,6 +83,9 @@ import {
   Download,
   MessageSquare,
   Calendar,
+  Eye,
+  Maximize2,
+  Type,
 } from 'lucide-react';
 
 export type View =
@@ -309,6 +315,29 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [expiryAlerts, setExpiryAlerts] = useState<GovernanceAlert[]>([]);
+
+  // Visual Intelligence Modal State
+  const [isVisualIntelModalOpen, setIsVisualIntelModalOpen] = useState(false);
+  const [visualIntelTab, setVisualIntelTab] = useState<'logo' | 'typography' | 'ocr'>('logo');
+
+  // Asset Similarity Compare State
+  const [isAssetCompareOpen, setIsAssetCompareOpen] = useState(false);
+  const [compareSourceAsset, setCompareSourceAsset] = useState<BrandAsset | null>(null);
+  const [compareTargetId, setCompareTargetId] = useState<string>('');
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [similarityResult, setSimilarityResult] = useState<any>(null);
+  const [similarityError, setSimilarityError] = useState<string | null>(null);
+
+  // Asset Edit State
+  const [isAssetEditOpen, setIsAssetEditOpen] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<BrandAsset | null>(null);
+  const [editAssetStatus, setEditAssetStatus] = useState<string>('APPROVED');
+  const [editAssetLicense, setEditAssetLicense] = useState<string>('PROPRIETARY');
+  const [editAssetNotes, setEditAssetNotes] = useState<string>('');
+
+  // Preflight Conflict Detection State
+  const [preflightConflicts, setPreflightConflicts] = useState<RuleConflict[]>([]);
+  const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
   const [newRule, setNewRule] = useState<Partial<Rule>>({
     title: '',
     category: 'terminology',
@@ -854,6 +883,56 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  const handleOpenCompareAsset = (asset: BrandAsset) => {
+    setCompareSourceAsset(asset);
+    const otherAssets = brandAssets.filter((a) => a.id !== asset.id);
+    setCompareTargetId(otherAssets.length > 0 ? otherAssets[0].id : '');
+    setSimilarityResult(null);
+    setSimilarityError(null);
+    setIsAssetCompareOpen(true);
+  };
+
+  const handleRunSimilarityCheck = async () => {
+    if (!compareSourceAsset || !compareTargetId) return;
+    setCompareLoading(true);
+    setSimilarityError(null);
+    try {
+      const res = await api.checkAssetSimilarity(compareSourceAsset.id, compareTargetId);
+      setSimilarityResult(res);
+    } catch (err: any) {
+      setSimilarityError(err?.message || 'Failed to compare asset similarity.');
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
+  const handleOpenEditAsset = (asset: BrandAsset) => {
+    setEditingAsset(asset);
+    setEditAssetStatus(asset.approval_status);
+    setEditAssetLicense(asset.license_status);
+    setEditAssetNotes(asset.license_notes || '');
+    setIsAssetEditOpen(true);
+  };
+
+  const handleSaveEditAsset = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingAsset) return;
+    try {
+      await api.updateAsset(editingAsset.id, {
+        approval_status: editAssetStatus,
+        license_status: editAssetLicense,
+        license_notes: editAssetNotes,
+      });
+      setIsAssetEditOpen(false);
+      setEditingAsset(null);
+      await refresh();
+      setSuccess('Brand asset updated successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update brand asset.');
     }
   };
 
@@ -1864,11 +1943,23 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                         Cryptographically registered brand assets with SHA-256 hash validation and license status tracking.
                       </p>
                     </div>
-                    {role === 'brand_admin' && (
-                      <button className="btn-primary btn-sm" onClick={() => setIsAssetModalOpen(true)}>
-                        <Plus size={14} /> Register Brand Asset
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => {
+                          setVisualIntelTab('logo');
+                          setIsVisualIntelModalOpen(true);
+                        }}
+                      >
+                        <Eye size={14} /> Visual Intelligence Tools
                       </button>
-                    )}
+                      {role === 'brand_admin' && (
+                        <button className="btn-primary btn-sm" onClick={() => setIsAssetModalOpen(true)}>
+                          <Plus size={14} /> Register Brand Asset
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {brandAssets.length > 0 ? (
@@ -1907,15 +1998,37 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                               </div>
                             )}
                           </div>
-                          {role === 'brand_admin' && (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                             <button
-                              className="btn-danger btn-sm"
-                              onClick={() => handleDeleteAsset(asset.id, asset.name)}
+                              type="button"
+                              className="btn-secondary btn-sm"
+                              onClick={() => handleOpenCompareAsset(asset)}
                               style={{ padding: '4px 10px', fontSize: 11, minHeight: 32 }}
+                              title="Compare perceptual similarity with another registered asset"
                             >
-                              Delete
+                              Compare Similarity
                             </button>
-                          )}
+                            {role === 'brand_admin' && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn-secondary btn-sm"
+                                  onClick={() => handleOpenEditAsset(asset)}
+                                  style={{ padding: '4px 10px', fontSize: 11, minHeight: 32 }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-danger btn-sm"
+                                  onClick={() => handleDeleteAsset(asset.id, asset.name)}
+                                  style={{ padding: '4px 10px', fontSize: 11, minHeight: 32 }}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1930,9 +2043,46 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
               {/* Visual Brand Profile Tab */}
               {constTab === 'profile' && (
                 <div className="card-premium">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Visual Brand Standards & Palette</h2>
-                    {role === 'brand_admin' && <span className="badge-status badge-supported">Editable by Brand Admin</span>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Visual Brand Standards & Palette</h2>
+                      <p style={{ margin: '4px 0 0', fontSize: 13, color: '#617168' }}>
+                        Brand colour palettes, WCAG 2.1 contrast ratios, and automated visual intelligence tools.
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => {
+                          setVisualIntelTab('logo');
+                          setIsVisualIntelModalOpen(true);
+                        }}
+                      >
+                        <Maximize2 size={13} /> Logo Placement
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => {
+                          setVisualIntelTab('typography');
+                          setIsVisualIntelModalOpen(true);
+                        }}
+                      >
+                        <Type size={13} /> Typography Check
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => {
+                          setVisualIntelTab('ocr');
+                          setIsVisualIntelModalOpen(true);
+                        }}
+                      >
+                        <FileText size={13} /> Standalone OCR
+                      </button>
+                      {role === 'brand_admin' && <span className="badge-status badge-supported">Admin Editable</span>}
+                    </div>
                   </div>
                   <div style={{ maxWidth: 640, display: 'grid', gap: 20 }}>
                     <div>
@@ -2810,6 +2960,7 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
               onRuleSuggestionAction={handleRuleSuggestionAction}
               onActivateSuggestion={handleActivateSuggestion}
               onTriggerReReview={handleTriggerImpactReReview}
+              onRefreshNeeded={refresh}
               onNavigateToDraft={(reviewId: string) => {
                 const r = reviews.find((x) => x.id === reviewId);
                 if (r) {
@@ -2911,14 +3062,47 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
                 </div>
               </div>
               <div>
-                <label className="label-sm">Match Pattern</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label className="label-sm" style={{ margin: 0 }}>Match Pattern</label>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={async () => {
+                      if (!newRule.pattern) return;
+                      setIsCheckingConflicts(true);
+                      try {
+                        const conflicts = await api.checkRuleConflicts(newRule);
+                        setPreflightConflicts(conflicts);
+                      } catch {
+                        // ignore
+                      } finally {
+                        setIsCheckingConflicts(false);
+                      }
+                    }}
+                    disabled={isCheckingConflicts || !newRule.pattern}
+                    style={{ fontSize: 11, padding: '2px 8px', minHeight: 24 }}
+                  >
+                    {isCheckingConflicts ? 'Checking Conflicts...' : 'Check Pre-Flight Conflicts'}
+                  </button>
+                </div>
                 <input
                   className="input-premium"
                   value={newRule.pattern}
-                  onChange={(e) => setNewRule({ ...newRule, pattern: e.target.value })}
+                  onChange={(e) => {
+                    setNewRule({ ...newRule, pattern: e.target.value });
+                    if (preflightConflicts.length > 0) setPreflightConflicts([]);
+                  }}
                   placeholder="e.g. cheap, best, or required disclaimer"
                   required
                 />
+                {preflightConflicts.length > 0 && (
+                  <div style={{ marginTop: 6, padding: '8px 12px', backgroundColor: '#FEE2E2', borderRadius: 6, fontSize: 12, color: '#991B1B' }}>
+                    <b>Conflict Detected:</b> {preflightConflicts[0].explanation}
+                    <div style={{ fontSize: 11, color: '#7F1D1D', marginTop: 2 }}>
+                      Recommendation: {preflightConflicts[0].resolution_recommendation}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="label-sm">Requirement Description</label>
@@ -3462,6 +3646,170 @@ export function BrandtraceWorkspacePremium({ onBackToHero, initialTourOpen, onTo
             setTimeout(() => setSuccess(''), 3500);
           }}
         />
+      )}
+
+      {/* Feature Eight: Visual Brand Intelligence Modal (Logo Placement, Typography, Standalone OCR) */}
+      <VisualIntelligenceModal
+        isOpen={isVisualIntelModalOpen}
+        onClose={() => setIsVisualIntelModalOpen(false)}
+        defaultTab={visualIntelTab}
+      />
+
+      {/* Feature Nine: Brand Asset Similarity Comparison Modal */}
+      {isAssetCompareOpen && compareSourceAsset && (
+        <div className="bt-modal-backdrop" onClick={() => setIsAssetCompareOpen(false)}>
+          <div className="bt-modal" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
+            <div className="bt-modal-head">
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Compare Brand Asset Similarity</h3>
+              <button className="btn-icon" onClick={() => setIsAssetCompareOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div style={{ fontSize: 13, color: '#475569' }}>
+                Compare visual feature embeddings and perceptual equivalence against another registered brand asset.
+              </div>
+              <div style={{ padding: 12, background: '#F8FAF8', borderRadius: 8, border: '1px solid #DCE5DF', fontSize: 12 }}>
+                <b>Reference Asset:</b> {compareSourceAsset.name} ({compareSourceAsset.asset_type.toUpperCase()})
+              </div>
+              <div>
+                <label className="label-sm">Select Target Asset to Compare Against</label>
+                <select
+                  className="input-premium"
+                  value={compareTargetId}
+                  onChange={(e) => setCompareTargetId(e.target.value)}
+                  style={{ width: '100%', height: 38 }}
+                >
+                  {brandAssets
+                    .filter((a) => a.id !== compareSourceAsset.id)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.asset_type.toUpperCase()})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button className="btn-secondary btn-sm" onClick={() => setIsAssetCompareOpen(false)}>
+                  Cancel
+                </button>
+                <button
+                  className="btn-primary btn-sm"
+                  disabled={compareLoading || !compareTargetId}
+                  onClick={handleRunSimilarityCheck}
+                >
+                  {compareLoading ? 'Comparing...' : 'Run Similarity Analysis'}
+                </button>
+              </div>
+
+              {similarityError && (
+                <div style={{ padding: '8px 12px', background: '#FEE2E2', color: '#991B1B', borderRadius: 6, fontSize: 12 }}>
+                  {similarityError}
+                </div>
+              )}
+
+              {similarityResult && (
+                <div style={{ padding: 14, background: '#F8FAF8', border: '1px solid #DCE5DF', borderRadius: 8, display: 'grid', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>Perceptual Similarity Score:</span>
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        background: similarityResult.is_perceptually_equivalent ? '#ECFDF5' : '#FEF3C7',
+                        color: similarityResult.is_perceptually_equivalent ? '#065F46' : '#92400E',
+                      }}
+                    >
+                      {Math.round(similarityResult.similarity_score * 100)}%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569' }}>
+                    Result:{' '}
+                    <b>
+                      {similarityResult.is_perceptually_equivalent
+                        ? 'PERCEPTUALLY EQUIVALENT ASSET'
+                        : 'DISTINCT ASSET (NOT A DUPLICATE)'}
+                    </b>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feature Ten: Brand Asset Metadata Edit Modal */}
+      {isAssetEditOpen && editingAsset && (
+        <div className="bt-modal-backdrop" onClick={() => setIsAssetEditOpen(false)}>
+          <div className="bt-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div className="bt-modal-head">
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Edit Brand Asset Details</h3>
+              <button className="btn-icon" onClick={() => setIsAssetEditOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEditAsset} style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label className="label-sm">Asset Name</label>
+                <input
+                  className="input-premium"
+                  value={editingAsset.name}
+                  disabled
+                  style={{ width: '100%', opacity: 0.7 }}
+                />
+              </div>
+              <div>
+                <label className="label-sm">Approval Status</label>
+                <select
+                  className="input-premium"
+                  value={editAssetStatus}
+                  onChange={(e) => setEditAssetStatus(e.target.value)}
+                  style={{ width: '100%', height: 38 }}
+                >
+                  <option value="APPROVED">APPROVED</option>
+                  <option value="RESTRICTED">RESTRICTED</option>
+                  <option value="PENDING_REVIEW">PENDING_REVIEW</option>
+                  <option value="REJECTED">REJECTED</option>
+                </select>
+              </div>
+              <div>
+                <label className="label-sm">License Status</label>
+                <select
+                  className="input-premium"
+                  value={editAssetLicense}
+                  onChange={(e) => setEditAssetLicense(e.target.value)}
+                  style={{ width: '100%', height: 38 }}
+                >
+                  <option value="PROPRIETARY">PROPRIETARY</option>
+                  <option value="COMMERCIAL">COMMERCIAL</option>
+                  <option value="OPEN_SOURCE">OPEN_SOURCE</option>
+                  <option value="RESTRICTED">RESTRICTED</option>
+                </select>
+              </div>
+              <div>
+                <label className="label-sm">License & Usage Notes</label>
+                <textarea
+                  className="input-premium"
+                  rows={3}
+                  value={editAssetNotes}
+                  onChange={(e) => setEditAssetNotes(e.target.value)}
+                  placeholder="Permitted usage terms, campaign constraints, or copyright reference"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setIsAssetEditOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary btn-sm">
+                  Save Asset Details
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -4877,6 +5225,7 @@ function InsightsView({
   onActivateSuggestion,
   onTriggerReReview,
   onNavigateToDraft,
+  onRefreshNeeded,
 }: {
   insights: Insights | null;
   impactMap: ImpactMap | null;
@@ -4887,6 +5236,7 @@ function InsightsView({
   onActivateSuggestion?: (ruleId: string) => void;
   onTriggerReReview: (id: string) => void;
   onNavigateToDraft?: (reviewId: string) => void;
+  onRefreshNeeded?: () => void;
 }) {
   return (
     <div style={{ display: 'grid', gap: 24 }}>
@@ -4908,6 +5258,9 @@ function InsightsView({
 
       {/* Feature Seven: Database-Grounded Quality Telemetry Dashboard */}
       <QualityMetricsCards insights={insights} />
+
+      {/* Automated Expiry Background Worker & Proactive Scheduler */}
+      <ExpiryWorkerPanel role={role} onRefreshNeeded={onRefreshNeeded} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
         <div className="card-premium apple-card">

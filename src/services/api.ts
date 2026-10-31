@@ -370,6 +370,70 @@ export interface GovernanceAlert {
   created_at: string;
 }
 
+export interface OcrResponse {
+  status: 'SUCCESS' | 'EMPTY';
+  file_type: 'pdf' | 'image';
+  total_pages: number;
+  scanned_pages: number;
+  digital_pages: number;
+  extracted_text: string;
+  confidence: number;
+  words_detected: number;
+  extraction_method: string;
+  pages: any[];
+}
+
+export interface LogoPlacementResult {
+  matched: boolean;
+  placement_compliant: boolean;
+  clearspace_compliant: boolean;
+  clearspace_ratio: number;
+  scale_percentage: number;
+  relative_position?: {
+    detected_location: string;
+    bounding_box: [number, number, number, number];
+  };
+  findings: any[];
+  summary: string;
+}
+
+export interface TypographyComplianceResult {
+  compliant: boolean;
+  compliance_score: number;
+  detected_fonts: Array<{
+    font_family: string;
+    font_type: string;
+    pages: number[];
+    is_approved: boolean;
+  }>;
+  unapproved_fonts: string[];
+  heading_hierarchy_valid: boolean;
+  findings: any[];
+  summary: string;
+}
+
+export interface WorkerStatusResult {
+  scheduler_active: boolean;
+  interval_seconds: number;
+  last_scan_timestamp?: string;
+  total_jobs_executed: number;
+  recent_jobs: Array<{
+    id: string;
+    job_type: string;
+    status: string;
+    scanned_items: number;
+    new_alerts_created: number;
+    created_at: string;
+  }>;
+}
+
+export interface WorkspaceMember {
+  actor_id: string;
+  role: UserRole;
+  workspace_id: string;
+  created_at: string;
+}
+
 function getInitialRole(): UserRole {
   if (typeof window !== 'undefined') {
     const saved = sessionStorage.getItem('bt_demo_role') as UserRole;
@@ -644,4 +708,66 @@ export const api = {
     call<{ asset_1: string; asset_2: string; similarity_score: number; is_perceptually_equivalent: boolean }>(
       `/api/brand-assets/${assetId}/similarity?target_asset_id=${targetAssetId}`
     ),
+
+  // Feature 8: Standalone OCR Processing
+  processDocumentOcr: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return call<OcrResponse>('/api/documents/ocr', { method: 'POST', body: fd });
+  },
+
+  // Feature 9: Logo Placement & Clearspace Verification
+  checkLogoPlacement: (
+    canvasFile: File,
+    templateFile: File,
+    options?: {
+      expectedLocation?: string;
+      minScale?: number;
+      maxScale?: number;
+      minClearspaceRatio?: number;
+    }
+  ) => {
+    const fd = new FormData();
+    fd.append('canvas_file', canvasFile);
+    fd.append('template_file', templateFile);
+    if (options?.expectedLocation) fd.append('expected_location', options.expectedLocation);
+    if (options?.minScale !== undefined) fd.append('min_scale_pct', String(options.minScale));
+    if (options?.maxScale !== undefined) fd.append('max_scale_pct', String(options.maxScale));
+    if (options?.minClearspaceRatio !== undefined) fd.append('required_clearspace_ratio', String(options.minClearspaceRatio));
+    return call<LogoPlacementResult>('/api/brand-assets/placement-check', { method: 'POST', body: fd });
+  },
+
+  // Feature 10: Typography & Font Compliance Check
+  checkTypographyCompliance: (file: File, approvedFonts?: string[]) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (approvedFonts && approvedFonts.length > 0) {
+      fd.append('approved_fonts', approvedFonts.join(','));
+    }
+    return call<TypographyComplianceResult>('/api/documents/typography-check', { method: 'POST', body: fd });
+  },
+
+  // Feature 11: Expiry Worker Scheduler & Status
+  expiryWorkerStatus: () => call<WorkerStatusResult>('/api/governance/expiry-worker/status'),
+  startExpiryScheduler: (intervalSeconds: number = 3600) => {
+    const fd = new FormData();
+    fd.append('interval_seconds', String(intervalSeconds));
+    return call<{ status: string; interval_seconds: number }>('/api/governance/expiry-worker/start-scheduler', {
+      method: 'POST',
+      body: fd,
+    });
+  },
+  stopExpiryScheduler: () =>
+    call<{ status: string }>('/api/governance/expiry-worker/stop-scheduler', { method: 'POST' }),
+
+  // Feature 12: Workspace & Members Management
+  workspaceMembers: (workspaceId: string = 'ws_default') =>
+    call<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`),
+  addWorkspaceMember: (workspaceId: string, member: { actor_id: string; role: UserRole }) =>
+    call<WorkspaceMember>(`/api/workspaces/${workspaceId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(member),
+    }),
+  removeWorkspaceMember: (workspaceId: string, actorId: string) =>
+    call<{ status: string }>(`/api/workspaces/${workspaceId}/members/${actorId}`, { method: 'DELETE' }),
 };

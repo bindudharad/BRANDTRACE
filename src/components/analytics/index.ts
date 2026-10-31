@@ -8,3 +8,4 @@ export { InteractiveImpactGraph } from './InteractiveImpactGraph';
 export { EvidenceDecisionChain } from './EvidenceDecisionChain';
 export { GuidelineHealthMeters } from './GuidelineHealthMeters';
 export { HonestLimitationsBanner } from './HonestLimitationsBanner';
+export { ExpiryWorkerPanel } from './ExpiryWorkerPanel';
