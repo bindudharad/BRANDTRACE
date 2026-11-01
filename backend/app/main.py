@@ -334,9 +334,38 @@ app.add_middleware(
 # System & Setup Endpoints
 # -----------------------------------------------------------------------------
 
+def get_running_commit_sha() -> str:
+    """Dynamically resolve the running Git commit SHA.
+
+    Checks Render environment variable (RENDER_GIT_COMMIT), standard CI
+    variables, local git HEAD if available, and finally falls back to the
+    latest verified release commit SHA.
+    """
+    if os.getenv("RENDER_GIT_COMMIT"):
+        return os.environ["RENDER_GIT_COMMIT"].strip()
+    for var in ["GIT_COMMIT_SHA", "COMMIT_SHA", "VERCEL_GIT_COMMIT_SHA"]:
+        val = os.getenv(var)
+        if val:
+            return val.strip()
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "86492595ead0045b48454101dc65574da57b2583"
+
+
 @app.get("/api/health")
 def health():
-    commit_sha = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT_SHA") or "29456b15d1f8c60daf2f61e013772ffb7e7d3e9a"
+    commit_sha = get_running_commit_sha()
     return {
         "status": "ok",
         "service": "brandtrace",
@@ -344,15 +373,16 @@ def health():
         "commit_sha": commit_sha,
     }
 
+
 @app.get("/api/version")
 @app.get("/api/build-version")
 def version():
-    commit_sha = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT_SHA") or "29456b15d1f8c60daf2f61e013772ffb7e7d3e9a"
+    commit_sha = get_running_commit_sha()
     return {
+        "status": "ok",
         "service": "brandtrace",
         "version": "0.3.0",
         "commit_sha": commit_sha,
-        "build_timestamp": "2026-10-31T20:00:00Z",
         "environment": config.ENVIRONMENT,
     }
 

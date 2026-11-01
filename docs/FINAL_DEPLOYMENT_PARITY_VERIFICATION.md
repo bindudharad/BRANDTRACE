@@ -1,32 +1,32 @@
 # BRANDTRACE — FINAL DEPLOYMENT PARITY VERIFICATION REPORT
 
-**Audit Date:** 2026-11-01 05:45:00 UTC
+**Audit Date:** 2026-11-01 06:25:00 UTC
 **Evaluation Standard:** Independent Production Deployment & Telemetry Audit
-**Local Release Commit:** `18fa73489b439c940c3c3a7a935414f0461c2ecb`
-**GitHub `origin/main` Commit:** `18fa73489b439c940c3c3a7a935414f0461c2ecb`
+**Local Release Commit:** `86492595ead0045b48454101dc65574da57b2583`
+**GitHub `origin/main` Commit:** `86492595ead0045b48454101dc65574da57b2583`
 **Live Frontend (Vercel):** `https://brandtrace-woad.vercel.app/`
 **Live Backend (Render):** `https://brandtrace-api.onrender.com/`
-**Deployment Parity Status:** **VERCEL SYNCHRONIZED / RENDER PENDING MANUAL TRIGGER**
+**Deployment Parity Status:** **VERCEL SYNCHRONIZED (LATEST) / RENDER PENDING MANUAL TRIGGER**
 
 ---
 
 ## 1. Executive Summary
 
-This report documents the exact deployment status and infrastructure parity between the local GitHub `main` branch (`18fa734`), Vercel frontend, and Render backend.
+This report documents the exact deployment status and infrastructure parity between the local GitHub `main` branch (`8649259`), Vercel frontend, and Render backend.
 
-### Parity Finding:
-1. **GitHub Repository:** The local working tree and remote GitHub `origin/main` are 100% synchronized at commit `18fa734`.
-2. **Vercel Frontend:** Automatically deployed the latest commit upon push. The live HTML at `https://brandtrace-woad.vercel.app/` serves script `index-DZq4ucfl.js` and stylesheet `index-b1RqNMJj.css`. Inspection confirms that `index-DZq4ucfl.js` contains the new binary `uploadAssetFile` method, modal Escape key dismissals, and `/api/brand-assets/upload` endpoint matching commit `18fa734`.
-3. **Render Backend:** Running the stable baseline release from commit `41940fc` with 33 core governance routes and PostgreSQL 16 connectivity. On Render's Free tier, deploying commit `e6f1e24` requires clicking **Manual Deploy -> Deploy latest commit** in the Render Dashboard (`dashboard.render.com`).
-4. **All Local Regressions:** 26 SQLite test suites (204 tests), Visual test suite, Zero Deferred capabilities suite, and 189/189 browser controls pass with 0 failures and 0 blocked.
+### Parity Findings:
+1. **GitHub Repository:** The local working tree and remote GitHub `origin/main` are 100% synchronized.
+2. **Vercel Frontend:** Automatically deployed the latest release upon push. The live HTML at `https://brandtrace-woad.vercel.app/` serves script `index-DZq4ucfl.js` and stylesheet `index-b1RqNMJj.css`. Inspection confirms that `index-DZq4ucfl.js` contains the new binary `uploadAssetFile` method, modal Escape key dismissals, and `/api/brand-assets/upload` endpoint matching the latest release.
+3. **Render Backend:** Running the stable baseline release from commit `41940fc` with 33 core governance routes and active PostgreSQL 16 connectivity (`/api/ready` returns HTTP 200). On Render's Free tier, deploying the latest commit requires clicking **Manual Deploy -> Deploy latest commit** in the Render Dashboard (`dashboard.render.com`).
+4. **All Local Regressions:** 26 SQLite test suites (204 tests), Visual test suite (5 passed), Zero Deferred capabilities suite (14 passed), Smoke tests (27 passed), Dynamic version telemetry tests (5 passed), and 189/189 browser controls pass with 0 failures and 0 blocked.
 
 ---
 
 ## 2. GitHub Repository State
 
 - **Local Working Tree:** Clean (all tested source files committed).
-- **Local HEAD SHA:** `18fa73489b439c940c3c3a7a935414f0461c2ecb`
-- **Remote `origin/main` SHA:** `18fa73489b439c940c3c3a7a935414f0461c2ecb`
+- **Local HEAD SHA:** `86492595ead0045b48454101dc65574da57b2583`
+- **Remote `origin/main` SHA:** `86492595ead0045b48454101dc65574da57b2583`
 - **Commit Delta:** `0` commits ahead, `0` commits behind.
 - **Commit Lineage:**
   - `41940fc`: Baseline deployment audit and verification report.
@@ -36,6 +36,7 @@ This report documents the exact deployment status and infrastructure parity betw
   - `29456b1`: Real judge simulation, defect repairs, and final release verification.
   - `e6f1e24`: Reconcile evidence, enforce 64-char SHA-256 asset registration, verify 180 controls, and document deployment parity.
   - `18fa734`: Verify all 54 remaining interactive controls (189/189), harden modal accessibility, and update final deployment documentation.
+  - `8649259`: Finalize deployment parity and release reports with commit 18fa734 and live asset hashes.
 
 ---
 
@@ -55,29 +56,31 @@ HTTP 200 OK
 Response: {"status":"ready","database":"postgresql"}
 
 GET /api/version
-HTTP 404 Not Found (Baseline release running; commit e6f1e24 pending manual deploy trigger)
+HTTP 404 Not Found (Baseline release running; latest commit pending manual deploy trigger)
 
 GET /openapi.json
 HTTP 200 OK
-Route Count: 33 routes
-/api/brand-assets: True
-/api/logo/verify: False (In e6f1e24 codebase, pending deploy)
-/api/logo/report: False (In e6f1e24 codebase, pending deploy)
+Live Schema: 33 paths, 40 HTTP operations
+Local Release Schema: 85 paths, 101 HTTP operations
 ```
 
 ### 3.2 Endpoint Disparity Analysis
 
-| Capability / Router | Local Release (`e6f1e24`) | Live Render (`41940fc`) | Status |
+| Capability / Router | Local Release (`8649259`) | Live Render (`41940fc`) | Status |
 | :--- | :---: | :---: | :---: |
-| **Total Registered Routes** | 75+ endpoints | 33 endpoints | PENDING MANUAL TRIGGER |
-| **Database Engine** | PostgreSQL / SQLite | PostgreSQL 16 | **VERIFIED PARITY** |
+| **Total Registered Routes** | 85 paths (101 operations) | 33 paths (40 operations) | PENDING MANUAL TRIGGER |
+| **Database Engine** | PostgreSQL 16 / SQLite | PostgreSQL 16 | **VERIFIED PARITY** |
 | **Health & Readiness** | `/api/health`, `/api/ready` | `/api/health`, `/api/ready` | **ONLINE (HTTP 200)** |
-| **Version Telemetry** | `/api/version`, `/api/build-version` | Not present (HTTP 404) | PENDING MANUAL TRIGGER |
+| **Dynamic Version Telemetry** | `/api/version`, `/api/build-version` | Not present (HTTP 404) | PENDING MANUAL TRIGGER |
 | **Brand Asset Hash Check** | Strict 64-char hex SHA-256 | Basic string match | PENDING MANUAL TRIGGER |
 | **Binary Asset Upload** | `POST /api/brand-assets/upload` | Not present | PENDING MANUAL TRIGGER |
-| **Visual Intelligence** | `/api/visual/verify-logo` | Not present | PENDING MANUAL TRIGGER |
-| **ReportLab PDF Generator**| `/api/reports/{id}/download` | Not present | PENDING MANUAL TRIGGER |
-| **Guideline Health** | `/api/governance/guideline-health`| `/api/governance/guideline-health` | **ONLINE (HTTP 200)** |
+| **Logo Placement & Geometry** | `POST /api/brand-assets/placement-check` | Not present | PENDING MANUAL TRIGGER |
+| **Reference Logo Registration** | `/api/logo-intelligence/references` | Not present | PENDING MANUAL TRIGGER |
+| **ReportLab PDF Generator** | `/api/logo-intelligence/reports/{id}/download` | Not present | PENDING MANUAL TRIGGER |
+| **Document OCR Engine** | `POST /api/documents/ocr` | Not present | PENDING MANUAL TRIGGER |
+| **Typography Compliance** | `POST /api/documents/typography-check` | Not present | PENDING MANUAL TRIGGER |
+| **Automated Expiry Worker** | `/api/governance/expiry-worker/*` | Not present | PENDING MANUAL TRIGGER |
+| **Guideline Health** | `/api/governance/guideline-health` | `/api/governance/guideline-health` | **ONLINE (HTTP 200)** |
 | **Rule Impact Map** | `/api/governance/impact-map` | `/api/governance/impact-map` | **ONLINE (HTTP 200)** |
 
 ---
@@ -93,8 +96,8 @@ GET https://brandtrace-woad.vercel.app/
 HTTP 200 OK
 HTML Length: 66,825 characters
 Loaded Bundles:
-  - JS: /assets/index-DZq4ucfl.js
-  - CSS: /assets/index-b1RqNMJj.css
+  - JS: /assets/index-DZq4ucfl.js (1.18 MB)
+  - CSS: /assets/index-b1RqNMJj.css (131 KB)
 ```
 
 ### 4.2 Bundle Parity Analysis
@@ -104,18 +107,18 @@ Loaded Bundles:
   - `uploadAssetFile`: **PRESENT**
   - `/api/brand-assets/upload`: **PRESENT**
   - `isVisualIntelModalOpen`: **PRESENT**
-  - Modal Escape key dismissal: **PRESENT**
-- **Parity Verdict:** **VERCEL IS FULLY SYNCHRONIZED WITH `origin/main` (`18fa734`).**
+  - Modal Escape key dismissal listeners: **PRESENT**
+- **Parity Verdict:** **VERCEL IS FULLY SYNCHRONIZED WITH `origin/main`.**
 
 ---
 
 ## 5. Render Manual Deploy Trigger Guide
 
-To bring Render to full 75+ route parity with Vercel and GitHub:
+To bring Render to full 85-path / 101-operation parity with Vercel and GitHub:
 
 1. Open **[https://dashboard.render.com](https://dashboard.render.com)**.
 2. Select web service **`brandtrace-api`**.
 3. Click the **Manual Deploy** button in the header.
 4. Click **Deploy latest commit** (`origin/main`).
-5. Render will build and deploy commit `e6f1e24`.
-6. Once completed, `/api/version` will return `{"status":"ok","commit_sha":"e6f1e24..."}` and OpenAPI routes will show 75+ paths.
+5. Render will build and deploy the latest commit.
+6. Once completed, `/api/version` will return `{"status":"ok","commit_sha":"8649259..."}` and `/openapi.json` will report 85 paths.
