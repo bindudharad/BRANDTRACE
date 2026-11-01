@@ -9,7 +9,7 @@
 
 | Service | Target URL | Measured HTTP Status | Health Endpoint | Engine / Database | Deployed Hash / Version | Deployment Parity |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Frontend** | `https://brandtrace-woad.vercel.app/` | `HTTP 200 OK` | Direct HTML (66,825 B) | Vercel Edge CDN | `index-98ez-OUO.js` | **DEPLOYED (LATEST)** |
+| **Frontend** | `https://brandtrace-woad.vercel.app/` | `HTTP 200 OK` | Direct HTML (66,825 B) | Vercel Edge CDN | `index-DZq4ucfl.js` | **DEPLOYED (LATEST)** |
 | **Backend** | `https://brandtrace-api.onrender.com/` | `HTTP 200 OK` | `/api/health` | FastAPI / PostgreSQL | `version: 0.3.0` (33 routes) | **PENDING MANUAL TRIGGER** |
 | **Database** | Render Managed PostgreSQL | Connected | `/api/ready` | PostgreSQL 16 | Dual-Engine Ready | **VERIFIED (ONLINE)** |
 
@@ -37,7 +37,7 @@
 [PROBE] GET https://brandtrace-woad.vercel.app/
 [RESULT] HTTP 200 OK (HTML Length: 66,825 characters)
 [ASSETS LOADED]
-  - JavaScript Bundle: /assets/index-98ez-OUO.js (verified containing uploadAssetFile and /api/brand-assets/upload)
+  - JavaScript Bundle: /assets/index-DZq4ucfl.js (verified containing uploadAssetFile and /api/brand-assets/upload)
   - Stylesheet Bundle: /assets/index-b1RqNMJj.css
 ```
 
@@ -46,12 +46,12 @@
 ## 3. Git Revision & Parity Analysis
 
 ### Git Hash Comparison
-- **Remote `origin/main` HEAD:** `e6f1e24793a5980d23c170ebae989f26d8e8fd77`
-- **Local HEAD:** `e6f1e24793a5980d23c170ebae989f26d8e8fd77` (100% in sync with origin/main)
+- **Remote `origin/main` HEAD:** `18fa73489b439c940c3c3a7a935414f0461c2ecb`
+- **Local HEAD:** `18fa73489b439c940c3c3a7a935414f0461c2ecb` (100% in sync with origin/main)
 - **Latest Commit:**
-  `e6f1e24` — `feat(release): reconcile evidence, enforce 64-char SHA-256 asset registration, verify 180 controls, and document deployment parity`
+  `18fa734` — `feat(release): verify all 54 remaining interactive controls (189/189), harden modal accessibility, and update final deployment documentation`
 - **Live Deployed Revision Status:**
-  - **Vercel Frontend:** Successfully built and deployed from `origin/main` automatically upon push (`index-98ez-OUO.js`).
+  - **Vercel Frontend:** Successfully built and deployed from `origin/main` automatically upon push (`index-DZq4ucfl.js`).
   - **Render Backend:** Currently running the verified stable baseline release from commit `41940fc` (33 routes).
 - **Working Tree Improvements in `origin/main`:**
   - Case-insensitive header deduplication in `src/services/api.ts` (resolving Starlette comma-separated header join).
