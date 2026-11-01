@@ -1,6 +1,6 @@
 # BRANDTRACE — FINAL DEPLOYMENT SYNCHRONIZATION REPORT
 
-**Document Version:** 1.0.0
+**Document Version:** 2.0.0
 **Standard:** Production Environment Verification & Release Reconciliation
 **Date:** 2026-11-01
 **Scope:** Vercel Frontend, Render Backend (PostgreSQL), and GitHub Repository Reconciliation
@@ -12,7 +12,7 @@
 | Service | Target URL | Measured HTTP Status | Health Endpoint | Engine / Database | Deployed Hash / Version | Deployment Parity |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Frontend** | `https://brandtrace-woad.vercel.app/` | `HTTP 200 OK` | Direct HTML (66,825 B) | Vercel Edge CDN | `index-DZq4ucfl.js` | **DEPLOYED (LATEST)** |
-| **Backend** | `https://brandtrace-api.onrender.com/` | `HTTP 200 OK` | `/api/health` | FastAPI / PostgreSQL | `version: 0.3.0` (33 routes) | **PENDING MANUAL TRIGGER** |
+| **Backend** | `https://brandtrace-api.onrender.com/` | `HTTP 200 OK` | `/api/health` | FastAPI / PostgreSQL | Baseline commit `41940fc` (33 routes) | **PENDING MANUAL DEPLOYMENT** |
 | **Database** | Render Managed PostgreSQL | Connected | `/api/ready` | PostgreSQL 16 | Dual-Engine Ready | **VERIFIED (ONLINE)** |
 
 ---
@@ -28,6 +28,9 @@
 [PROBE] GET https://brandtrace-api.onrender.com/api/ready
 [RESULT] HTTP 200 OK
 [PAYLOAD] {"status":"ready","database":"postgresql"}
+
+[PROBE] GET https://brandtrace-api.onrender.com/api/version
+[RESULT] HTTP 404 Not Found (Baseline release running; latest main commit pending deployment)
 
 [PROBE] GET https://brandtrace-api.onrender.com/openapi.json
 [RESULT] HTTP 200 OK
@@ -48,13 +51,14 @@
 ## 3. Git Revision & Parity Analysis
 
 ### Git Hash Comparison
-- **Remote `origin/main` HEAD:** `86492595ead0045b48454101dc65574da57b2583`
-- **Local HEAD:** `86492595ead0045b48454101dc65574da57b2583` (100% in sync with origin/main)
+- **Remote `origin/main` HEAD:** `73adbc07a9286daf769d1c1aa843944cf94ef497`
+- **Application Code Commit:** `7638a3fb5154f92161f5cb3bcb194add2f1b8ae4`
+- **Local HEAD:** `73adbc07a9286daf769d1c1aa843944cf94ef497` (100% in sync with origin/main)
 - **Live Deployed Revision Status:**
   - **Vercel Frontend:** Successfully built and deployed from `origin/main` automatically upon push (`index-DZq4ucfl.js`).
-  - **Render Backend:** Currently running the verified stable baseline release from commit `41940fc` (33 routes).
-- **Working Tree Improvements in `origin/main`:**
-  - Dynamic commit resolution (`RENDER_GIT_COMMIT`, CI variables, git HEAD fallback) in `backend/app/main.py`.
+  - **Render Backend:** Currently running baseline release `41940fc` (33 routes).
+- **Subsystem Capabilities in `origin/main`:**
+  - Dynamic commit resolution (`RENDER_GIT_COMMIT`, CI variables, verified git HEAD fallback, reporting 'unknown' if unavailable without fabricating SHA).
   - Dedicated `/api/version` and `/api/build-version` endpoints for absolute deployment traceability.
   - Case-insensitive header deduplication in `src/services/api.ts` (resolving Starlette comma-separated header join).
   - Automatic demo persona provisioning in `backend/app/main.py:demo_reset`.
@@ -80,7 +84,7 @@
 
 ## 4. Render Backend Deployment Runbook
 
-On Render's Free web service tier, when automatic deploy is paused or queued, triggering the latest build requires a single manual action in the Render dashboard:
+Because no Render API token or webhook is exposed in the local environment, triggering the build requires a manual action in the Render dashboard:
 
 1. Log in to **[dashboard.render.com](https://dashboard.render.com/)**.
 2. Select the **`brandtrace-api`** web service.
@@ -91,16 +95,16 @@ On Render's Free web service tier, when automatic deploy is paused or queued, tr
    pip install -r backend/requirements.txt
    uvicorn app.main:app --host 0.0.0.0 --port $PORT --app-dir backend
    ```
-6. Once deployed, `/api/version` will report the latest commit and the endpoint count will expand to 85 paths (101 operations).
+6. Once deployed, `/api/version` will report the deployed commit and the endpoint count will expand to 85 paths (101 operations).
 
 ---
 
 ## 5. Post-Deployment Verification Checklist
 
 1. [x] **Local Working Tree:** Clean, 0 uncommitted changes.
-2. [x] **GitHub main Branch:** Synchronized at `86492595ead0045b48454101dc65574da57b2583`.
+2. [x] **GitHub main Branch:** Synchronized at `73adbc07a9286daf769d1c1aa843944cf94ef497`.
 3. [x] **Vercel Frontend:** Online at `https://brandtrace-woad.vercel.app/` serving `index-DZq4ucfl.js`.
 4. [x] **PostgreSQL Database:** Connected, verified via `GET https://brandtrace-api.onrender.com/api/ready`.
 5. [x] **Local SQLite Dev Database:** `brandtrace.db` (983,040 bytes) 100% untouched and preserved.
 6. [x] **Interactive Controls:** 189/189 controls exercised and verified in active browser simulation.
-7. [ ] **Render 85-Path Deployment:** Pending manual click in Render Dashboard.
+7. [ ] **Render 85-Path Deployment:** Pending manual action in Render Dashboard.

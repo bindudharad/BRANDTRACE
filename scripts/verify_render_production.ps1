@@ -8,22 +8,55 @@
 
 param(
     [string]$BackendBase = "https://brandtrace-api.onrender.com",
-    [string]$ExpectedCommit = "7638a3fb5154f92161f5cb3bcb194add2f1b8ae4",
+    [string]$ExpectedCommit = "",
+    [string]$AppCodeCommit = "7638a3fb5154f92161f5cb3bcb194add2f1b8ae4",
+    [switch]$AutoDetect = $true,
     [switch]$Strict = $false
 )
 
 $ErrorActionPreference = "Continue"
 
+# 1. Resolve Intended Deployment Commit SHA
+$resolvedVia = ""
+if ($AutoDetect -and [string]::IsNullOrWhiteSpace($ExpectedCommit)) {
+    try {
+        $gitOrigin = (& git rev-parse origin/main 2>$null)
+        if ($gitOrigin -and $gitOrigin.Trim().Length -ge 7) {
+            $ExpectedCommit = $gitOrigin.Trim()
+            $resolvedVia = "Auto-detected from git (origin/main)"
+        } else {
+            $gitHead = (& git rev-parse HEAD 2>$null)
+            if ($gitHead -and $gitHead.Trim().Length -ge 7) {
+                $ExpectedCommit = $gitHead.Trim()
+                $resolvedVia = "Auto-detected from git (HEAD)"
+            }
+        }
+    } catch {
+        # Git not in path or not in repository
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($ExpectedCommit)) {
+    $ExpectedCommit = "73adbc07a9286daf769d1c1aa843944cf94ef497"
+    $resolvedVia = "Default fallback release SHA"
+} else {
+    if (-not $resolvedVia) {
+        $resolvedVia = "Explicit parameter"
+    }
+}
+
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "BRANDTRACE - LIVE RENDER PRODUCTION VERIFICATION (PowerShell 5.1)" -ForegroundColor Cyan
-Write-Host "Target Base: $BackendBase" -ForegroundColor Cyan
-Write-Host "Expected Commit: $ExpectedCommit" -ForegroundColor Cyan
+Write-Host "Target Base:                    $BackendBase" -ForegroundColor Cyan
+Write-Host "Intended Deployment Commit SHA: $ExpectedCommit ($resolvedVia)" -ForegroundColor Cyan
+Write-Host "Application Code Commit SHA:    $AppCodeCommit" -ForegroundColor Cyan
+Write-Host "Strict Verification Mode:       $($Strict.ToString().ToUpper())" -ForegroundColor Cyan
 Write-Host "======================================================================" -ForegroundColor Cyan
 
 $allPassed = $true
 $issues = @()
 
-# Helper function to invoke HTTP with clean error capture
+# Helper function to invoke HTTP with clean error capture (PowerShell 5.1 compatible)
 function Invoke-SafeRest($url) {
     try {
         $req = [System.Net.WebRequest]::Create($url)
@@ -102,23 +135,37 @@ if ($ready.Success -and $ready.StatusCode -eq 200) {
 Write-Host "`n[3/5] Checking /api/version..." -ForegroundColor Yellow
 $version = Invoke-SafeRest "$BackendBase/api/version"
 if ($version.Success -and $version.StatusCode -eq 200) {
-    $liveCommit = $version.Json.commit_sha
-    Write-Host "  [PASS] /api/version HTTP 200 OK (Running commit: $liveCommit)" -ForegroundColor Green
-    if ($liveCommit -and $liveCommit.StartsWith($ExpectedCommit.Substring(0, 7))) {
-        Write-Host "  [PASS] Live commit matches expected release commit ($ExpectedCommit)" -ForegroundColor Green
+    $liveCommit = ""
+    if ($version.Json.commit_sha) {
+        $liveCommit = $version.Json.commit_sha.ToString().Trim().ToLower()
+    }
+    $targetCommit = $ExpectedCommit.Trim().ToLower()
+    $appCommit = $AppCodeCommit.Trim().ToLower()
+
+    Write-Host "  [PASS] /api/version HTTP 200 OK (Reported commit_sha: '$liveCommit')" -ForegroundColor Green
+
+    if ($liveCommit -eq $targetCommit -or ($liveCommit.Length -ge 7 -and $targetCommit.StartsWith($liveCommit)) -or ($targetCommit.Length -ge 7 -and $liveCommit.StartsWith($targetCommit))) {
+        Write-Host "  [MATCH] Live commit exactly matches intended deployment commit ($ExpectedCommit)" -ForegroundColor Green
+    } elseif ($liveCommit -eq $appCommit -or ($liveCommit.Length -ge 7 -and $appCommit.StartsWith($liveCommit)) -or ($appCommit.Length -ge 7 -and $liveCommit.StartsWith($appCommit))) {
+        Write-Host "  [WARNING] Live commit matches application-code commit ($AppCodeCommit), but NOT the intended deployment commit ($ExpectedCommit)." -ForegroundColor Yellow
+        Write-Host "            Parent commit must not be treated as the actual deployed revision." -ForegroundColor Yellow
+        $issues += "Live commit matches parent application commit ($AppCodeCommit) instead of target deployment ($ExpectedCommit)"
+        if ($Strict) { $allPassed = $false }
     } else {
-        Write-Host "  [WARN] Live commit ($liveCommit) does not match expected ($ExpectedCommit)" -ForegroundColor Yellow
+        Write-Host "  [MISMATCH] Live commit ($liveCommit) does not match expected deployment commit ($ExpectedCommit)" -ForegroundColor Red
+        $issues += "Commit mismatch: Live is '$liveCommit', expected '$ExpectedCommit'"
+        if ($Strict) { $allPassed = $false }
     }
 } elseif ($version.StatusCode -eq 404) {
     Write-Host "  [PENDING] /api/version returned HTTP 404 Not Found" -ForegroundColor Yellow
     Write-Host "  Note: Render web service is currently serving baseline release (41940fc)." -ForegroundColor Yellow
     Write-Host "  Manual Deploy action required in Render Dashboard to deploy commit $ExpectedCommit." -ForegroundColor Yellow
-    $issues += "/api/version HTTP 404 (Pending Render Deployment)"
+    $issues += "/api/version HTTP 404 (Render web service has not deployed commit $ExpectedCommit)"
     if ($Strict) { $allPassed = $false }
 } else {
     Write-Host "  [FAIL] /api/version returned status $($version.StatusCode): $($version.Error)" -ForegroundColor Red
     $allPassed = $false
-    $issues += "/api/version failed"
+    $issues += "/api/version failed with status $($version.StatusCode)"
 }
 
 # 4. Check /openapi.json & Path / Operation counts
@@ -148,8 +195,8 @@ if ($openapi.Success -and $openapi.StatusCode -eq 200) {
         Write-Host "    - $p"
     }
 
-    # 5. Check Required Capabilities vs Live Schema
-    Write-Host "`n[5/5] Checking Critical Route Availability..." -ForegroundColor Yellow
+    # 5. Check Critical and Advanced Routes
+    Write-Host "`n[5/5] Checking Route Availability..." -ForegroundColor Yellow
     $criticalRequired = @(
         "/api/health",
         "/api/ready",
@@ -201,7 +248,7 @@ if ($openapi.Success -and $openapi.StatusCode -eq 200) {
     }
     if ($missingAdvanced.Count -gt 0 -and $Strict) {
         $allPassed = $false
-        $issues += "Missing $($missingAdvanced.Count) advanced routes in live OpenAPI"
+        $issues += "Missing $($missingAdvanced.Count) advanced routes in live OpenAPI (Pending Deploy)"
     }
 } else {
     Write-Host "  [FAIL] /openapi.json returned status $($openapi.StatusCode): $($openapi.Error)" -ForegroundColor Red
@@ -213,8 +260,8 @@ if ($openapi.Success -and $openapi.StatusCode -eq 200) {
 Write-Host "`n======================================================================" -ForegroundColor Cyan
 Write-Host "RENDER PRODUCTION VERIFICATION SUMMARY" -ForegroundColor Cyan
 Write-Host "======================================================================" -ForegroundColor Cyan
-if ($issues.Count -eq 0) {
-    Write-Host "ALL CHECKS PASSED: Live Render production backend is 100% synchronized." -ForegroundColor Green
+if ($allPassed -and $issues.Count -eq 0) {
+    Write-Host "ALL CHECKS PASSED: Live Render production backend matches expected release." -ForegroundColor Green
     exit 0
 } else {
     Write-Host "VERIFICATION RESULT: PENDING DEPLOYMENT / ISSUES DETECTED" -ForegroundColor Yellow
@@ -222,10 +269,10 @@ if ($issues.Count -eq 0) {
         Write-Host "  - $iss" -ForegroundColor Yellow
     }
     if ($Strict) {
-        Write-Host "`nExiting with code 1 (Strict Mode Enabled)." -ForegroundColor Red
+        Write-Host "`nExiting with code 1 (Strict Mode Enabled: verification failed)." -ForegroundColor Red
         exit 1
     } else {
-        Write-Host "`nExiting with code 0 (Informational / Diagnosis Mode)." -ForegroundColor Green
+        Write-Host "`nExiting with code 0 (Informational / Diagnostic Mode)." -ForegroundColor Green
         exit 0
     }
 }

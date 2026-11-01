@@ -19,10 +19,10 @@ Every architectural capability required by the BrandTrace specification has been
 
 ### Key Synchronization Metrics:
 - **Git Branch:** `main` (fully tracked and up to date with `origin/main`).
-- **Committed Ancestry:** Continuous, linear history covering all releases (`b47735f` -> `41940fc` -> `52e7fa9` -> `6980c0a` -> `f69dca2` -> `29456b1` -> `e6f1e24` -> `18fa734` -> `8649259`).
+- **Committed Ancestry:** Continuous, linear history covering all releases (`b47735f` -> `41940fc` -> `52e7fa9` -> `6980c0a` -> `f69dca2` -> `29456b1` -> `e6f1e24` -> `18fa734` -> `8649259` -> `7638a3f` -> `73adbc0`).
 - **OpenAPI Registered Paths:** **85 distinct paths** across 12 domain routers.
 - **HTTP Registered Operations:** **101 operations** (GET, POST, PUT, DELETE).
-- **Backend Test Suite:** 26 SQLite regression test files (204 passed, 1 skipped, 0 failed), 5 visual tests, 14 zero-deferred capability tests, 27 smoke tests, and 5 dynamic version telemetry tests (100% pass rate).
+- **Backend Test Suite:** 26 SQLite regression test files (204 passed, 1 skipped, 0 failed), 5 visual tests, 14 zero-deferred capability tests, 27 smoke tests, and 9 dynamic version telemetry tests (100% pass rate).
 - **Frontend Code Quality:** `npm run lint` clean (0 TypeScript or ESLint errors), `npm run build` completed in 9.16s with 63,908 characters prerendered into production HTML.
 - **Interactive Control Coverage:** 189 of 189 user interface controls exercised with 100% pass rate in headless Chromium browser simulation.
 - **Database Safety:** Zero test records persisted to `brandtrace.db`; byte size verified exactly at 983,040 bytes with 320 clean seed records intact.
@@ -51,6 +51,8 @@ The commit graph demonstrates rigorous, milestone-driven progression without div
 | `e6f1e24` | 2026-11-01 | `feat(release): reconcile evidence, enforce 64-char SHA-256 asset registration, verify 180 controls, and document deployment parity` |
 | `18fa734` | 2026-11-01 | `feat(release): verify all 54 remaining interactive controls (189/189), harden modal accessibility, and update final deployment documentation` |
 | `8649259` | 2026-11-01 | `docs: finalize deployment parity and release reports with commit 18fa734 and live asset hashes` |
+| `7638a3f` | 2026-11-01 | `feat(release): implement dynamic version telemetry, PowerShell verification, and final production parity reports` |
+| `73adbc0` | 2026-11-01 | `chore(release): update default expected commit hash to 7638a3f` |
 
 ---
 
@@ -113,7 +115,7 @@ Every core engine in BRANDTRACE has been verified against strict engineering sta
 | Visual Intelligence | `backend/tests/test_round3_visual.py` | 5 | 5 | 0 | 0 | 1.8s |
 | Zero Deferred Capabilities | `backend/tests/test_zero_deferred_capabilities.py` | 14 | 14 | 0 | 0 | 2.4s |
 | Smoke Tests | `backend/tests/smoke_test.py` | 27 | 27 | 0 | 0 | 3.1s |
-| Version Telemetry | `backend/tests/test_version_telemetry.py` | 5 | 5 | 0 | 0 | 1.1s |
+| Version Telemetry | `backend/tests/test_version_telemetry.py` | 9 | 9 | 0 | 0 | 1.5s |
 | Frontend Type Check | `src/` (`npm run lint`) | 128 files | Clean | 0 | 0 | 4.8s |
 | Frontend Production Build | `dist/` (`npm run build`) | Bundle | Complete | 0 | 0 | 9.2s |
 | Judge Browser Journey | `scripts/judge_journey_simulation.py` | 18 steps | 18 | 0 | 0 | 28.5s |

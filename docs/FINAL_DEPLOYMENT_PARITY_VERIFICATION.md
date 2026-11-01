@@ -1,32 +1,34 @@
 # BRANDTRACE — FINAL DEPLOYMENT PARITY VERIFICATION REPORT
 
-**Audit Date:** 2026-11-01 06:25:00 UTC
+**Document Version:** 2.0.0
+**Audit Date:** 2026-11-01 06:45:00 UTC
 **Evaluation Standard:** Independent Production Deployment & Telemetry Audit
-**Local Release Commit:** `86492595ead0045b48454101dc65574da57b2583`
-**GitHub `origin/main` Commit:** `86492595ead0045b48454101dc65574da57b2583`
+**Intended Deployment Commit (`origin/main`):** `73adbc07a9286daf769d1c1aa843944cf94ef497`
+**Application Code Commit:** `7638a3fb5154f92161f5cb3bcb194add2f1b8ae4`
 **Live Frontend (Vercel):** `https://brandtrace-woad.vercel.app/`
 **Live Backend (Render):** `https://brandtrace-api.onrender.com/`
-**Deployment Parity Status:** **VERCEL SYNCHRONIZED (LATEST) / RENDER PENDING MANUAL TRIGGER**
+**Deployment Parity Status:** **VERCEL SYNCHRONIZED / RENDER PENDING MANUAL DEPLOYMENT**
 
 ---
 
 ## 1. Executive Summary
 
-This report documents the exact deployment status and infrastructure parity between the local GitHub `main` branch (`8649259`), Vercel frontend, and Render backend.
+This report documents the exact deployment parity between the local GitHub `main` branch, Vercel production frontend, and Render production backend.
 
 ### Parity Findings:
-1. **GitHub Repository:** The local working tree and remote GitHub `origin/main` are 100% synchronized.
+1. **GitHub Repository:** The local working tree and remote GitHub `origin/main` are 100% synchronized at commit `73adbc0` (application code at `7638a3f`).
 2. **Vercel Frontend:** Automatically deployed the latest release upon push. The live HTML at `https://brandtrace-woad.vercel.app/` serves script `index-DZq4ucfl.js` and stylesheet `index-b1RqNMJj.css`. Inspection confirms that `index-DZq4ucfl.js` contains the new binary `uploadAssetFile` method, modal Escape key dismissals, and `/api/brand-assets/upload` endpoint matching the latest release.
-3. **Render Backend:** Running the stable baseline release from commit `41940fc` with 33 core governance routes and active PostgreSQL 16 connectivity (`/api/ready` returns HTTP 200). On Render's Free tier, deploying the latest commit requires clicking **Manual Deploy -> Deploy latest commit** in the Render Dashboard (`dashboard.render.com`).
-4. **All Local Regressions:** 26 SQLite test suites (204 tests), Visual test suite (5 passed), Zero Deferred capabilities suite (14 passed), Smoke tests (27 passed), Dynamic version telemetry tests (5 passed), and 189/189 browser controls pass with 0 failures and 0 blocked.
+3. **Render Backend:** Currently executing the baseline release from commit `41940fc` (deployed Oct 30, 2026) with 33 core governance routes and active PostgreSQL 16 connectivity (`/api/ready` returns HTTP 200). Render has not yet deployed the latest commits.
+4. **All Local Regressions:** 26 SQLite test suites (204 tests), Visual test suite (5 passed), Zero Deferred capabilities suite (14 passed), Smoke tests (27 passed), Dynamic version telemetry tests (9 passed), and 189/189 browser controls pass with 0 failures and 0 blocked.
 
 ---
 
 ## 2. GitHub Repository State
 
 - **Local Working Tree:** Clean (all tested source files committed).
-- **Local HEAD SHA:** `86492595ead0045b48454101dc65574da57b2583`
-- **Remote `origin/main` SHA:** `86492595ead0045b48454101dc65574da57b2583`
+- **Local HEAD SHA:** `73adbc07a9286daf769d1c1aa843944cf94ef497`
+- **Remote `origin/main` SHA:** `73adbc07a9286daf769d1c1aa843944cf94ef497`
+- **Application Implementation SHA:** `7638a3fb5154f92161f5cb3bcb194add2f1b8ae4`
 - **Commit Delta:** `0` commits ahead, `0` commits behind.
 - **Commit Lineage:**
   - `41940fc`: Baseline deployment audit and verification report.
@@ -37,6 +39,8 @@ This report documents the exact deployment status and infrastructure parity betw
   - `e6f1e24`: Reconcile evidence, enforce 64-char SHA-256 asset registration, verify 180 controls, and document deployment parity.
   - `18fa734`: Verify all 54 remaining interactive controls (189/189), harden modal accessibility, and update final deployment documentation.
   - `8649259`: Finalize deployment parity and release reports with commit 18fa734 and live asset hashes.
+  - `7638a3f`: Implement dynamic version telemetry, PowerShell verification, and final production parity reports.
+  - `73adbc0`: Update default expected commit hash to latest main.
 
 ---
 
@@ -56,7 +60,7 @@ HTTP 200 OK
 Response: {"status":"ready","database":"postgresql"}
 
 GET /api/version
-HTTP 404 Not Found (Baseline release running; latest commit pending manual deploy trigger)
+HTTP 404 Not Found (Baseline release running; commit 73adbc0 pending manual deployment)
 
 GET /openapi.json
 HTTP 200 OK
@@ -66,20 +70,20 @@ Local Release Schema: 85 paths, 101 HTTP operations
 
 ### 3.2 Endpoint Disparity Analysis
 
-| Capability / Router | Local Release (`8649259`) | Live Render (`41940fc`) | Status |
+| Capability / Router | Local Release (`73adbc0` / `7638a3f`) | Live Render (`41940fc`) | Status |
 | :--- | :---: | :---: | :---: |
-| **Total Registered Routes** | 85 paths (101 operations) | 33 paths (40 operations) | PENDING MANUAL TRIGGER |
+| **Total Registered Routes** | 85 paths (101 operations) | 33 paths (40 operations) | PENDING MANUAL DEPLOYMENT |
 | **Database Engine** | PostgreSQL 16 / SQLite | PostgreSQL 16 | **VERIFIED PARITY** |
 | **Health & Readiness** | `/api/health`, `/api/ready` | `/api/health`, `/api/ready` | **ONLINE (HTTP 200)** |
-| **Dynamic Version Telemetry** | `/api/version`, `/api/build-version` | Not present (HTTP 404) | PENDING MANUAL TRIGGER |
-| **Brand Asset Hash Check** | Strict 64-char hex SHA-256 | Basic string match | PENDING MANUAL TRIGGER |
-| **Binary Asset Upload** | `POST /api/brand-assets/upload` | Not present | PENDING MANUAL TRIGGER |
-| **Logo Placement & Geometry** | `POST /api/brand-assets/placement-check` | Not present | PENDING MANUAL TRIGGER |
-| **Reference Logo Registration** | `/api/logo-intelligence/references` | Not present | PENDING MANUAL TRIGGER |
-| **ReportLab PDF Generator** | `/api/logo-intelligence/reports/{id}/download` | Not present | PENDING MANUAL TRIGGER |
-| **Document OCR Engine** | `POST /api/documents/ocr` | Not present | PENDING MANUAL TRIGGER |
-| **Typography Compliance** | `POST /api/documents/typography-check` | Not present | PENDING MANUAL TRIGGER |
-| **Automated Expiry Worker** | `/api/governance/expiry-worker/*` | Not present | PENDING MANUAL TRIGGER |
+| **Dynamic Version Telemetry** | `/api/version`, `/api/build-version` | Not present (HTTP 404) | PENDING MANUAL DEPLOYMENT |
+| **Brand Asset Hash Check** | Strict 64-char hex SHA-256 | Basic string match | PENDING MANUAL DEPLOYMENT |
+| **Binary Asset Upload** | `POST /api/brand-assets/upload` | Not present | PENDING MANUAL DEPLOYMENT |
+| **Logo Placement & Geometry** | `POST /api/brand-assets/placement-check` | Not present | PENDING MANUAL DEPLOYMENT |
+| **Reference Logo Registration** | `/api/logo-intelligence/references` | Not present | PENDING MANUAL DEPLOYMENT |
+| **ReportLab PDF Generator** | `/api/logo-intelligence/reports/{id}/download` | Not present | PENDING MANUAL DEPLOYMENT |
+| **Document OCR Engine** | `POST /api/documents/ocr` | Not present | PENDING MANUAL DEPLOYMENT |
+| **Typography Compliance** | `POST /api/documents/typography-check` | Not present | PENDING MANUAL DEPLOYMENT |
+| **Automated Expiry Worker** | `/api/governance/expiry-worker/*` | Not present | PENDING MANUAL DEPLOYMENT |
 | **Guideline Health** | `/api/governance/guideline-health` | `/api/governance/guideline-health` | **ONLINE (HTTP 200)** |
 | **Rule Impact Map** | `/api/governance/impact-map` | `/api/governance/impact-map` | **ONLINE (HTTP 200)** |
 
@@ -121,4 +125,8 @@ To bring Render to full 85-path / 101-operation parity with Vercel and GitHub:
 3. Click the **Manual Deploy** button in the header.
 4. Click **Deploy latest commit** (`origin/main`).
 5. Render will build and deploy the latest commit.
-6. Once completed, `/api/version` will return `{"status":"ok","commit_sha":"8649259..."}` and `/openapi.json` will report 85 paths.
+6. Once completed, execute:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\verify_render_production.ps1 -Strict
+   ```
+7. Verify that `/api/version` returns HTTP 200 with the exact commit SHA and `/openapi.json` reports 85 paths.

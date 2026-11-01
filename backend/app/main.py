@@ -338,15 +338,28 @@ def get_running_commit_sha() -> str:
     """Dynamically resolve the running Git commit SHA.
 
     Checks Render environment variable (RENDER_GIT_COMMIT), standard CI
-    variables, local git HEAD if available, and finally falls back to the
-    latest verified release commit SHA.
+    variables (GIT_COMMIT_SHA, COMMIT_SHA, VERCEL_GIT_COMMIT_SHA), local git
+    HEAD if available and verified, and reports 'unknown' if exact deployment
+    metadata is unavailable. Never returns a fabricated hardcoded fallback.
     """
-    if os.getenv("RENDER_GIT_COMMIT"):
-        return os.environ["RENDER_GIT_COMMIT"].strip()
+    hex_pattern = re.compile(r"^[0-9a-fA-F]{7,40}$")
+
+    # 1. Render runtime environment variable
+    render_commit = os.getenv("RENDER_GIT_COMMIT")
+    if render_commit:
+        cleaned = render_commit.strip()
+        if hex_pattern.match(cleaned):
+            return cleaned.lower()
+
+    # 2. Standard CI build metadata environment variables
     for var in ["GIT_COMMIT_SHA", "COMMIT_SHA", "VERCEL_GIT_COMMIT_SHA"]:
-        val = os.getenv(var)
-        if val:
-            return val.strip()
+        ci_commit = os.getenv(var)
+        if ci_commit:
+            cleaned = ci_commit.strip()
+            if hex_pattern.match(cleaned):
+                return cleaned.lower()
+
+    # 3. Local Git repository fallback (when available and verified)
     try:
         import subprocess
         result = subprocess.run(
@@ -357,10 +370,14 @@ def get_running_commit_sha() -> str:
             check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
+            cleaned = result.stdout.strip()
+            if hex_pattern.match(cleaned):
+                return cleaned.lower()
     except Exception:
         pass
-    return "7638a3fb5154f92161f5cb3bcb194add2f1b8ae4"
+
+    # 4. If exact metadata is unavailable, report 'unknown'
+    return "unknown"
 
 
 @app.get("/api/health")
@@ -379,11 +396,11 @@ def health():
 def version():
     commit_sha = get_running_commit_sha()
     return {
-        "status": "ok",
         "service": "brandtrace",
         "version": "0.3.0",
         "commit_sha": commit_sha,
         "environment": config.ENVIRONMENT,
+        "status": "ok",
     }
 
 @app.get("/api/ready")
