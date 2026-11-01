@@ -360,7 +360,7 @@ def get_running_commit_sha() -> str:
             return result.stdout.strip()
     except Exception:
         pass
-    return "86492595ead0045b48454101dc65574da57b2583"
+    return "7638a3fb5154f92161f5cb3bcb194add2f1b8ae4"
 
 
 @app.get("/api/health")

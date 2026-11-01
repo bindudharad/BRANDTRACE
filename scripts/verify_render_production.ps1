@@ -8,7 +8,7 @@
 
 param(
     [string]$BackendBase = "https://brandtrace-api.onrender.com",
-    [string]$ExpectedCommit = "86492595ead0045b48454101dc65574da57b2583",
+    [string]$ExpectedCommit = "7638a3fb5154f92161f5cb3bcb194add2f1b8ae4",
     [switch]$Strict = $false
 )
 
