@@ -64,6 +64,16 @@ export const JudgeAccessModal: React.FC<JudgeAccessModalProps> = ({
 }) => {
   const [selectedRoleType, setSelectedRoleType] = useState<JudgeRoleType>(initialRole || 'reviewer');
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const selectedRole = JUDGE_ROLES.find((r) => r.role === selectedRoleType) || JUDGE_ROLES[1];

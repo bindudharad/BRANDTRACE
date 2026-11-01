@@ -4,6 +4,16 @@ import { Info, Shield, CheckCircle2, AlertTriangle, Lock, ExternalLink, X } from
 export const HonestLimitationsBanner: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModalOpen(false);
+    };
+    if (modalOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [modalOpen]);
+
   return (
     <>
       {/* Subdued, elegant info pill */}

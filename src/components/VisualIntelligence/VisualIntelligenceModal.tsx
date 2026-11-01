@@ -50,6 +50,18 @@ export const VisualIntelligenceModal: React.FC<VisualIntelligenceModalProps> = (
 }) => {
   const [activeTab, setActiveTab] = useState<'verify' | 'references' | 'standards' | 'reports' | 'typography' | 'ocr'>(defaultTab);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
   // Tab 1: Verify Logo State
   const [verifyFile, setVerifyFile] = useState<File | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);

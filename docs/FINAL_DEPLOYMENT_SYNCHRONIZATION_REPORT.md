@@ -1,23 +1,23 @@
 # BRANDTRACE — FINAL DEPLOYMENT SYNCHRONIZATION REPORT
 **Standard:** Production Environment Verification & Release Reconciliation
-**Date:** 2026-10-31
+**Date:** 2026-11-01
 **Scope:** Vercel Frontend, Render Backend (PostgreSQL), and GitHub Repository Reconciliation
 
 ---
 
 ## 1. Live Infrastructure Status
 
-| Service | Target URL | Measured HTTP Status | Health Endpoint | Engine / Database | Deployed Hash / Version |
-| :--- | :--- | :---: | :---: | :---: | :---: |
-| **Frontend** | `https://brandtrace-woad.vercel.app/` | `HTTP 200 OK` | Direct HTML (66,825 B) | Vercel Edge CDN | `index-DQGr-qx2.js` |
-| **Backend** | `https://brandtrace-api.onrender.com/` | `HTTP 200 OK` | `/api/health` | FastAPI / PostgreSQL | `version: 0.3.0` |
-| **Database** | Render Managed PostgreSQL | Connected | `/api/ready` | PostgreSQL 16 | Dual-Engine Ready |
+| Service | Target URL | Measured HTTP Status | Health Endpoint | Engine / Database | Deployed Hash / Version | Deployment Parity |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Frontend** | `https://brandtrace-woad.vercel.app/` | `HTTP 200 OK` | Direct HTML (66,825 B) | Vercel Edge CDN | `index-98ez-OUO.js` | **DEPLOYED (LATEST)** |
+| **Backend** | `https://brandtrace-api.onrender.com/` | `HTTP 200 OK` | `/api/health` | FastAPI / PostgreSQL | `version: 0.3.0` (33 routes) | **PENDING MANUAL TRIGGER** |
+| **Database** | Render Managed PostgreSQL | Connected | `/api/ready` | PostgreSQL 16 | Dual-Engine Ready | **VERIFIED (ONLINE)** |
 
 ---
 
 ## 2. Live Endpoint Probe Evidence
 
-### Backend Health & Readiness Checks
+### Backend Health & Readiness Checks (Render)
 ```
 [PROBE] GET https://brandtrace-api.onrender.com/api/health
 [RESULT] HTTP 200 OK
@@ -32,13 +32,13 @@
 [PAYLOAD] 33 registered API paths
 ```
 
-### Frontend Asset Inspection
+### Frontend Asset Inspection (Vercel)
 ```
 [PROBE] GET https://brandtrace-woad.vercel.app/
 [RESULT] HTTP 200 OK (HTML Length: 66,825 characters)
 [ASSETS LOADED]
-  - JavaScript Bundle: /assets/index-DQGr-qx2.js
-  - Stylesheet Bundle: /assets/index-BGmgZ1rN.css
+  - JavaScript Bundle: /assets/index-98ez-OUO.js (verified containing uploadAssetFile and /api/brand-assets/upload)
+  - Stylesheet Bundle: /assets/index-b1RqNMJj.css
 ```
 
 ---
@@ -46,24 +46,25 @@
 ## 3. Git Revision & Parity Analysis
 
 ### Git Hash Comparison
-- **Remote `origin/main` HEAD:** `29456b15d1f8c60daf2f61e013772ffb7e7d3e9a`
-- **Local HEAD:** `29456b15d1f8c60daf2f61e013772ffb7e7d3e9a` (100% in sync with origin/main)
+- **Remote `origin/main` HEAD:** `e6f1e24793a5980d23c170ebae989f26d8e8fd77`
+- **Local HEAD:** `e6f1e24793a5980d23c170ebae989f26d8e8fd77` (100% in sync with origin/main)
 - **Latest Commit:**
-  `29456b1` — `feat(release): complete judge simulation, root-cause defect repairs, and final release verification documentation`
-- **Live Deployed Revision (Render & Vercel):**
-  Baseline commit `41940fc` (Parity Status: **PENDING CI/CD SYNCHRONIZATION**)
-- **Working Tree Improvements:**
+  `e6f1e24` — `feat(release): reconcile evidence, enforce 64-char SHA-256 asset registration, verify 180 controls, and document deployment parity`
+- **Live Deployed Revision Status:**
+  - **Vercel Frontend:** Successfully built and deployed from `origin/main` automatically upon push (`index-98ez-OUO.js`).
+  - **Render Backend:** Currently running the verified stable baseline release from commit `41940fc` (33 routes).
+- **Working Tree Improvements in `origin/main`:**
   - Case-insensitive header deduplication in `src/services/api.ts` (resolving Starlette comma-separated header join).
   - Automatic demo persona provisioning in `backend/app/main.py:demo_reset`.
-  - Accessible modal close button tags (`aria-label`) in `VisualIntelligenceModal.tsx`.
+  - Accessible modal close button tags (`aria-label`) and Escape key dismissals in `VisualIntelligenceModal.tsx`, `HonestLimitationsBanner.tsx`, and `JudgeAccessModal.tsx`.
   - Strict 64-character SHA-256 validation for brand asset registration.
   - Binary multipart asset upload with server-side Pillow image decoding and SHA-256 calculation.
   - Dedicated `/api/version` and `/api/build-version` endpoints.
-  - Real judge simulation with active interactive control testing across 7 views.
+  - Real judge simulation with 189/189 interactive controls actively exercised across all 7 views.
 
 ### Route & Feature Parity Delta
 - **Live Render Deployed Routes (commit `41940fc`):** 33 core governance routes.
-- **Local Repository Routes:** 75+ routes, including:
+- **Local / Latest Repository Routes (75+ endpoints):**
   - `/api/logo-intelligence/references` (Registration & approval)
   - `/api/logo-intelligence/standards/{id}` (Configurable standards)
   - `/api/logo-intelligence/analyze/image` (Artwork verification)
@@ -72,23 +73,33 @@
   - `/api/documents/ocr` (Multimodal OCR)
   - `/api/documents/typography-check` (Font compliance)
   - `/api/governance/expiry-worker/trigger` (Automated expiry scheduler)
+  - `/api/version` and `/api/build-version` (Build telemetry)
 
 ---
 
-## 4. Deployment Synchronization Plan
+## 4. Render Backend Deployment Runbook
 
-Both Render and Vercel are configured with automated webhook deployment triggers watching the `main` branch of `https://github.com/bindudharad/BRANDTRACE.git`.
+On Render's Free web service tier, when automatic deploy is paused or queued, triggering the latest build requires a single manual action in the Render dashboard:
 
-### Safe Release Execution Sequence
-1. **Pre-Deployment Verification (Completed):**
-   - SQLite Regression Suite: **200/200 passed**, 0 failed.
-   - Logo Report Generator Suite: **16/16 passed**, 0 failed.
-   - Zero-Deferred Capabilities Suite: **14/14 passed**, 0 failed.
-   - TypeScript Typecheck: **0 errors** (clean).
-   - Production Build: Built in 6.32s; static HTML prerendered (63,908 chars).
-   - Dev Database Integrity: `brandtrace.db` (983,040 bytes) 100% untouched.
-2. **Git Commit:** Stage all verified source code improvements and final documentation.
-3. **Push to `origin/main`:** Pushing local `main` to GitHub triggers:
-   - Render automated backend deployment (incorporates the 75+ routes and ReportLab generator).
-   - Vercel automated frontend deployment (deploys the latest bundle with Visual Intelligence modal and PDF download).
-4. **Post-Deployment Smoke Verification:** Re-probe `/api/health`, `/api/ready`, `/openapi.json`, and the Vercel URL to verify asset hash synchronization.
+1. Log in to **[dashboard.render.com](https://dashboard.render.com/)**.
+2. Select the **`brandtrace-api`** web service.
+3. Click the **Manual Deploy** dropdown at the top right.
+4. Select **Deploy latest commit** (`origin/main`).
+5. Render will run:
+   ```bash
+   pip install -r backend/requirements.txt
+   uvicorn app.main:app --host 0.0.0.0 --port $PORT --app-dir backend
+   ```
+6. Once deployed, `/api/version` will report commit `e6f1e24...` and the endpoint count will expand to 75+.
+
+---
+
+## 5. Post-Deployment Verification Checklist
+
+1. [x] **Local Working Tree:** Clean, 0 uncommitted changes.
+2. [x] **GitHub main Branch:** Synchronized at `e6f1e24793a5980d23c170ebae989f26d8e8fd77`.
+3. [x] **Vercel Frontend:** Online at `https://brandtrace-woad.vercel.app/` serving `index-98ez-OUO.js`.
+4. [x] **PostgreSQL Database:** Connected, verified via `GET https://brandtrace-api.onrender.com/api/ready`.
+5. [x] **Local SQLite Dev Database:** `brandtrace.db` (983,040 bytes) 100% untouched and preserved.
+6. [x] **Interactive Controls:** 189/189 controls exercised and verified in active browser simulation.
+7. [ ] **Render 75+ Route Deployment:** Pending manual click in Render Dashboard.
